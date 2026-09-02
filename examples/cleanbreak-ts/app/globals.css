@@ -501,6 +501,51 @@ a {
   margin: 22px 0 0;
 }
 
+.agent-ready-copy,
+.agent-proposal {
+  display: grid;
+  gap: 0.4rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--lime) 10%, var(--paper));
+}
+
+.agent-ready-copy p,
+.agent-proposal p {
+  margin: 0;
+}
+
+.agent-timeline {
+  display: grid;
+  gap: 0.8rem;
+  margin: 1.25rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agent-timeline li {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+  border-left: 3px solid var(--lime);
+  background: var(--paper);
+}
+
+.agent-timeline li div,
+.agent-timeline li span {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.agent-timeline p,
+.agent-timeline small {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .primary-button {
   color: white;
   background: var(--forest);

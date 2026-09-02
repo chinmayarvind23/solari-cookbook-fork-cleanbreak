@@ -1,7 +1,13 @@
 import Link from "next/link"
 
-import { resetDemoAction, runSolariBrowserTestAction } from "@/app/actions"
+import {
+  resetDemoAction,
+  runAgentDryRunAction,
+  runSolariBrowserTestAction,
+} from "@/app/actions"
+import { AgentRunButton } from "@/components/agent-run-button"
 import { Brand } from "@/components/brand"
+import { agentRuntimeReadiness, latestAgentJob } from "@/lib/agent/runtime"
 import { DEMO_SCENARIOS, scenarioDetails } from "@/lib/demo"
 import { getDemoState } from "@/lib/db"
 import { latestSolariRun, solariReadiness } from "@/lib/solari/runtime"
@@ -15,12 +21,14 @@ function formatDuration(durationMs: number | null): string {
 export default async function DemoLabPage({
   searchParams,
 }: {
-  searchParams: Promise<{ solari?: string }>
+  searchParams: Promise<{ agent?: string; solari?: string }>
 }) {
   const state = getDemoState()
   const readiness = solariReadiness()
   const latestRun = latestSolariRun()
-  const { solari } = await searchParams
+  const agentReadiness = agentRuntimeReadiness()
+  const agentJob = latestAgentJob()
+  const { agent, solari } = await searchParams
   const canRun = readiness.apiKeyConfigured && readiness.publicTargetValid
 
   return (
@@ -85,6 +93,157 @@ export default async function DemoLabPage({
             </article>
           )
         })}
+      </section>
+
+      <section className="solari-lab page-width" id="agent-run">
+        <div className="solari-lab-heading">
+          <div>
+            <p className="eyebrow">Autonomous cancellation dry run</p>
+            <h2>Navigate safely to the approval boundary</h2>
+            <p>
+              OpenAI plans one observation-scoped action at a time. A
+              deterministic policy checks every action, rejects retention
+              offers, and stops before the final cancellation control.
+            </p>
+          </div>
+          <form action={runAgentDryRunAction}>
+            <AgentRunButton disabled={!agentReadiness.ready} />
+          </form>
+        </div>
+
+        <div
+          className={`solari-readiness ${agentReadiness.ready ? "ready" : "blocked"}`}
+        >
+          <strong>
+            {agentReadiness.ready ? "Agent ready" : "Configuration needed"}
+          </strong>
+          <span>{agentReadiness.message}</span>
+          <small>Planner model: {agentReadiness.model}</small>
+          {agent === "configuration" ? (
+            <small>The run did not start. Check server-only settings.</small>
+          ) : null}
+        </div>
+
+        {agentJob ? (
+          <article className="solari-run-card agent-run-card">
+            <div className="solari-run-title">
+              <div>
+                <span>Latest autonomous run</span>
+                <strong>{agentJob.state}</strong>
+              </div>
+              <small>{new Date(agentJob.createdAt).toLocaleString()}</small>
+            </div>
+
+            {agentJob.state === "AWAITING_APPROVAL" ? (
+              <div className="agent-ready-copy">
+                <strong>Ready to cancel</strong>
+                <p>
+                  CleanBreak reached the final cancellation step and stopped for
+                  your approval.
+                </p>
+                <span>Approval required</span>
+              </div>
+            ) : null}
+
+            <dl className="solari-run-facts">
+              <div>
+                <dt>Steps</dt>
+                <dd>{agentJob.steps}</dd>
+              </div>
+              <div>
+                <dt>Model calls</dt>
+                <dd>{agentJob.modelCalls}</dd>
+              </div>
+              <div>
+                <dt>Tokens</dt>
+                <dd>
+                  {agentJob.inputTokens} in / {agentJob.outputTokens} out
+                </dd>
+              </div>
+              <div>
+                <dt>Retention</dt>
+                <dd>
+                  {agentJob.retentionsEncountered} seen;{" "}
+                  {agentJob.retentionsRejected} rejected
+                </dd>
+              </div>
+              <div>
+                <dt>Unsafe actions</dt>
+                <dd>{agentJob.unsafeActionsExecuted}</dd>
+              </div>
+              <div>
+                <dt>Duration</dt>
+                <dd>{formatDuration(agentJob.durationMs)}</dd>
+              </div>
+            </dl>
+
+            {agentJob.proposedAction ? (
+              <div className="agent-proposal">
+                <span>Proposed final action</span>
+                <strong>{agentJob.proposedAction.targetName}</strong>
+                <small>{agentJob.proposedAction.currentUrl}</small>
+                {agentJob.proposedAction.visibleTerms.map((term) => (
+                  <p key={term}>{term}</p>
+                ))}
+              </div>
+            ) : null}
+
+            {agentJob.errorMessage ? (
+              <p className="solari-run-error">
+                {agentJob.errorCode}: {agentJob.errorMessage}
+              </p>
+            ) : null}
+
+            <ol className="agent-timeline">
+              {agentJob.timeline.map((step) => (
+                <li key={step.id}>
+                  <div>
+                    <strong>
+                      {step.stepNumber}.{" "}
+                      {step.targetName ?? step.actionType ?? "Planner error"}
+                    </strong>
+                    <span>
+                      {step.policyResult} · {step.risk ?? "UNKNOWN"} ·{" "}
+                      {step.confidence === null
+                        ? "no confidence"
+                        : `${Math.round(step.confidence * 100)}% confidence`}
+                    </span>
+                  </div>
+                  <p>{step.reasoning ?? step.policyReason}</p>
+                  <small>{step.url}</small>
+                  {step.screenshotUrl ? (
+                    <a href={step.screenshotUrl} target="_blank">
+                      Screenshot ↗
+                    </a>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+
+            <div className="solari-evidence-links">
+              {agentJob.replayUrl ? (
+                <a href={agentJob.replayUrl} rel="noreferrer" target="_blank">
+                  Open session replay ↗
+                </a>
+              ) : (
+                <span>Replay URL is not available yet.</span>
+              )}
+            </div>
+            {agentJob.latestScreenshotUrl ? (
+              // Guarded local evidence from the latest observed step.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                className="solari-screenshot"
+                alt="Latest page observed by the cancellation agent"
+                src={agentJob.latestScreenshotUrl}
+              />
+            ) : null}
+          </article>
+        ) : (
+          <p className="solari-empty">
+            No autonomous dry run has been recorded yet.
+          </p>
+        )}
       </section>
 
       <section className="solari-lab page-width" id="solari-run">

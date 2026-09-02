@@ -1,0 +1,150 @@
+export type CancellationJobState =
+  "READY" | "NAVIGATING" | "AWAITING_APPROVAL" | "FAILED"
+
+export type AgentActionType =
+  | "click"
+  | "fill"
+  | "select"
+  | "navigate"
+  | "final_cancel_candidate"
+  | "needs_human"
+  | "failure"
+
+export type ActionRisk =
+  | "SAFE_NAVIGATION"
+  | "RETENTION_OFFER"
+  | "FINAL_CANCELLATION"
+  | "ACCOUNT_DELETION"
+  | "FINANCIAL_COMMITMENT"
+  | "UNKNOWN"
+
+export type PolicyResult = "ALLOW" | "INTERCEPT" | "BLOCK"
+
+export type BrowserDecision = {
+  type: AgentActionType
+  observationId: string
+  targetId: string | null
+  value: string | null
+  url: string | null
+  reasoning: string
+  confidence: number | null
+  reason: string | null
+}
+
+export type ObservationAction = {
+  id: string
+  role: string
+  name: string
+  kind: string
+  href: string | null
+  checked: boolean | null
+  value: string | null
+}
+
+export type PageObservation = {
+  id: string
+  observedAt: string
+  url: string
+  title: string
+  headings: string[]
+  visibleText: string
+  actions: ObservationAction[]
+}
+
+export type PolicyDecision = {
+  result: PolicyResult
+  risk: ActionRisk
+  reason: string
+  target: ObservationAction | null
+}
+
+export type UsageMetrics = {
+  inputTokens: number
+  outputTokens: number
+}
+
+export type PlannerResult = {
+  decision: BrowserDecision
+  usage: UsageMetrics
+}
+
+export type AgentMetrics = {
+  steps: number
+  retentionsEncountered: number
+  retentionsRejected: number
+  modelCalls: number
+  inputTokens: number
+  outputTokens: number
+  policyBlocks: number
+  unsafeActionsExecuted: 0
+  durationMs: number
+}
+
+export type ProposedAction = {
+  detectedAt: string
+  targetRole: string
+  targetName: string
+  currentUrl: string
+  feeCents: number | null
+  accessUntil: string | null
+  visibleTerms: string[]
+  screenshotPath: string | null
+}
+
+export type AgentStep = {
+  id: string
+  jobId: string
+  stepNumber: number
+  observationId: string
+  observedAt: string
+  url: string
+  title: string
+  actionType: AgentActionType | null
+  targetId: string | null
+  targetRole: string | null
+  targetName: string | null
+  reasoning: string | null
+  confidence: number | null
+  risk: ActionRisk | null
+  policyResult: PolicyResult | "ERROR"
+  policyReason: string
+  screenshotPath: string | null
+  durationMs: number
+}
+
+export type CancellationJob = AgentMetrics & {
+  id: string
+  subscriptionId: string
+  state: CancellationJobState
+  scenario: string
+  model: string
+  targetUrl: string
+  createdAt: string
+  completedAt: string | null
+  sessionId: string | null
+  profileId: string | null
+  recordingStatus: "PENDING" | "AVAILABLE" | "UNAVAILABLE" | "FAILED"
+  replayUrl: string | null
+  latestScreenshotPath: string | null
+  browserReleased: boolean
+  clientClosed: boolean
+  profileStateSaved: boolean
+  errorCode: string | null
+  errorMessage: string | null
+}
+
+export type PublicAgentJob = Omit<
+  CancellationJob,
+  "latestScreenshotPath" | "steps"
+> & {
+  steps: number
+  latestScreenshotUrl: string | null
+  timeline: Array<
+    Omit<AgentStep, "screenshotPath"> & { screenshotUrl: string | null }
+  >
+  proposedAction:
+    | (Omit<ProposedAction, "screenshotPath"> & {
+        screenshotUrl: string | null
+      })
+    | null
+}

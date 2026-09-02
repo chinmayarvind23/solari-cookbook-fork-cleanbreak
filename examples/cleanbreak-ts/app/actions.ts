@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 
 import { isDemoScenario } from "@/lib/demo"
 import { confirmDemoCancellation, resetDemo } from "@/lib/db"
+import { runCancellationAgent } from "@/lib/agent/runtime"
 import { runLiveSolariSmoke } from "@/lib/solari/runtime"
 
 function safeReturnPath(value: FormDataEntryValue | null): string {
@@ -43,5 +44,18 @@ export async function runSolariBrowserTestAction(): Promise<void> {
       throw error
     }
     redirect("/demo?solari=configuration#solari-run")
+  }
+}
+
+export async function runAgentDryRunAction(): Promise<void> {
+  try {
+    await runCancellationAgent()
+    revalidatePath("/demo")
+    redirect("/demo#agent-run")
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "digest" in error) {
+      throw error
+    }
+    redirect("/demo?agent=configuration#agent-run")
   }
 }

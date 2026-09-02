@@ -237,7 +237,7 @@ function ManageScreen() {
           <p>Stop renewal and keep access through your paid period.</p>
         </div>
         <FixtureButton href="/demo/streammax/cancel" tone="danger">
-          Cancel membership
+          Start cancellation
         </FixtureButton>
       </div>
     </div>

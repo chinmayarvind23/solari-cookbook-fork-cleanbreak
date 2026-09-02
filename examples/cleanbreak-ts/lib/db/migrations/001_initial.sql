@@ -50,3 +50,75 @@ CREATE TABLE IF NOT EXISTS solari_runs (
 
 CREATE INDEX IF NOT EXISTS idx_solari_runs_created_at
   ON solari_runs(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS cancellation_jobs (
+  id TEXT PRIMARY KEY,
+  subscription_id TEXT NOT NULL REFERENCES subscriptions(id),
+  state TEXT NOT NULL CHECK (state IN ('READY', 'NAVIGATING', 'AWAITING_APPROVAL', 'FAILED')),
+  scenario TEXT NOT NULL,
+  model TEXT NOT NULL,
+  target_url TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  completed_at TEXT,
+  session_id TEXT,
+  profile_id TEXT,
+  recording_status TEXT NOT NULL DEFAULT 'PENDING' CHECK (
+    recording_status IN ('PENDING', 'AVAILABLE', 'UNAVAILABLE', 'FAILED')
+  ),
+  replay_url TEXT,
+  latest_screenshot_path TEXT,
+  steps INTEGER NOT NULL DEFAULT 0,
+  retentions_encountered INTEGER NOT NULL DEFAULT 0,
+  retentions_rejected INTEGER NOT NULL DEFAULT 0,
+  model_calls INTEGER NOT NULL DEFAULT 0,
+  input_tokens INTEGER NOT NULL DEFAULT 0,
+  output_tokens INTEGER NOT NULL DEFAULT 0,
+  policy_blocks INTEGER NOT NULL DEFAULT 0,
+  unsafe_actions_executed INTEGER NOT NULL DEFAULT 0 CHECK (unsafe_actions_executed = 0),
+  duration_ms INTEGER,
+  browser_released INTEGER NOT NULL DEFAULT 0 CHECK (browser_released IN (0, 1)),
+  client_closed INTEGER NOT NULL DEFAULT 0 CHECK (client_closed IN (0, 1)),
+  profile_state_saved INTEGER NOT NULL DEFAULT 0 CHECK (profile_state_saved IN (0, 1)),
+  error_code TEXT,
+  error_message TEXT
+);
+
+CREATE TABLE IF NOT EXISTS agent_steps (
+  id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL REFERENCES cancellation_jobs(id) ON DELETE CASCADE,
+  step_number INTEGER NOT NULL,
+  observation_id TEXT NOT NULL,
+  observed_at TEXT NOT NULL,
+  url TEXT NOT NULL,
+  title TEXT NOT NULL,
+  action_type TEXT,
+  target_id TEXT,
+  target_role TEXT,
+  target_name TEXT,
+  reasoning TEXT,
+  confidence REAL,
+  risk TEXT,
+  policy_result TEXT NOT NULL,
+  policy_reason TEXT NOT NULL,
+  screenshot_path TEXT,
+  duration_ms INTEGER NOT NULL,
+  UNIQUE(job_id, step_number)
+);
+
+CREATE TABLE IF NOT EXISTS proposed_actions (
+  job_id TEXT PRIMARY KEY REFERENCES cancellation_jobs(id) ON DELETE CASCADE,
+  detected_at TEXT NOT NULL,
+  target_role TEXT NOT NULL,
+  target_name TEXT NOT NULL,
+  current_url TEXT NOT NULL,
+  fee_cents INTEGER,
+  access_until TEXT,
+  visible_terms_json TEXT NOT NULL,
+  screenshot_path TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_cancellation_jobs_created_at
+  ON cancellation_jobs(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_agent_steps_job
+  ON agent_steps(job_id, step_number);
