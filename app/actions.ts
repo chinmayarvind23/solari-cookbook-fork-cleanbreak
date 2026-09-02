@@ -8,6 +8,7 @@ import { confirmDemoCancellation, resetDemo } from "@/lib/db"
 import { runCancellationAgent } from "@/lib/agent/runtime"
 import { abortCancellation, approveCancellation } from "@/lib/agent/commit"
 import { runLiveSolariSmoke } from "@/lib/solari/runtime"
+import { runIndependentVerification } from "@/lib/verification/runtime"
 
 function safeReturnPath(value: FormDataEntryValue | null): string {
   return typeof value === "string" && value.startsWith("/")
@@ -79,10 +80,13 @@ export async function approveCancellationAction(
     throw new Error("Invalid approval intent.")
   }
   try {
-    await approveCancellation(
+    const committed = await approveCancellation(
       approvalField(formData, "jobId"),
       approvalField(formData, "fingerprint"),
     )
+    if (committed.state === "VERIFYING") {
+      await runIndependentVerification(committed.id)
+    }
     revalidatePath("/demo")
     redirect("/demo#agent-run")
   } catch (error) {
@@ -92,6 +96,14 @@ export async function approveCancellationAction(
     revalidatePath("/demo")
     redirect("/demo?agent=approval-blocked#agent-run")
   }
+}
+
+export async function runVerificationAction(formData: FormData): Promise<void> {
+  const jobId = approvalField(formData, "jobId")
+  await runIndependentVerification(jobId)
+  revalidatePath("/")
+  revalidatePath("/demo")
+  redirect("/demo#agent-run")
 }
 
 export async function abortCancellationAction(

@@ -5,7 +5,9 @@ const transitions: Record<CancellationJobState, CancellationJobState[]> = {
   NAVIGATING: ["AWAITING_APPROVAL", "FAILED"],
   AWAITING_APPROVAL: ["COMMITTING", "VERIFYING", "ABORTED"],
   COMMITTING: ["VERIFYING"],
-  VERIFYING: [],
+  VERIFYING: ["VERIFIED", "INCONCLUSIVE", "FAILED"],
+  VERIFIED: [],
+  INCONCLUSIVE: [],
   ABORTED: [],
   FAILED: [],
 }

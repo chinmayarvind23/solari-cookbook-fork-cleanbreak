@@ -17,7 +17,7 @@ function SubmitButton({ intent }: { intent: "approve" | "abort" }) {
     >
       {pending
         ? intent === "approve"
-          ? "Arming cancellation…"
+          ? "Canceling, then verifying independently…"
           : "Aborting…"
         : intent === "approve"
           ? "Approve cancellation"

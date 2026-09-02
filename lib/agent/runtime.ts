@@ -102,6 +102,17 @@ function initialJob(options: {
     destructiveClicksExecuted: 0,
     automaticDestructiveRetries: 0,
     commitsWithUnknownOutcome: 0,
+    verificationStartedAt: null,
+    verificationsStarted: 0,
+    verifiedCount: 0,
+    notVerifiedCount: 0,
+    inconclusiveCount: 0,
+    verificationDurationMs: null,
+    verificationSessionCreated: 0,
+    verificationScreenshots: 0,
+    verificationReplayAvailable: 0,
+    falseVerified: 0,
+    freshSessionMismatchFailures: 0,
   }
 }
 

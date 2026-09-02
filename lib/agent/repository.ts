@@ -8,6 +8,8 @@ import type {
   CommitAttempt,
   ProposedAction,
   PublicAgentJob,
+  VerificationEvidence,
+  VerificationResult,
 } from "@/lib/agent/types"
 
 type Row = Record<string, unknown>
@@ -51,6 +53,17 @@ const jobColumns: Record<keyof CancellationJob, string> = {
   destructiveClicksExecuted: "destructive_clicks_executed",
   automaticDestructiveRetries: "automatic_destructive_retries",
   commitsWithUnknownOutcome: "commits_with_unknown_outcome",
+  verificationStartedAt: "verification_started_at",
+  verificationsStarted: "verifications_started",
+  verifiedCount: "verified_count",
+  notVerifiedCount: "not_verified_count",
+  inconclusiveCount: "inconclusive_count",
+  verificationDurationMs: "verification_duration_ms",
+  verificationSessionCreated: "verification_session_created",
+  verificationScreenshots: "verification_screenshots",
+  verificationReplayAvailable: "verification_replay_available",
+  falseVerified: "false_verified",
+  freshSessionMismatchFailures: "fresh_session_mismatch_failures",
 }
 
 function databaseValue(value: unknown): SQLInputValue {
@@ -103,6 +116,67 @@ function jobFrom(row: Row): CancellationJob {
     destructiveClicksExecuted: Number(row.destructive_clicks_executed ?? 0),
     automaticDestructiveRetries: 0,
     commitsWithUnknownOutcome: Number(row.commits_with_unknown_outcome ?? 0),
+    verificationStartedAt:
+      (row.verification_started_at as string | null) ?? null,
+    verificationsStarted: Number(row.verifications_started ?? 0),
+    verifiedCount: Number(row.verified_count ?? 0),
+    notVerifiedCount: Number(row.not_verified_count ?? 0),
+    inconclusiveCount: Number(row.inconclusive_count ?? 0),
+    verificationDurationMs:
+      (row.verification_duration_ms as number | null) ?? null,
+    verificationSessionCreated: Number(row.verification_session_created ?? 0),
+    verificationScreenshots: Number(row.verification_screenshots ?? 0),
+    verificationReplayAvailable: Number(row.verification_replay_available ?? 0),
+    falseVerified: 0,
+    freshSessionMismatchFailures: Number(
+      row.fresh_session_mismatch_failures ?? 0,
+    ),
+  }
+}
+
+function evidenceFrom(row: Row): VerificationEvidence {
+  return {
+    id: String(row.id),
+    jobId: String(row.job_id),
+    phase: "VERIFICATION",
+    capturedAt: String(row.captured_at),
+    url: String(row.url),
+    title: String(row.title),
+    visibleExcerpt: String(row.visible_excerpt),
+    normalizedState: JSON.parse(String(row.normalized_state_json)),
+    sessionId: String(row.session_id),
+    screenshotPath: (row.screenshot_path as string | null) ?? null,
+  }
+}
+
+function verificationFrom(
+  row: Row,
+  evidence: VerificationEvidence[],
+): VerificationResult {
+  return {
+    jobId: String(row.job_id),
+    status: row.status as VerificationResult["status"],
+    subscriptionStatus:
+      row.subscription_status as VerificationResult["subscriptionStatus"],
+    autoRenew: row.auto_renew === null ? null : Boolean(row.auto_renew),
+    nextChargeDate: (row.next_charge_date as string | null) ?? null,
+    nextChargeAmountCents:
+      (row.next_charge_amount_cents as number | null) ?? null,
+    accessUntil: (row.access_until as string | null) ?? null,
+    evidence,
+    satisfiedCriteria: JSON.parse(String(row.satisfied_criteria_json)),
+    failedCriteria: JSON.parse(String(row.failed_criteria_json)),
+    explanation: String(row.explanation),
+    verificationSessionId: String(row.verification_session_id),
+    verifiedAt: String(row.verified_at),
+    targetUrl: String(row.target_url),
+    recordingStatus:
+      row.recording_status as VerificationResult["recordingStatus"],
+    replayUrl: (row.replay_url as string | null) ?? null,
+    browserReleased: Boolean(row.browser_released),
+    clientClosed: Boolean(row.client_closed),
+    errorCode: (row.error_code as string | null) ?? null,
+    errorMessage: (row.error_message as string | null) ?? null,
   }
 }
 
@@ -196,6 +270,151 @@ export function createAgentRepository(database: DatabaseSync = getDatabase()) {
         )
         .get() as Row | undefined
       return row ? jobFrom(row) : null
+    },
+    beginVerification(jobId: string, startedAt: string): boolean {
+      const result = database
+        .prepare(
+          `UPDATE cancellation_jobs
+           SET verification_started_at = ?, verifications_started = verifications_started + 1
+           WHERE id = ? AND state = 'VERIFYING' AND verification_started_at IS NULL`,
+        )
+        .run(startedAt, jobId)
+      return result.changes === 1
+    },
+    markVerificationSessionCreated(jobId: string): void {
+      database
+        .prepare(
+          `UPDATE cancellation_jobs SET verification_session_created = 1 WHERE id = ?`,
+        )
+        .run(jobId)
+    },
+    getVerificationEvidence(jobId: string): VerificationEvidence[] {
+      return (
+        database
+          .prepare(
+            `SELECT * FROM verification_evidence WHERE job_id = ? ORDER BY captured_at`,
+          )
+          .all(jobId) as Row[]
+      ).map(evidenceFrom)
+    },
+    getVerification(jobId: string): VerificationResult | null {
+      const row = database
+        .prepare("SELECT * FROM verification_results WHERE job_id = ?")
+        .get(jobId) as Row | undefined
+      return row
+        ? verificationFrom(row, this.getVerificationEvidence(jobId))
+        : null
+    },
+    finishVerification(options: {
+      result: VerificationResult
+      evidence: VerificationEvidence | null
+      durationMs: number
+      freshSessionMismatch: boolean
+    }): void {
+      const { result, evidence, durationMs, freshSessionMismatch } = options
+      database.exec("BEGIN IMMEDIATE")
+      try {
+        if (evidence) {
+          database
+            .prepare(
+              `INSERT INTO verification_evidence (
+                id, job_id, phase, captured_at, url, title, visible_excerpt,
+                normalized_state_json, session_id, screenshot_path
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            )
+            .run(
+              evidence.id,
+              evidence.jobId,
+              evidence.phase,
+              evidence.capturedAt,
+              evidence.url,
+              evidence.title,
+              evidence.visibleExcerpt,
+              JSON.stringify(evidence.normalizedState),
+              evidence.sessionId,
+              evidence.screenshotPath,
+            )
+        }
+        database
+          .prepare(
+            `INSERT INTO verification_results (
+              job_id, status, subscription_status, auto_renew, next_charge_date,
+              next_charge_amount_cents, access_until, satisfied_criteria_json,
+              failed_criteria_json, explanation, verification_session_id,
+              verified_at, target_url, recording_status, replay_url,
+              browser_released, client_closed, error_code, error_message
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            result.jobId,
+            result.status,
+            result.subscriptionStatus,
+            result.autoRenew === null ? null : Number(result.autoRenew),
+            result.nextChargeDate,
+            result.nextChargeAmountCents,
+            result.accessUntil,
+            JSON.stringify(result.satisfiedCriteria),
+            JSON.stringify(result.failedCriteria),
+            result.explanation,
+            result.verificationSessionId,
+            result.verifiedAt,
+            result.targetUrl,
+            result.recordingStatus,
+            result.replayUrl,
+            Number(result.browserReleased),
+            Number(result.clientClosed),
+            result.errorCode,
+            result.errorMessage,
+          )
+        const state =
+          result.status === "VERIFIED"
+            ? "VERIFIED"
+            : result.status === "INCONCLUSIVE"
+              ? "INCONCLUSIVE"
+              : "FAILED"
+        database
+          .prepare(
+            `UPDATE cancellation_jobs SET
+              state = ?, completed_at = ?, error_code = ?, error_message = ?,
+              verification_duration_ms = ?, verified_count = verified_count + ?,
+              not_verified_count = not_verified_count + ?,
+              inconclusive_count = inconclusive_count + ?,
+              verification_screenshots = verification_screenshots + ?,
+              verification_replay_available = verification_replay_available + ?,
+              fresh_session_mismatch_failures = fresh_session_mismatch_failures + ?
+             WHERE id = ? AND state = 'VERIFYING'`,
+          )
+          .run(
+            state,
+            result.verifiedAt,
+            result.errorCode,
+            result.errorMessage,
+            durationMs,
+            Number(result.status === "VERIFIED"),
+            Number(result.status === "NOT_VERIFIED"),
+            Number(result.status === "INCONCLUSIVE"),
+            Number(Boolean(evidence?.screenshotPath)),
+            Number(Boolean(result.replayUrl)),
+            Number(freshSessionMismatch),
+            result.jobId,
+          )
+        database.exec("COMMIT")
+      } catch (error) {
+        database.exec("ROLLBACK")
+        throw error
+      }
+    },
+    getVerifiedAnnualSavingsCents(): number {
+      const row = database
+        .prepare(
+          `SELECT COALESCE(SUM(CASE WHEN s.interval = 'MONTHLY'
+                    THEN s.amount_cents * 12 ELSE s.amount_cents END), 0) total
+           FROM subscriptions s
+           WHERE EXISTS (SELECT 1 FROM cancellation_jobs j
+             WHERE j.subscription_id = s.id AND j.state = 'VERIFIED')`,
+        )
+        .get() as { total: number }
+      return Number(row.total)
     },
     addStep(step: AgentStep) {
       database
@@ -753,6 +972,7 @@ export function toPublicAgentJob(
   const proposedAction = repository.getProposedAction(job.id)
   const approval = repository.getLatestApproval(job.id)
   const commitAttempt = repository.getCommitAttempt(job.id)
+  const verification = repository.getVerification(job.id)
   const safeCommitAttempt = commitAttempt
     ? (({ preScreenshotPath, postScreenshotPath, ...safe }) => ({
         ...safe,
@@ -795,5 +1015,21 @@ export function toPublicAgentJob(
       : null,
     approval,
     commitAttempt: safeCommitAttempt,
+    verification: verification
+      ? {
+          ...verification,
+          screenshotUrl: verification.evidence[0]?.screenshotPath
+            ? `/api/agent/jobs/${encodeURIComponent(job.id)}/verification/screenshot`
+            : null,
+          evidence: verification.evidence.map(
+            ({ screenshotPath, ...item }) => ({
+              ...item,
+              screenshotUrl: screenshotPath
+                ? `/api/agent/jobs/${encodeURIComponent(job.id)}/verification/screenshot`
+                : null,
+            }),
+          ),
+        }
+      : null,
   }
 }

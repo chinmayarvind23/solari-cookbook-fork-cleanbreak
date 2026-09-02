@@ -4,6 +4,7 @@ import { resetDemoAction } from "@/app/actions"
 import { Brand } from "@/components/brand"
 import { SubscriptionCard } from "@/components/subscription-card"
 import { getDemoState, listSubscriptions } from "@/lib/db"
+import { createAgentRepository } from "@/lib/agent/repository"
 import {
   annualCost,
   formatCurrency,
@@ -34,6 +35,8 @@ export default function DashboardPage() {
     streamMax.status === "ACTIVE"
       ? annualCost(streamMax.amount, streamMax.interval)
       : 0
+  const verifiedSavings =
+    createAgentRepository().getVerifiedAnnualSavingsCents() / 100
 
   return (
     <main className="dashboard-shell">
@@ -88,11 +91,15 @@ export default function DashboardPage() {
         <article className="metric-card">
           <div className="metric-label-row">
             <p>Verified savings</p>
-            <span className="verified-badge">RECEIPT-BACKED</span>
+            <span className="verified-badge">FRESH-SESSION PROOF</span>
           </div>
-          <strong>{formatCurrency(0)}</strong>
+          <strong>{formatCurrency(verifiedSavings)}</strong>
           <span>/ year</span>
-          <small>No receipts issued yet</small>
+          <small>
+            {verifiedSavings > 0
+              ? "Independently verified"
+              : "No verified cancellations yet"}
+          </small>
         </article>
       </section>
 
@@ -116,7 +123,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {demoState.status === "CANCELED" ? (
+        {demoState.status === "CANCELED" && verifiedSavings === 0 ? (
           <div className="notice-banner" role="status">
             <span aria-hidden="true">i</span>
             <p>

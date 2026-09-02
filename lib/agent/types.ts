@@ -4,6 +4,8 @@ export type CancellationJobState =
   | "AWAITING_APPROVAL"
   | "COMMITTING"
   | "VERIFYING"
+  | "VERIFIED"
+  | "INCONCLUSIVE"
   | "ABORTED"
   | "FAILED"
 
@@ -151,6 +153,52 @@ export type CommitAttempt = {
   safeErrorMessage: string | null
 }
 
+export type VerificationStatus = "VERIFIED" | "NOT_VERIFIED" | "INCONCLUSIVE"
+export type NormalizedSubscriptionStatus =
+  "ACTIVE" | "CANCELED" | "CANCELS_AT_PERIOD_END" | "UNKNOWN"
+
+export type VerificationEvidence = {
+  id: string
+  jobId: string
+  phase: "VERIFICATION"
+  capturedAt: string
+  url: string
+  title: string
+  visibleExcerpt: string
+  normalizedState: {
+    status: NormalizedSubscriptionStatus
+    autoRenew: boolean | null
+    nextChargeDate: string | null
+    nextChargeAmountCents: number | null
+    accessUntil: string | null
+  }
+  sessionId: string
+  screenshotPath: string | null
+}
+
+export type VerificationResult = {
+  jobId: string
+  status: VerificationStatus
+  subscriptionStatus: NormalizedSubscriptionStatus
+  autoRenew: boolean | null
+  nextChargeDate: string | null
+  nextChargeAmountCents: number | null
+  accessUntil: string | null
+  evidence: VerificationEvidence[]
+  satisfiedCriteria: string[]
+  failedCriteria: string[]
+  explanation: string
+  verificationSessionId: string
+  verifiedAt: string
+  targetUrl: string
+  recordingStatus: "PENDING" | "AVAILABLE" | "UNAVAILABLE" | "FAILED"
+  replayUrl: string | null
+  browserReleased: boolean
+  clientClosed: boolean
+  errorCode: string | null
+  errorMessage: string | null
+}
+
 export type AgentStep = {
   id: string
   jobId: string
@@ -202,6 +250,17 @@ export type CancellationJob = AgentMetrics & {
   destructiveClicksExecuted: number
   automaticDestructiveRetries: 0
   commitsWithUnknownOutcome: number
+  verificationStartedAt: string | null
+  verificationsStarted: number
+  verifiedCount: number
+  notVerifiedCount: number
+  inconclusiveCount: number
+  verificationDurationMs: number | null
+  verificationSessionCreated: number
+  verificationScreenshots: number
+  verificationReplayAvailable: number
+  falseVerified: 0
+  freshSessionMismatchFailures: number
 }
 
 export type PublicAgentJob = Omit<
@@ -223,6 +282,16 @@ export type PublicAgentJob = Omit<
     | (Omit<CommitAttempt, "preScreenshotPath" | "postScreenshotPath"> & {
         preScreenshotUrl: string | null
         postScreenshotUrl: string | null
+      })
+    | null
+  verification:
+    | (Omit<VerificationResult, "evidence"> & {
+        screenshotUrl: string | null
+        evidence: Array<
+          Omit<VerificationEvidence, "screenshotPath"> & {
+            screenshotUrl: string | null
+          }
+        >
       })
     | null
 }

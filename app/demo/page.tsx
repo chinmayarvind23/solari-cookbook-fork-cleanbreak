@@ -4,6 +4,7 @@ import {
   resetDemoAction,
   runAgentDryRunAction,
   runSolariBrowserTestAction,
+  runVerificationAction,
 } from "@/app/actions"
 import { AgentRunButton } from "@/components/agent-run-button"
 import { ApprovalControls } from "@/components/approval-controls"
@@ -157,6 +158,28 @@ export default async function DemoLabPage({
                   and will not click the destructive control again
                   automatically.
                 </p>
+              </div>
+            ) : null}
+
+            {agentJob.state === "VERIFIED" ? (
+              <div className="agent-ready-copy verified">
+                <strong>Cancellation verified</strong>
+                <p>Auto-renew is off and no future charge was found.</p>
+                <span>$359.88/year eliminated</span>
+              </div>
+            ) : null}
+
+            {agentJob.verification?.status === "NOT_VERIFIED" ? (
+              <div className="agent-ready-copy aborted">
+                <strong>Cancellation could not be verified</strong>
+                <p>The account still shows future billing.</p>
+              </div>
+            ) : null}
+
+            {agentJob.verification?.status === "INCONCLUSIVE" ? (
+              <div className="agent-ready-copy uncertain">
+                <strong>Cancellation status is unclear</strong>
+                <p>CleanBreak could not prove that future billing stopped.</p>
               </div>
             ) : null}
 
@@ -385,6 +408,88 @@ export default async function DemoLabPage({
                     Commit replay ↗
                   </a>
                 ) : null}
+              </div>
+            ) : null}
+            {agentJob.state === "VERIFYING" ? (
+              <form action={runVerificationAction}>
+                <input name="jobId" type="hidden" value={agentJob.id} />
+                <button className="primary-button" type="submit">
+                  Verify independently
+                </button>
+              </form>
+            ) : null}
+            {agentJob.verification ? (
+              <div className="commit-evidence verification-evidence">
+                <strong>Verified in a fresh Solari session</strong>
+                <dl className="approval-facts">
+                  <div>
+                    <dt>Service</dt>
+                    <dd>StreamMax</dd>
+                  </div>
+                  <div>
+                    <dt>Plan</dt>
+                    <dd>Premium</dd>
+                  </div>
+                  <div>
+                    <dt>Status</dt>
+                    <dd>{agentJob.verification.subscriptionStatus}</dd>
+                  </div>
+                  <div>
+                    <dt>Auto-renew</dt>
+                    <dd>
+                      {agentJob.verification.autoRenew === null
+                        ? "Unknown"
+                        : agentJob.verification.autoRenew
+                          ? "On"
+                          : "Off"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Next charge</dt>
+                    <dd>{agentJob.verification.nextChargeDate ?? "None"}</dd>
+                  </div>
+                  <div>
+                    <dt>Access until</dt>
+                    <dd>{agentJob.verification.accessUntil ?? "Not stated"}</dd>
+                  </div>
+                  <div>
+                    <dt>Verified</dt>
+                    <dd>
+                      {new Date(
+                        agentJob.verification.verifiedAt,
+                      ).toLocaleString()}
+                    </dd>
+                  </div>
+                </dl>
+                <span>
+                  Execution session{" "}
+                  {agentJob.commitAttempt?.sessionId?.slice(0, 12) ??
+                    "not created"}
+                  …
+                </span>
+                <span>
+                  Verification session{" "}
+                  {agentJob.verification.verificationSessionId.slice(0, 12)}…
+                </span>
+                {agentJob.verification.screenshotUrl ? (
+                  <a href={agentJob.verification.screenshotUrl} target="_blank">
+                    Fresh verification screenshot ↗
+                  </a>
+                ) : null}
+                {agentJob.verification.replayUrl ? (
+                  <a
+                    href={agentJob.verification.replayUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Verification replay ↗
+                  </a>
+                ) : (
+                  <span>
+                    Verification replay is unavailable; screenshot evidence
+                    remains authoritative.
+                  </span>
+                )}
               </div>
             ) : null}
             {agentJob.latestScreenshotUrl ? (
