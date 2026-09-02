@@ -1,0 +1,148 @@
+import Link from "next/link"
+
+import { resetDemoAction } from "@/app/actions"
+import { Brand } from "@/components/brand"
+import { SubscriptionCard } from "@/components/subscription-card"
+import { getDemoState, listSubscriptions } from "@/lib/db"
+import {
+  annualCost,
+  formatCurrency,
+  monthlyEquivalent,
+} from "@/lib/subscriptions"
+
+export const dynamic = "force-dynamic"
+
+export default function DashboardPage() {
+  const subscriptions = listSubscriptions()
+  const demoState = getDemoState()
+  const activeSubscriptions = subscriptions.filter(
+    (subscription) => subscription.status === "ACTIVE",
+  )
+  const monthlySpend = activeSubscriptions.reduce(
+    (total, subscription) => total + monthlyEquivalent(subscription),
+    0,
+  )
+  const annualSpend = activeSubscriptions.reduce(
+    (total, subscription) =>
+      total + annualCost(subscription.amount, subscription.interval),
+    0,
+  )
+  const streamMax = subscriptions.find(
+    (subscription) => subscription.slug === "streammax",
+  )!
+  const potentialSavings =
+    streamMax.status === "ACTIVE"
+      ? annualCost(streamMax.amount, streamMax.interval)
+      : 0
+
+  return (
+    <main className="dashboard-shell">
+      <header className="dashboard-nav page-width">
+        <Brand />
+        <div className="nav-actions">
+          <Link className="text-link" href="/demo">
+            Demo lab
+          </Link>
+          <button className="avatar" type="button" aria-label="User menu">
+            CM
+          </button>
+        </div>
+      </header>
+
+      <section className="hero page-width">
+        <div className="hero-copy">
+          <p className="eyebrow">Subscription control, with proof</p>
+          <h1>Make this the last charge.</h1>
+          <p className="hero-subtitle">
+            CleanBreak cancels subscriptions in a real browser, then checks
+            again to prove they actually stopped renewing.
+          </p>
+        </div>
+        <aside className="trust-note">
+          <span className="trust-icon" aria-hidden="true">
+            ✓
+          </span>
+          <div>
+            <strong>Execution is not proof.</strong>
+            <p>Only independent verification creates a CleanBreak Receipt.</p>
+          </div>
+        </aside>
+      </section>
+
+      <section className="metrics page-width" aria-label="Subscription summary">
+        <article className="metric-card metric-primary">
+          <p>Active recurring spend</p>
+          <strong>{formatCurrency(annualSpend)}</strong>
+          <span>/ year</span>
+          <small>
+            {activeSubscriptions.length} active · {formatCurrency(monthlySpend)}
+            /month
+          </small>
+        </article>
+        <article className="metric-card">
+          <p>Potential savings</p>
+          <strong>{formatCurrency(potentialSavings)}</strong>
+          <span>/ year</span>
+          <small>Available in the StreamMax demo</small>
+        </article>
+        <article className="metric-card">
+          <div className="metric-label-row">
+            <p>Verified savings</p>
+            <span className="verified-badge">RECEIPT-BACKED</span>
+          </div>
+          <strong>{formatCurrency(0)}</strong>
+          <span>/ year</span>
+          <small>No receipts issued yet</small>
+        </article>
+      </section>
+
+      <section className="subscriptions-section page-width">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Your subscriptions</p>
+            <h2>{activeSubscriptions.length} active subscriptions</h2>
+          </div>
+          <div className="section-actions">
+            <form action={resetDemoAction}>
+              <input name="scenario" type="hidden" value="dark-pattern" />
+              <input name="returnTo" type="hidden" value="/" />
+              <button className="secondary-button" type="submit">
+                Reset StreamMax
+              </button>
+            </form>
+            <button className="secondary-button" disabled type="button">
+              + Add subscription
+            </button>
+          </div>
+        </div>
+
+        {demoState.status === "CANCELED" ? (
+          <div className="notice-banner" role="status">
+            <span aria-hidden="true">i</span>
+            <p>
+              StreamMax changed inside the demo fixture. It is not counted as
+              verified savings because no independent verification job ran.
+            </p>
+          </div>
+        ) : null}
+
+        <div className="subscription-grid">
+          {subscriptions.map((subscription) => (
+            <SubscriptionCard
+              key={subscription.id}
+              subscription={subscription}
+            />
+          ))}
+        </div>
+
+        <footer className="dashboard-footer">
+          <p>
+            Demo target: <strong>{streamMax.name}</strong> · scenario:{" "}
+            <strong>{demoState.scenario.replaceAll("-", " ")}</strong>
+          </p>
+          <Link href="/demo">Configure fixture →</Link>
+        </footer>
+      </section>
+    </main>
+  )
+}
