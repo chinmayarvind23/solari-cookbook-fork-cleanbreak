@@ -11,12 +11,19 @@ import {
 import type { Subscription } from "@/lib/subscriptions"
 
 const DEFAULT_DATABASE_PATH = "./data/cleanbreak.db"
-const migrationPath = join(
+const initialMigrationPath = join(
   process.cwd(),
   "lib",
   "db",
   "migrations",
   "001_initial.sql",
+)
+const milestone4MigrationPath = join(
+  process.cwd(),
+  "lib",
+  "db",
+  "migrations",
+  "002_milestone4.sql",
 )
 
 type SubscriptionRow = {
@@ -59,7 +66,14 @@ export function createDatabase(path = databasePath()): DatabaseSync {
 
   const database = new DatabaseSync(path)
   database.exec("PRAGMA foreign_keys = ON;")
-  database.exec(readFileSync(migrationPath, "utf8"))
+  database.exec(readFileSync(initialMigrationPath, "utf8"))
+  const version = Number(
+    (database.prepare("PRAGMA user_version").get() as { user_version: number })
+      .user_version,
+  )
+  if (version < 2) {
+    database.exec(readFileSync(milestone4MigrationPath, "utf8"))
+  }
   seedDatabase(database)
   return database
 }

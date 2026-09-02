@@ -1,5 +1,11 @@
 export type CancellationJobState =
-  "READY" | "NAVIGATING" | "AWAITING_APPROVAL" | "FAILED"
+  | "READY"
+  | "NAVIGATING"
+  | "AWAITING_APPROVAL"
+  | "COMMITTING"
+  | "VERIFYING"
+  | "ABORTED"
+  | "FAILED"
 
 export type AgentActionType =
   | "click"
@@ -80,6 +86,28 @@ export type AgentMetrics = {
   durationMs: number
 }
 
+export type ApprovalSnapshot = {
+  jobId: string
+  subscriptionId: string
+  serviceName: string
+  serviceDomain: string
+  planName: string
+  recurringPriceCents: number
+  currency: string
+  interval: "MONTHLY" | "YEARLY"
+  annualSavingsCents: number
+  currentStatus: "ACTIVE" | "CANCELED"
+  actionText: string
+  targetRole: string
+  observedUrl: string
+  feeCents: number | null
+  accessUntil: string | null
+  visibleTerms: string[]
+  finalScreenshotPath: string | null
+  observedAt: string
+  proposedActionCreatedAt: string
+}
+
 export type ProposedAction = {
   detectedAt: string
   targetRole: string
@@ -89,6 +117,38 @@ export type ProposedAction = {
   accessUntil: string | null
   visibleTerms: string[]
   screenshotPath: string | null
+  fingerprint: string
+  snapshot: ApprovalSnapshot
+}
+
+export type Approval = {
+  id: string
+  jobId: string
+  actionFingerprint: string
+  approvedAt: string
+  status: "APPROVED" | "SUPERSEDED"
+}
+
+export type CommitAttempt = {
+  id: string
+  jobId: string
+  approvalId: string | null
+  actionFingerprint: string
+  armedAt: string
+  finalActionAttemptedAt: string | null
+  clickStartedAt: string | null
+  clickReturnedAt: string | null
+  outcome: "CLICK_RETURNED" | "OUTCOME_UNKNOWN" | "NOT_EXECUTED"
+  sessionId: string | null
+  preScreenshotPath: string | null
+  postScreenshotPath: string | null
+  recordingStatus: "PENDING" | "AVAILABLE" | "UNAVAILABLE" | "FAILED"
+  replayUrl: string | null
+  browserReleased: boolean
+  clientClosed: boolean
+  profileStateSaved: boolean
+  safeErrorCode: string | null
+  safeErrorMessage: string | null
 }
 
 export type AgentStep = {
@@ -131,6 +191,17 @@ export type CancellationJob = AgentMetrics & {
   profileStateSaved: boolean
   errorCode: string | null
   errorMessage: string | null
+  approvalsRequested: number
+  approvalsGranted: number
+  approvalsAborted: number
+  approvalToCommitMs: number | null
+  commitAttempts: number
+  duplicateCommitRequestsBlocked: number
+  staleApprovalsBlocked: number
+  changedTermsReapprovalRequired: number
+  destructiveClicksExecuted: number
+  automaticDestructiveRetries: 0
+  commitsWithUnknownOutcome: number
 }
 
 export type PublicAgentJob = Omit<
@@ -145,6 +216,13 @@ export type PublicAgentJob = Omit<
   proposedAction:
     | (Omit<ProposedAction, "screenshotPath"> & {
         screenshotUrl: string | null
+      })
+    | null
+  approval: Approval | null
+  commitAttempt:
+    | (Omit<CommitAttempt, "preScreenshotPath" | "postScreenshotPath"> & {
+        preScreenshotUrl: string | null
+        postScreenshotUrl: string | null
       })
     | null
 }

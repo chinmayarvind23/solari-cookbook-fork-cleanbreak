@@ -3,8 +3,8 @@
 CleanBreak is a subscription cancellation transaction with independent
 verification. The root application includes a financial-control dashboard, a
 deterministic fictional StreamMax portal, a recorded Solari cloud-browser path,
-and a policy-gated OpenAI navigation dry run that stops at the final approval
-boundary.
+and a policy-gated OpenAI navigation run with explicit human approval and a
+crash-safe, single-attempt cancellation commit.
 
 ## Run
 
@@ -42,8 +42,8 @@ state. Supported scenarios are `happy-path`, `dark-pattern`,
 
 ## Autonomous cancellation dry run
 
-The **Run autonomous dry run** control on `/demo` and this command run the same
-Milestone 3 workflow:
+The **Run autonomous dry run** control on `/demo` and this command navigate to
+the Milestone 4 approval boundary:
 
 ```bash
 npm run agent:smoke
@@ -57,8 +57,30 @@ controls, stale targets, low-confidence decisions, and external navigation.
 Final cancellation is always intercepted and persisted with screenshot
 evidence, even if the planner proposes it as a normal click.
 
-Successful dry runs end in `AWAITING_APPROVAL`. This milestone does not expose
-an approval action or execute the final cancellation.
+Successful navigation runs end in `AWAITING_APPROVAL`. `/demo` then presents an
+exact financial confirmation and binds approval to a canonical SHA-256 action
+fingerprint. A zero-fee proposal can be explicitly approved or aborted;
+nonzero and unknown fees require human handling and have no override.
+
+After approval, CleanBreak opens a new recorded Solari session with the saved
+profile, reobserves the final page, and requires unchanged material terms. It
+durably arms one commit attempt before clicking the newly observed final target
+exactly once. The click is never retried automatically. Any armed attempt ends
+in `VERIFYING`, including a returned click, an unknown outcome, or crash
+recovery.
+
+The paid end-to-end smoke command is:
+
+```bash
+npm run approved:smoke
+```
+
+It requires the configured credentials and public target. The deterministic
+crash smoke can be run without a paid browser session:
+
+```bash
+npm run commit:crash-smoke
+```
 
 ## Recorded browser smoke run
 
@@ -94,7 +116,8 @@ The original focused cookbook examples remain under [`examples/`](examples):
 
 ## Scope
 
-Milestone 3 reaches and documents the final cancellation boundary. It does not
-approve or execute that final action, claim verification, or issue receipts.
+Milestone 4 executes an explicitly approved final action with durable
+idempotency and crash recovery. It intentionally does not independently verify
+the result, enter `VERIFIED`, or issue receipts.
 
 MIT licensed.

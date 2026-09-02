@@ -6,11 +6,13 @@ import {
   runSolariBrowserTestAction,
 } from "@/app/actions"
 import { AgentRunButton } from "@/components/agent-run-button"
+import { ApprovalControls } from "@/components/approval-controls"
 import { Brand } from "@/components/brand"
 import { agentRuntimeReadiness, latestAgentJob } from "@/lib/agent/runtime"
 import { DEMO_SCENARIOS, scenarioDetails } from "@/lib/demo"
 import { getDemoState } from "@/lib/db"
 import { latestSolariRun, solariReadiness } from "@/lib/solari/runtime"
+import { formatCurrency } from "@/lib/subscriptions"
 
 export const dynamic = "force-dynamic"
 
@@ -145,6 +147,26 @@ export default async function DemoLabPage({
               </div>
             ) : null}
 
+            {agentJob.state === "VERIFYING" ? (
+              <div className="agent-ready-copy uncertain">
+                <strong>
+                  Cancellation action attempted — verification required
+                </strong>
+                <p>
+                  CleanBreak will not claim success from the execution session
+                  and will not click the destructive control again
+                  automatically.
+                </p>
+              </div>
+            ) : null}
+
+            {agentJob.state === "ABORTED" ? (
+              <div className="agent-ready-copy aborted">
+                <strong>Cancellation aborted</strong>
+                <p>No final cancellation action was executed.</p>
+              </div>
+            ) : null}
+
             <dl className="solari-run-facts">
               <div>
                 <dt>Steps</dt>
@@ -179,13 +201,110 @@ export default async function DemoLabPage({
 
             {agentJob.proposedAction ? (
               <div className="agent-proposal">
-                <span>Proposed final action</span>
-                <strong>{agentJob.proposedAction.targetName}</strong>
-                <small>{agentJob.proposedAction.currentUrl}</small>
+                <span>Exact financial confirmation</span>
+                <strong>
+                  {agentJob.proposedAction.snapshot.actionText} for{" "}
+                  {agentJob.proposedAction.snapshot.serviceName}
+                </strong>
+                <dl className="approval-facts">
+                  <div>
+                    <dt>Service</dt>
+                    <dd>
+                      {agentJob.proposedAction.snapshot.serviceName} (
+                      {agentJob.proposedAction.snapshot.serviceDomain})
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Plan</dt>
+                    <dd>{agentJob.proposedAction.snapshot.planName}</dd>
+                  </div>
+                  <div>
+                    <dt>Recurring price</dt>
+                    <dd>
+                      {formatCurrency(
+                        agentJob.proposedAction.snapshot.recurringPriceCents /
+                          100,
+                        agentJob.proposedAction.snapshot.currency,
+                      )}{" "}
+                      /{" "}
+                      {agentJob.proposedAction.snapshot.interval === "MONTHLY"
+                        ? "month"
+                        : "year"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Annual savings</dt>
+                    <dd>
+                      {formatCurrency(
+                        agentJob.proposedAction.snapshot.annualSavingsCents /
+                          100,
+                        agentJob.proposedAction.snapshot.currency,
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Current status</dt>
+                    <dd>{agentJob.proposedAction.snapshot.currentStatus}</dd>
+                  </div>
+                  <div>
+                    <dt>Cancellation fee</dt>
+                    <dd>
+                      {agentJob.proposedAction.feeCents === null
+                        ? "Unknown — human handling required"
+                        : formatCurrency(
+                            agentJob.proposedAction.feeCents / 100,
+                            agentJob.proposedAction.snapshot.currency,
+                          )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Access until</dt>
+                    <dd>
+                      {agentJob.proposedAction.accessUntil ?? "Not stated"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Observed</dt>
+                    <dd>
+                      {new Date(
+                        agentJob.proposedAction.snapshot.observedAt,
+                      ).toLocaleString()}
+                    </dd>
+                  </div>
+                </dl>
                 {agentJob.proposedAction.visibleTerms.map((term) => (
                   <p key={term}>{term}</p>
                 ))}
+                <small>{agentJob.proposedAction.currentUrl}</small>
+                {agentJob.state === "AWAITING_APPROVAL" &&
+                agentJob.proposedAction.feeCents === 0 ? (
+                  <>
+                    <p className="approval-warning">
+                      Approving authorizes one destructive click in a new
+                      recorded browser session. CleanBreak will then report
+                      VERIFYING, not success. It will never retry that click
+                      automatically.
+                    </p>
+                    <ApprovalControls
+                      jobId={agentJob.id}
+                      fingerprint={agentJob.proposedAction.fingerprint}
+                    />
+                  </>
+                ) : agentJob.state === "AWAITING_APPROVAL" ? (
+                  <p className="solari-run-error">
+                    Approval is unavailable because the cancellation fee is
+                    nonzero or unknown. Human handling is required; no override
+                    is offered.
+                  </p>
+                ) : null}
               </div>
+            ) : null}
+
+            {agent === "approval-blocked" ? (
+              <p className="solari-run-error">
+                The approval was rejected safely. Refresh the proposal and
+                review its current terms.
+              </p>
             ) : null}
 
             {agentJob.errorMessage ? (
@@ -229,6 +348,45 @@ export default async function DemoLabPage({
                 <span>Replay URL is not available yet.</span>
               )}
             </div>
+            {agentJob.commitAttempt ? (
+              <div className="commit-evidence">
+                <strong>
+                  Commit attempt: {agentJob.commitAttempt.outcome}
+                </strong>
+                <span>
+                  Session {agentJob.commitAttempt.sessionId ?? "not created"}
+                </span>
+                <span>
+                  Destructive clicks: {agentJob.destructiveClicksExecuted};
+                  automatic retries: {agentJob.automaticDestructiveRetries}
+                </span>
+                {agentJob.commitAttempt.preScreenshotUrl ? (
+                  <a
+                    href={agentJob.commitAttempt.preScreenshotUrl}
+                    target="_blank"
+                  >
+                    Pre-click screenshot ↗
+                  </a>
+                ) : null}
+                {agentJob.commitAttempt.postScreenshotUrl ? (
+                  <a
+                    href={agentJob.commitAttempt.postScreenshotUrl}
+                    target="_blank"
+                  >
+                    Post-click screenshot ↗
+                  </a>
+                ) : null}
+                {agentJob.commitAttempt.replayUrl ? (
+                  <a
+                    href={agentJob.commitAttempt.replayUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Commit replay ↗
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
             {agentJob.latestScreenshotUrl ? (
               // Guarded local evidence from the latest observed step.
               // eslint-disable-next-line @next/next/no-img-element

@@ -525,6 +525,65 @@ a {
   list-style: none;
 }
 
+.agent-ready-copy.uncertain {
+  border-color: #e3bf83;
+  background: #fff7e9;
+}
+
+.agent-ready-copy.aborted {
+  border-color: #d5ded9;
+  background: #f4f6f5;
+}
+
+.approval-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem 1.5rem;
+  margin: 1rem 0;
+}
+
+.approval-facts dt {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.approval-facts dd {
+  margin: 0.2rem 0 0;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.approval-warning {
+  margin-top: 1rem !important;
+  padding: 0.8rem;
+  border-radius: 10px;
+  color: #6d481e;
+  background: #fff3df;
+  line-height: 1.5;
+}
+
+.approval-actions,
+.commit-evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.commit-evidence {
+  flex-direction: column;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.commit-evidence a {
+  color: var(--forest-2);
+  font-weight: 700;
+}
+
 .agent-timeline li {
   display: grid;
   gap: 0.35rem;
@@ -1684,6 +1743,10 @@ a {
 
   .subscription-facts {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .approval-facts {
+    grid-template-columns: 1fr;
   }
 
   .subscription-facts > div:last-child {

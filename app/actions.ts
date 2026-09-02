@@ -6,6 +6,7 @@ import { redirect } from "next/navigation"
 import { isDemoScenario } from "@/lib/demo"
 import { confirmDemoCancellation, resetDemo } from "@/lib/db"
 import { runCancellationAgent } from "@/lib/agent/runtime"
+import { abortCancellation, approveCancellation } from "@/lib/agent/commit"
 import { runLiveSolariSmoke } from "@/lib/solari/runtime"
 
 function safeReturnPath(value: FormDataEntryValue | null): string {
@@ -58,4 +59,51 @@ export async function runAgentDryRunAction(): Promise<void> {
     }
     redirect("/demo?agent=configuration#agent-run")
   }
+}
+
+function approvalField(
+  formData: FormData,
+  name: "jobId" | "fingerprint",
+): string {
+  const value = formData.get(name)
+  if (typeof value !== "string" || !value.trim()) {
+    throw new Error(`Missing approval ${name}.`)
+  }
+  return value
+}
+
+export async function approveCancellationAction(
+  formData: FormData,
+): Promise<void> {
+  if (formData.get("intent") !== "approve") {
+    throw new Error("Invalid approval intent.")
+  }
+  try {
+    await approveCancellation(
+      approvalField(formData, "jobId"),
+      approvalField(formData, "fingerprint"),
+    )
+    revalidatePath("/demo")
+    redirect("/demo#agent-run")
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "digest" in error) {
+      throw error
+    }
+    revalidatePath("/demo")
+    redirect("/demo?agent=approval-blocked#agent-run")
+  }
+}
+
+export async function abortCancellationAction(
+  formData: FormData,
+): Promise<void> {
+  if (formData.get("intent") !== "abort") {
+    throw new Error("Invalid abort intent.")
+  }
+  abortCancellation(
+    approvalField(formData, "jobId"),
+    approvalField(formData, "fingerprint"),
+  )
+  revalidatePath("/demo")
+  redirect("/demo#agent-run")
 }

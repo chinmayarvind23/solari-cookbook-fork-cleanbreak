@@ -20,7 +20,7 @@ import {
 } from "@/lib/agent/repository"
 import { assertJobTransition } from "@/lib/agent/state"
 import type { CancellationJob, PublicAgentJob } from "@/lib/agent/types"
-import { getDemoState } from "@/lib/db"
+import { getDemoState, getStreamMaxSubscription } from "@/lib/db"
 import { readSolariConfig, getSolariReadiness } from "@/lib/solari/config"
 import {
   resolveReusableProfile,
@@ -91,6 +91,17 @@ function initialJob(options: {
     profileStateSaved: false,
     errorCode: null,
     errorMessage: null,
+    approvalsRequested: 0,
+    approvalsGranted: 0,
+    approvalsAborted: 0,
+    approvalToCommitMs: null,
+    commitAttempts: 0,
+    duplicateCommitRequestsBlocked: 0,
+    staleApprovalsBlocked: 0,
+    changedTermsReapprovalRequired: 0,
+    destructiveClicksExecuted: 0,
+    automaticDestructiveRetries: 0,
+    commitsWithUnknownOutcome: 0,
   }
 }
 
@@ -215,6 +226,11 @@ export async function runCancellationAgent(
         return latestScreenshotPath
       },
       now,
+      approvalContext: {
+        jobId: id,
+        subscription: getStreamMaxSubscription(),
+        planName: "Premium",
+      },
     })
 
     if (solariConfig.persistProfileState) {

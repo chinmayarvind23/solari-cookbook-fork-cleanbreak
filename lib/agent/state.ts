@@ -3,7 +3,10 @@ import type { CancellationJobState } from "@/lib/agent/types"
 const transitions: Record<CancellationJobState, CancellationJobState[]> = {
   READY: ["NAVIGATING"],
   NAVIGATING: ["AWAITING_APPROVAL", "FAILED"],
-  AWAITING_APPROVAL: [],
+  AWAITING_APPROVAL: ["COMMITTING", "VERIFYING", "ABORTED"],
+  COMMITTING: ["VERIFYING"],
+  VERIFYING: [],
+  ABORTED: [],
   FAILED: [],
 }
 

@@ -5,6 +5,11 @@ import type {
   PolicyDecision,
   ProposedAction,
 } from "@/lib/agent/types"
+import {
+  approvalFingerprint,
+  canonicalApprovalSnapshot,
+  type ApprovalContext,
+} from "@/lib/agent/approval"
 
 const finalCancellation = [
   /confirm cancellation/,
@@ -195,6 +200,7 @@ export function proposedActionFrom(
   observation: PageObservation,
   target: ObservationAction,
   screenshotPath: string | null,
+  context?: ApprovalContext,
 ): ProposedAction {
   const fee = observation.visibleText.match(
     /(?:fee|charge)[^$]{0,40}\$([0-9]+(?:\.[0-9]{2})?)/i,
@@ -208,14 +214,60 @@ export function proposedActionFrom(
     .filter((line) => /access|refund|fee|charge|renew|cancel/i.test(line))
     .slice(0, 8)
 
+  const detectedAt = observation.observedAt || new Date().toISOString()
+  const subscription = context?.subscription ?? {
+    id: "sub_streammax",
+    name: "StreamMax",
+    domain: new URL(observation.url).hostname,
+    amount: 29.99,
+    currency: "USD",
+    interval: "MONTHLY" as const,
+    status: "ACTIVE" as const,
+  }
+  const feeCents =
+    /\bno (?:cancellation )?fee\b|(?:cancellation )?fee\s*:?[\s—-]*(?:none|\$0(?:\.00)?)/i.test(
+      observation.visibleText,
+    )
+      ? 0
+      : fee
+        ? Math.round(Number(fee[1]) * 100)
+        : null
+  const snapshot = canonicalApprovalSnapshot({
+    jobId: context?.jobId ?? "unknown-job",
+    subscriptionId: subscription.id,
+    serviceName: subscription.name,
+    serviceDomain: subscription.domain,
+    planName: context?.planName ?? "Premium",
+    recurringPriceCents: Math.round(subscription.amount * 100),
+    currency: subscription.currency,
+    interval: subscription.interval,
+    annualSavingsCents: Math.round(
+      subscription.amount *
+        (subscription.interval === "MONTHLY" ? 12 : 1) *
+        100,
+    ),
+    currentStatus: subscription.status,
+    actionText: target.name,
+    targetRole: target.role,
+    observedUrl: observation.url,
+    feeCents,
+    accessUntil: access?.[1] ?? null,
+    visibleTerms,
+    finalScreenshotPath: screenshotPath,
+    observedAt: observation.observedAt,
+    proposedActionCreatedAt: detectedAt,
+  })
+
   return {
-    detectedAt: new Date().toISOString(),
+    detectedAt,
     targetRole: target.role,
     targetName: target.name,
     currentUrl: observation.url,
-    feeCents: fee ? Math.round(Number(fee[1]) * 100) : null,
-    accessUntil: access?.[1] ?? null,
+    feeCents: snapshot.feeCents,
+    accessUntil: snapshot.accessUntil,
     visibleTerms,
     screenshotPath,
+    snapshot,
+    fingerprint: approvalFingerprint(snapshot),
   }
 }

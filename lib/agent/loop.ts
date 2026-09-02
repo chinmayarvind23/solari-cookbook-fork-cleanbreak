@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 
 import type { AgentConfig } from "@/lib/agent/config"
+import type { ApprovalContext } from "@/lib/agent/approval"
 import { evaluateActionPolicy, proposedActionFrom } from "@/lib/agent/policy"
 import type { ObservedPage } from "@/lib/agent/observer"
 import type { AgentRepository } from "@/lib/agent/repository"
@@ -34,6 +35,7 @@ type LoopDependencies = {
   ): Promise<void>
   capture(step: number): Promise<string | null>
   now?: () => Date
+  approvalContext?: ApprovalContext
 }
 
 function fingerprint(observation: PageObservation): string {
@@ -211,6 +213,7 @@ export async function runAgentLoop(
         observed.observation,
         policy.target,
         screenshotPath,
+        dependencies.approvalContext,
       )
       dependencies.repository.saveProposedAction(dependencies.jobId, proposed)
       return finish("AWAITING_APPROVAL", null, null, proposed)

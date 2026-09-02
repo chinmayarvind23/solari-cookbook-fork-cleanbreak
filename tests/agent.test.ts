@@ -488,6 +488,17 @@ describe("job persistence and state invariants", () => {
       profileStateSaved: false,
       errorCode: null,
       errorMessage: null,
+      approvalsRequested: 0,
+      approvalsGranted: 0,
+      approvalsAborted: 0,
+      approvalToCommitMs: null,
+      commitAttempts: 0,
+      duplicateCommitRequestsBlocked: 0,
+      staleApprovalsBlocked: 0,
+      changedTermsReapprovalRequired: 0,
+      destructiveClicksExecuted: 0,
+      automaticDestructiveRetries: 0,
+      commitsWithUnknownOutcome: 0,
     }
     repository.createJob(job)
     repository.updateJob(job.id, { state: "NAVIGATING", modelCalls: 2 })
