@@ -335,6 +335,172 @@ a {
     border-color 160ms ease;
 }
 
+.lab-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.solari-lab {
+  margin-top: 52px;
+  padding: 30px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--white);
+  box-shadow: var(--shadow);
+}
+
+.solari-lab-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 32px;
+}
+
+.solari-lab-heading h2 {
+  margin: 0;
+  font-size: 28px;
+  letter-spacing: -0.04em;
+}
+
+.solari-lab-heading p:last-child {
+  max-width: 680px;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.solari-lab-heading .lab-button {
+  min-width: 178px;
+}
+
+.solari-readiness {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 24px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.solari-readiness.ready {
+  color: #245f4c;
+  background: #edf8f3;
+}
+
+.solari-readiness.blocked {
+  color: #7b4e1f;
+  background: #fff5e8;
+}
+
+.solari-readiness small {
+  width: 100%;
+  opacity: 0.75;
+}
+
+.solari-run-card {
+  margin-top: 20px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--paper);
+}
+
+.solari-run-title,
+.solari-evidence-links {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.solari-run-title > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.solari-run-title span,
+.solari-run-title small,
+.solari-empty,
+.solari-evidence-links span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.solari-run-title strong {
+  color: var(--forest-2);
+  font-family: var(--font-mono), monospace;
+  font-size: 12px;
+}
+
+.solari-connected-copy {
+  margin: 18px 0 0;
+  padding: 13px 15px;
+  border-radius: 10px;
+  color: #315b4d;
+  background: #eaf6f0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.solari-run-facts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 22px 0;
+}
+
+.solari-run-facts div {
+  min-width: 0;
+}
+
+.solari-run-facts dt {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.solari-run-facts dd {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.solari-run-error {
+  padding: 12px;
+  border-radius: 9px;
+  color: #873f3d;
+  background: #faeceb;
+  font-size: 12px;
+}
+
+.solari-evidence-links {
+  justify-content: flex-start;
+  margin-top: 18px;
+}
+
+.solari-evidence-links a {
+  color: var(--forest-2);
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.solari-screenshot {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.solari-empty {
+  margin: 22px 0 0;
+}
+
 .primary-button {
   color: white;
   background: var(--forest);
@@ -1413,6 +1579,15 @@ a {
     grid-column: span 3;
   }
 
+  .solari-lab-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .solari-run-facts {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .streammax-nav nav > span {
     display: none;
   }
@@ -1482,6 +1657,14 @@ a {
 
   .truth-chip {
     width: 100%;
+  }
+
+  .solari-lab {
+    padding: 22px 18px;
+  }
+
+  .solari-run-facts {
+    grid-template-columns: 1fr;
   }
 
   .fixture-control-bar {

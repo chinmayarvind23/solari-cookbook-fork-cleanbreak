@@ -23,3 +23,30 @@ CREATE TABLE IF NOT EXISTS demo_fixture (
   last_message TEXT,
   updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS solari_runs (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  completed_at TEXT,
+  status TEXT NOT NULL CHECK (status IN ('RUNNING', 'SUCCEEDED', 'FAILED')),
+  session_id TEXT,
+  profile_id TEXT,
+  profile_created INTEGER NOT NULL DEFAULT 0 CHECK (profile_created IN (0, 1)),
+  target_url TEXT NOT NULL,
+  page_title TEXT,
+  observed_text TEXT,
+  screenshot_path TEXT,
+  recording_status TEXT NOT NULL CHECK (
+    recording_status IN ('PENDING', 'AVAILABLE', 'UNAVAILABLE', 'FAILED')
+  ),
+  replay_url TEXT,
+  duration_ms INTEGER CHECK (duration_ms IS NULL OR duration_ms >= 0),
+  browser_released INTEGER NOT NULL DEFAULT 0 CHECK (browser_released IN (0, 1)),
+  client_closed INTEGER NOT NULL DEFAULT 0 CHECK (client_closed IN (0, 1)),
+  profile_state_saved INTEGER NOT NULL DEFAULT 0 CHECK (profile_state_saved IN (0, 1)),
+  error_code TEXT,
+  error_message TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_solari_runs_created_at
+  ON solari_runs(created_at DESC);

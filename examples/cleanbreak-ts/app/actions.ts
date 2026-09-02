@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 
 import { isDemoScenario } from "@/lib/demo"
 import { confirmDemoCancellation, resetDemo } from "@/lib/db"
+import { runLiveSolariSmoke } from "@/lib/solari/runtime"
 
 function safeReturnPath(value: FormDataEntryValue | null): string {
   return typeof value === "string" && value.startsWith("/")
@@ -30,4 +31,17 @@ export async function confirmDemoCancellationAction(): Promise<void> {
   revalidatePath("/")
   revalidatePath("/demo", "layout")
   redirect("/demo/streammax/result")
+}
+
+export async function runSolariBrowserTestAction(): Promise<void> {
+  try {
+    await runLiveSolariSmoke()
+    revalidatePath("/demo")
+    redirect("/demo#solari-run")
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "digest" in error) {
+      throw error
+    }
+    redirect("/demo?solari=configuration#solari-run")
+  }
 }

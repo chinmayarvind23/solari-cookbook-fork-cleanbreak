@@ -9,3 +9,4 @@ venv/
 screenshot.png
 *.tsbuildinfo
 examples/cleanbreak-ts/data/*.db*
+examples/cleanbreak-ts/artifacts/solari/*.png
