@@ -9,11 +9,11 @@
     "start": "next start",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "secret:audit": "node --env-file-if-exists=../../.env --import tsx scripts/secret-audit.ts",
+    "secret:audit": "node --env-file-if-exists=.env --import tsx scripts/secret-audit.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "solari:smoke": "node --conditions react-server --env-file-if-exists=../../.env --import tsx scripts/solari-smoke.ts",
-    "agent:smoke": "node --conditions react-server --env-file-if-exists=../../.env --import tsx scripts/agent-smoke.ts"
+    "solari:smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/solari-smoke.ts",
+    "agent:smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/agent-smoke.ts"
   },
   "dependencies": {
     "@solarisdk/browser": "0.1.3",

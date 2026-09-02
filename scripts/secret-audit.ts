@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process"
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { extname, join, resolve } from "node:path"
 
-const repositoryRoot = resolve(process.cwd(), "..", "..")
+const repositoryRoot = resolve(process.cwd())
 const credentials = [
   process.env.SOLARI_API_KEY,
   process.env.OPENAI_API_KEY,
@@ -23,6 +23,7 @@ const repositoryFiles = execFileSync(
   .split("\0")
   .filter(Boolean)
   .map((path) => resolve(repositoryRoot, path))
+  .filter(existsSync)
 
 const clientFiles: string[] = []
 const clientRoot = resolve(process.cwd(), ".next", "static")

@@ -4,7 +4,7 @@ import { loadEnvFile } from "node:process"
 
 import type { NextConfig } from "next"
 
-const rootEnvironment = resolve(process.cwd(), "..", "..", ".env")
+const rootEnvironment = resolve(process.cwd(), ".env")
 if (existsSync(rootEnvironment)) loadEnvFile(rootEnvironment)
 
 const nextConfig: NextConfig = {

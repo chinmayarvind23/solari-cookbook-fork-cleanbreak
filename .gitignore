@@ -8,6 +8,6 @@ __pycache__/
 venv/
 screenshot.png
 *.tsbuildinfo
-examples/cleanbreak-ts/data/*.db*
-examples/cleanbreak-ts/artifacts/solari/*.png
-examples/cleanbreak-ts/artifacts/agent/**/*.png
+data/*.db*
+artifacts/solari/*.png
+artifacts/agent/**/*.png

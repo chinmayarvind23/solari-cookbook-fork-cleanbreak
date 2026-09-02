@@ -3,3 +3,6 @@ node_modules/
 next-env.d.ts
 data/*.db*
 coverage/
+artifacts/
+examples/
+PRD.md
