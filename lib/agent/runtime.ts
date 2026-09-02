@@ -27,6 +27,10 @@ import {
   type ProfilesClient,
 } from "@/lib/solari/profile"
 import { pollForReplay } from "@/lib/solari/recording"
+import {
+  createReceiptRepository,
+  type ReceiptRepository,
+} from "@/lib/receipts/repository"
 
 type AgentBrowser = {
   id: string
@@ -54,6 +58,7 @@ type RuntimeDependencies = {
   id?: () => string
   replayAttempts?: number
   replayDelayMs?: number
+  receiptRepository: ReceiptRepository
 }
 
 function initialJob(options: {
@@ -152,6 +157,21 @@ export async function runCancellationAgent(
     targetUrl: solariConfig.targetUrl,
   })
   repository.createJob(job)
+  const subscription = getStreamMaxSubscription()
+  const receiptRepository =
+    dependencies?.receiptRepository ??
+    (dependencies?.repository ? null : createReceiptRepository())
+  receiptRepository?.saveBeforeEvidence(id, {
+    planName: "Premium",
+    status: fixture.status,
+    autoRenew: fixture.autoRenew,
+    recurringAmountCents: Math.round(subscription.amount * 100),
+    currency: subscription.currency,
+    interval: subscription.interval,
+    nextChargeDate: fixture.nextChargeDate,
+    url: solariConfig.targetUrl,
+    capturedAt: startedAt.toISOString(),
+  })
   assertJobTransition("READY", "NAVIGATING")
   repository.updateJob(id, { state: "NAVIGATING" })
 

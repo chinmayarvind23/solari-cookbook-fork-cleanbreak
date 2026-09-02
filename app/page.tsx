@@ -5,6 +5,7 @@ import { Brand } from "@/components/brand"
 import { SubscriptionCard } from "@/components/subscription-card"
 import { getDemoState, listSubscriptions } from "@/lib/db"
 import { createAgentRepository } from "@/lib/agent/repository"
+import { createReceiptRepository } from "@/lib/receipts/repository"
 import {
   annualCost,
   formatCurrency,
@@ -37,6 +38,8 @@ export default function DashboardPage() {
       : 0
   const verifiedSavings =
     createAgentRepository().getVerifiedAnnualSavingsCents() / 100
+  const latestStreamMaxReceipt =
+    createReceiptRepository().getLatestForSubscription(streamMax.id)
 
   return (
     <main className="dashboard-shell">
@@ -138,6 +141,11 @@ export default function DashboardPage() {
             <SubscriptionCard
               key={subscription.id}
               subscription={subscription}
+              receiptId={
+                subscription.id === streamMax.id
+                  ? latestStreamMaxReceipt?.receiptId
+                  : undefined
+              }
             />
           ))}
         </div>

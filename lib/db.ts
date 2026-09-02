@@ -32,6 +32,13 @@ const milestone5MigrationPath = join(
   "migrations",
   "003_milestone5.sql",
 )
+const milestone6MigrationPath = join(
+  process.cwd(),
+  "lib",
+  "db",
+  "migrations",
+  "004_milestone6.sql",
+)
 
 type SubscriptionRow = {
   id: string
@@ -83,6 +90,9 @@ export function createDatabase(path = databasePath()): DatabaseSync {
   }
   if (version < 3) {
     database.exec(readFileSync(milestone5MigrationPath, "utf8"))
+  }
+  if (version < 4) {
+    database.exec(readFileSync(milestone6MigrationPath, "utf8"))
   }
   seedDatabase(database)
   return database

@@ -3,8 +3,9 @@
 CleanBreak is a subscription cancellation transaction with independent
 verification. The root application includes a financial-control dashboard, a
 deterministic fictional StreamMax portal, a recorded Solari cloud-browser path,
-and a policy-gated OpenAI navigation run with explicit human approval and a
-crash-safe, single-attempt cancellation commit.
+and a policy-gated OpenAI navigation run with explicit human approval, a
+crash-safe single-attempt cancellation commit, fresh-session verification, and
+an immutable CleanBreak Receipt.
 
 ## Run
 
@@ -82,6 +83,27 @@ crash smoke can be run without a paid browser session:
 npm run commit:crash-smoke
 ```
 
+## Independent verification and receipts
+
+An armed cancellation attempt enters `VERIFYING`, never success. CleanBreak
+opens a different recorded Solari browser session with the same saved profile,
+uses a read-only verifier on the canonical billing page, and creates a receipt
+only when stored account evidence proves that future billing stopped.
+
+Each verified job has at most one immutable SQLite receipt at
+`/receipts/[id]`. The receipt binds the pre-action account state, exact human
+approval, single execution attempt, and independent verification into a
+versioned canonical JSON payload with a SHA-256 digest. The JSON can be
+exported from `/api/receipts/[id]`. SHA-256 makes covered edits detectable; it
+is not a digital signature, identity proof, or third-party timestamp.
+
+The paid full-flow smoke and the post-run integrity smoke are:
+
+```bash
+npm run verified:smoke
+npm run receipt:integrity-smoke
+```
+
 ## Recorded browser smoke run
 
 The **Run browser test** control on `/demo` and this command run the read-only
@@ -116,8 +138,8 @@ The original focused cookbook examples remain under [`examples/`](examples):
 
 ## Scope
 
-Milestone 4 executes an explicitly approved final action with durable
-idempotency and crash recovery. It intentionally does not independently verify
-the result, enter `VERIFIED`, or issue receipts.
+Milestone 6 issues an immutable, tamper-evident receipt only after independent
+verification reaches `VERIFIED`. Benchmarking across adversarial scenarios is
+outside this milestone.
 
 MIT licensed.

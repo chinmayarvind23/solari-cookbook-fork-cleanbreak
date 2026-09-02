@@ -18,6 +18,7 @@ import type {
 import { readSolariConfig } from "@/lib/solari/config"
 import type { ProfilesClient } from "@/lib/solari/profile"
 import { pollForReplay } from "@/lib/solari/recording"
+import { createReceiptForVerifiedJob } from "@/lib/receipts/builder"
 import {
   assertReadOnlyVerificationAction,
   verifyObservation,
@@ -61,6 +62,7 @@ export type VerificationDependencies = {
   replayAttempts: number
   replayDelayMs: number
   navigationAttempts: number
+  createReceipt(jobId: string): unknown | Promise<unknown>
 }
 
 function defaultClient(apiKey: string): VerificationClient {
@@ -303,5 +305,17 @@ export async function runIndependentVerification(
     durationMs: Math.max(0, completed.getTime() - started.getTime()),
     freshSessionMismatch,
   })
+  if (result.status === "VERIFIED") {
+    const createReceipt =
+      dependencies.createReceipt ??
+      (dependencies.repository ? null : createReceiptForVerifiedJob)
+    if (createReceipt) {
+      try {
+        await createReceipt(jobId)
+      } catch {
+        // Verification truth is durable; receipt generation is independently retryable.
+      }
+    }
+  }
   return publicJob(repository, jobId)
 }

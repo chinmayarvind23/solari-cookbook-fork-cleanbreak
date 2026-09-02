@@ -206,7 +206,7 @@ export function proposedActionFrom(
     /(?:fee|charge)[^$]{0,40}\$([0-9]+(?:\.[0-9]{2})?)/i,
   )
   const access = observation.visibleText.match(
-    /(?:access|available)[^\n.]{0,50}(\d{4}-\d{2}-\d{2}|[A-Z][a-z]+ \d{1,2}, \d{4})/,
+    /(?:access(?:\s+remains)?(?:\s+available)?\s+(?:until|through)|available\s+(?:until|through))\s+(\d{4}-\d{2}-\d{2}|[A-Za-z]+ \d{1,2}, \d{4})/i,
   )
   const visibleTerms = observation.visibleText
     .split(/\n|(?<=[.!?])\s+/)

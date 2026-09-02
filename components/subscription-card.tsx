@@ -23,8 +23,10 @@ function dateLabel(value?: string): string {
 
 export function SubscriptionCard({
   subscription,
+  receiptId,
 }: {
   subscription: Subscription
+  receiptId?: string
 }) {
   const active = subscription.status === "ACTIVE"
   const isStreamMax = subscription.slug === "streammax"
@@ -70,7 +72,15 @@ export function SubscriptionCard({
           </div>
         </div>
 
-        {isStreamMax ? (
+        {receiptId && !active ? (
+          <Link
+            className="primary-button card-action"
+            href={`/receipts/${receiptId}`}
+          >
+            View CleanBreak Receipt
+            <span aria-hidden="true">→</span>
+          </Link>
+        ) : isStreamMax ? (
           <Link className="primary-button card-action" href={subscription.url}>
             {active ? "Cancel with CleanBreak" : "Inspect account"}
             <span aria-hidden="true">↗</span>

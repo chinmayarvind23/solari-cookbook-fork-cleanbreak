@@ -2,6 +2,7 @@ import { approveCancellation } from "@/lib/agent/commit"
 import { runCancellationAgent } from "@/lib/agent/runtime"
 import { getDemoState, resetDemo } from "@/lib/db"
 import { runIndependentVerification } from "@/lib/verification/runtime"
+import { createReceiptRepository } from "@/lib/receipts/repository"
 
 resetDemo("dark-pattern")
 const before = getDemoState()
@@ -12,7 +13,17 @@ if (navigation.state !== "AWAITING_APPROVAL" || !proposal) {
     `Verification smoke did not reach approval: ${navigation.errorCode ?? "UNKNOWN"}`,
   )
 }
-const committed = await approveCancellation(navigation.id, proposal.fingerprint)
+let committed = await approveCancellation(navigation.id, proposal.fingerprint)
+if (
+  committed.state === "AWAITING_APPROVAL" &&
+  committed.errorCode === "TERMS_CHANGED_REAPPROVAL_REQUIRED" &&
+  committed.proposedAction
+) {
+  committed = await approveCancellation(
+    committed.id,
+    committed.proposedAction.fingerprint,
+  )
+}
 if (committed.state !== "VERIFYING") {
   throw new Error(
     `Verification smoke did not reach VERIFYING: ${committed.state}`,
@@ -20,6 +31,7 @@ if (committed.state !== "VERIFYING") {
 }
 const verified = await runIndependentVerification(committed.id)
 const after = getDemoState()
+const receipt = createReceiptRepository().getByJobId(verified.id)
 if (
   verified.state !== "VERIFIED" ||
   verified.verification?.status !== "VERIFIED"
@@ -44,6 +56,9 @@ if (
   throw new Error(
     "Authoritative fixture truth does not show stopped future billing.",
   )
+}
+if (!receipt) {
+  throw new Error("VERIFIED job did not produce a CleanBreak Receipt.")
 }
 
 console.log(
@@ -74,6 +89,14 @@ console.log(
         clientClosed: verified.verification.clientClosed,
       },
       falseVerified: verified.falseVerified,
+      receipt: {
+        id: receipt.receiptId,
+        url: `/receipts/${receipt.receiptId}`,
+        sha256: receipt.sha256,
+        annualizedSavingsCents: receipt.annualizedSavingsCents,
+        executionSessionId: receipt.execution.sessionId,
+        verificationSessionId: receipt.verification.sessionId,
+      },
     },
     null,
     2,

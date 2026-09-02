@@ -14,6 +14,7 @@ import { DEMO_SCENARIOS, scenarioDetails } from "@/lib/demo"
 import { getDemoState } from "@/lib/db"
 import { latestSolariRun, solariReadiness } from "@/lib/solari/runtime"
 import { formatCurrency } from "@/lib/subscriptions"
+import { createReceiptRepository } from "@/lib/receipts/repository"
 
 export const dynamic = "force-dynamic"
 
@@ -33,6 +34,9 @@ export default async function DemoLabPage({
   const agentJob = latestAgentJob()
   const { agent, solari } = await searchParams
   const canRun = readiness.apiKeyConfigured && readiness.publicTargetValid
+  const receipt = agentJob
+    ? createReceiptRepository().getByJobId(agentJob.id)
+    : null
 
   return (
     <main className="lab-shell">
@@ -166,6 +170,15 @@ export default async function DemoLabPage({
                 <strong>Cancellation verified</strong>
                 <p>Auto-renew is off and no future charge was found.</p>
                 <span>$359.88/year eliminated</span>
+                {receipt ? (
+                  <Link href={`/receipts/${receipt.receiptId}`}>
+                    View CleanBreak Receipt →
+                  </Link>
+                ) : (
+                  <small>
+                    Receipt generation is pending and can be retried.
+                  </small>
+                )}
               </div>
             ) : null}
 

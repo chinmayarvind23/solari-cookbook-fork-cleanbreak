@@ -16,6 +16,8 @@
     "agent:smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/agent-smoke.ts",
     "approved:smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/approved-smoke.ts",
     "verified:smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/verified-smoke.ts",
+    "receipt:integrity-smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/receipt-integrity-smoke.ts",
+    "receipt:visual-smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/receipt-visual-smoke.ts",
     "verification:negative-smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/negative-verification-smoke.ts",
     "commit:crash-smoke": "vitest run tests/commit.test.ts -t \"a crash after dispatch recovers without a second click\""
   },
