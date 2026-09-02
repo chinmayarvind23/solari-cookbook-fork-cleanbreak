@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+.env
+data
+artifacts/agent
+artifacts/solari
+artifacts/receipts
+*.log

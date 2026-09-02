@@ -15,6 +15,7 @@
     "benchmark": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/benchmark.ts",
     "solari:smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/solari-smoke.ts",
     "agent:smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/agent-smoke.ts",
+    "real-provider:dry-run": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/real-provider-dry-run.ts",
     "approved:smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/approved-smoke.ts",
     "verified:smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/verified-smoke.ts",
     "receipt:integrity-smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/receipt-integrity-smoke.ts",

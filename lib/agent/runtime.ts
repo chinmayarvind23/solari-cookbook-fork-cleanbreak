@@ -20,7 +20,11 @@ import {
 } from "@/lib/agent/repository"
 import { assertJobTransition } from "@/lib/agent/state"
 import type { CancellationJob, PublicAgentJob } from "@/lib/agent/types"
-import { getDemoState, getStreamMaxSubscription } from "@/lib/db"
+import {
+  getDemoState,
+  getStreamMaxSubscription,
+  upsertSubscription,
+} from "@/lib/db"
 import { readSolariConfig, getSolariReadiness } from "@/lib/solari/config"
 import {
   resolveReusableProfile,
@@ -31,6 +35,7 @@ import {
   createReceiptRepository,
   type ReceiptRepository,
 } from "@/lib/receipts/repository"
+import type { Subscription } from "@/lib/subscriptions"
 
 type AgentBrowser = {
   id: string
@@ -61,16 +66,25 @@ type RuntimeDependencies = {
   receiptRepository: ReceiptRepository
 }
 
+export type CancellationRuntimeTarget = {
+  scenario: "real-provider-dry-run"
+  targetUrl: string
+  subscription: Subscription
+  planName: string
+  autoRenew: boolean
+}
+
 function initialJob(options: {
   id: string
   createdAt: string
   scenario: string
   model: string
   targetUrl: string
+  subscriptionId?: string
 }): CancellationJob {
   return {
     id: options.id,
-    subscriptionId: "sub_streammax",
+    subscriptionId: options.subscriptionId ?? "sub_streammax",
     state: "READY",
     scenario: options.scenario,
     model: options.model,
@@ -128,6 +142,7 @@ export function agentRuntimeReadiness() {
     ready:
       agent.configured && solari.apiKeyConfigured && solari.publicTargetValid,
     model: agent.model,
+    dryRun: agent.dryRun,
     message: !agent.configured ? agent.message : solari.message,
     targetHost: solari.targetHost,
   }
@@ -141,34 +156,39 @@ export function latestAgentJob(): PublicAgentJob | null {
 
 export async function runCancellationAgent(
   dependencies?: Partial<RuntimeDependencies>,
+  target?: CancellationRuntimeTarget,
 ): Promise<PublicAgentJob> {
   const agentConfig = readAgentConfig(process.env)
-  const solariConfig = readSolariConfig(process.env)
+  const solariConfig = readSolariConfig(process.env, target?.targetUrl)
   const repository = dependencies?.repository ?? createAgentRepository()
   const now = dependencies?.now ?? (() => new Date())
   const id = dependencies?.id?.() ?? crypto.randomUUID()
   const startedAt = now()
-  const fixture = getDemoState()
+  const fixture = target ? null : getDemoState()
+  const subscription = target?.subscription ?? getStreamMaxSubscription()
+  if (target && !dependencies?.repository) upsertSubscription(subscription)
   const job = initialJob({
     id,
     createdAt: startedAt.toISOString(),
-    scenario: fixture.scenario,
+    scenario: target?.scenario ?? fixture!.scenario,
     model: agentConfig.model,
     targetUrl: solariConfig.targetUrl,
+    subscriptionId: subscription.id,
   })
   repository.createJob(job)
-  const subscription = getStreamMaxSubscription()
   const receiptRepository =
     dependencies?.receiptRepository ??
     (dependencies?.repository ? null : createReceiptRepository())
   receiptRepository?.saveBeforeEvidence(id, {
-    planName: "Premium",
-    status: fixture.status,
-    autoRenew: fixture.autoRenew,
+    planName: target?.planName ?? "Premium",
+    status: target ? subscription.status : fixture!.status,
+    autoRenew: target?.autoRenew ?? fixture!.autoRenew,
     recurringAmountCents: Math.round(subscription.amount * 100),
     currency: subscription.currency,
     interval: subscription.interval,
-    nextChargeDate: fixture.nextChargeDate,
+    nextChargeDate: target
+      ? (subscription.nextRenewalDate ?? null)
+      : fixture!.nextChargeDate,
     url: solariConfig.targetUrl,
     capturedAt: startedAt.toISOString(),
   })
@@ -259,8 +279,8 @@ export async function runCancellationAgent(
       now,
       approvalContext: {
         jobId: id,
-        subscription: getStreamMaxSubscription(),
-        planName: "Premium",
+        subscription,
+        planName: target?.planName ?? "Premium",
       },
     })
 

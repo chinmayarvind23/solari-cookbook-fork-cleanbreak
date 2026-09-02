@@ -9,6 +9,7 @@ if (existsSync(rootEnvironment)) loadEnvFile(rootEnvironment)
 
 const nextConfig: NextConfig = {
   agentRules: false,
+  output: "standalone",
   serverExternalPackages: [
     "node:sqlite",
     "@solarisdk/browser",

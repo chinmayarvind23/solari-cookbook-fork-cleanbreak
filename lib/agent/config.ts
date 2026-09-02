@@ -6,6 +6,12 @@ export type AgentConfig = {
   requestTimeoutMs: number
 }
 
+export function isCleanBreakDryRun(
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): boolean {
+  return environment.CLEANBREAK_DRY_RUN?.trim().toLowerCase() !== "false"
+}
+
 function boundedInteger(
   value: string | undefined,
   fallback: number,
@@ -32,11 +38,15 @@ function boundedNumber(
 
 export function agentReadiness(environment: NodeJS.ProcessEnv = process.env) {
   const configured = Boolean(environment.OPENAI_API_KEY?.trim())
+  const dryRun = isCleanBreakDryRun(environment)
   return {
     configured,
+    dryRun,
     model: environment.OPENAI_MODEL?.trim() || "gpt-5.6",
     message: configured
-      ? "OpenAI planning is configured server-side."
+      ? dryRun
+        ? "OpenAI planning is configured. Server-enforced dry-run mode blocks every final cancellation click."
+        : "OpenAI planning is configured server-side."
       : "Set OPENAI_API_KEY in the server environment to run the dry run.",
   }
 }

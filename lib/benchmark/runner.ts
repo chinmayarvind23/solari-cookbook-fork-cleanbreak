@@ -409,6 +409,7 @@ function commitDependencies(
   let id = 0
   return {
     repository: context.repository,
+    dryRun: false,
     artifactDirectory: resolve(
       tmpdir(),
       "cleanbreak-benchmark",

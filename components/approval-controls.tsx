@@ -7,7 +7,13 @@ import {
   approveCancellationAction,
 } from "@/app/actions"
 
-function SubmitButton({ intent }: { intent: "approve" | "abort" }) {
+function SubmitButton({
+  intent,
+  dryRun,
+}: {
+  intent: "approve" | "abort"
+  dryRun: boolean
+}) {
   const { pending } = useFormStatus()
   return (
     <button
@@ -17,10 +23,14 @@ function SubmitButton({ intent }: { intent: "approve" | "abort" }) {
     >
       {pending
         ? intent === "approve"
-          ? "Canceling, then verifying independently…"
+          ? dryRun
+            ? "Confirming safety boundary…"
+            : "Canceling, then verifying independently…"
           : "Aborting…"
         : intent === "approve"
-          ? "Approve cancellation"
+          ? dryRun
+            ? "Test approval — no cancellation"
+            : "Approve cancellation"
           : "Abort"}
     </button>
   )
@@ -29,9 +39,11 @@ function SubmitButton({ intent }: { intent: "approve" | "abort" }) {
 export function ApprovalControls({
   jobId,
   fingerprint,
+  dryRun,
 }: {
   jobId: string
   fingerprint: string
+  dryRun: boolean
 }) {
   return (
     <div className="approval-actions">
@@ -39,13 +51,13 @@ export function ApprovalControls({
         <input name="jobId" type="hidden" value={jobId} />
         <input name="intent" type="hidden" value="approve" />
         <input name="fingerprint" type="hidden" value={fingerprint} />
-        <SubmitButton intent="approve" />
+        <SubmitButton dryRun={dryRun} intent="approve" />
       </form>
       <form action={abortCancellationAction}>
         <input name="jobId" type="hidden" value={jobId} />
         <input name="intent" type="hidden" value="abort" />
         <input name="fingerprint" type="hidden" value={fingerprint} />
-        <SubmitButton intent="abort" />
+        <SubmitButton dryRun={dryRun} intent="abort" />
       </form>
     </div>
   )

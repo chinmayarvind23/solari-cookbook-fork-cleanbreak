@@ -58,7 +58,7 @@ export default function DashboardPage() {
       <section className="hero page-width">
         <div className="hero-copy">
           <p className="eyebrow">Subscription control, with proof</p>
-          <h1>Make this the last charge.</h1>
+          <h1>Break up with recurring charges.</h1>
           <p className="hero-subtitle">
             CleanBreak cancels subscriptions in a real browser, then checks
             again to prove they actually stopped renewing.

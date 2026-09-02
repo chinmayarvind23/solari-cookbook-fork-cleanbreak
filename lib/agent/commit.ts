@@ -6,6 +6,7 @@ import { resolve } from "node:path"
 import { Solari } from "@solarisdk/browser"
 
 import { materiallyMatches } from "@/lib/agent/approval"
+import { isCleanBreakDryRun } from "@/lib/agent/config"
 import { observePage, type AgentPageLike } from "@/lib/agent/observer"
 import { classifyTarget, proposedActionFrom } from "@/lib/agent/policy"
 import {
@@ -71,6 +72,7 @@ export type CommitDependencies = {
   replayDelayMs: number
   hooks: CommitFaultHooks
   getSubscription(): Subscription
+  dryRun: boolean
 }
 
 function defaultClient(apiKey: string): CommitSolariClient {
@@ -138,6 +140,27 @@ export async function approveCancellation(
   const id = dependencies.id ?? (() => crypto.randomUUID())
   const hooks = dependencies.hooks ?? {}
   const { job, proposed } = validateStoredProposal(repository, jobId)
+  const dryRun = dependencies.dryRun ?? isCleanBreakDryRun(process.env)
+  if (dryRun) {
+    if (job.state !== "AWAITING_APPROVAL") {
+      throw new CommitApprovalError(
+        "APPROVAL_NOT_ALLOWED",
+        "Only a job awaiting approval can receive an approval intent.",
+      )
+    }
+    if (fingerprint !== proposed.fingerprint) {
+      throw new CommitApprovalError(
+        "STALE_APPROVAL",
+        "The approval does not match the current proposed action.",
+      )
+    }
+    repository.updateJob(jobId, {
+      errorCode: "DRY_RUN_ACTIVE",
+      errorMessage:
+        "Server-enforced dry-run mode accepted no commit: the final cancellation control was not clicked.",
+    })
+    return publicJob(repository, jobId)
+  }
   const approvedAt = now().toISOString()
   const authorization = repository.authorizeApproval({
     jobId,

@@ -126,6 +126,12 @@ export default async function DemoLabPage({
           </strong>
           <span>{agentReadiness.message}</span>
           <small>Planner model: {agentReadiness.model}</small>
+          <small>
+            Commit mode:{" "}
+            {agentReadiness.dryRun
+              ? "DRY RUN — no final click"
+              : "LIVE — approval can cancel"}
+          </small>
           {agent === "configuration" ? (
             <small>The run did not start. Check server-only settings.</small>
           ) : null}
@@ -316,12 +322,12 @@ export default async function DemoLabPage({
                 agentJob.proposedAction.feeCents === 0 ? (
                   <>
                     <p className="approval-warning">
-                      Approving authorizes one destructive click in a new
-                      recorded browser session. CleanBreak will then report
-                      VERIFYING, not success. It will never retry that click
-                      automatically.
+                      {agentReadiness.dryRun
+                        ? "DRY RUN — cancellation will not be submitted. The server will keep this job at AWAITING_APPROVAL even if you test the approval control."
+                        : "Approving authorizes one destructive click in a new recorded browser session. CleanBreak will then report VERIFYING, not success. It will never retry that click automatically."}
                     </p>
                     <ApprovalControls
+                      dryRun={agentReadiness.dryRun}
                       jobId={agentJob.id}
                       fingerprint={agentJob.proposedAction.fingerprint}
                     />

@@ -212,6 +212,44 @@ export function getStreamMaxSubscription(
   return toSubscription(row)
 }
 
+export function upsertSubscription(
+  subscription: Subscription,
+  database = getDatabase(),
+): void {
+  database
+    .prepare(
+      `INSERT INTO subscriptions (
+        id, name, slug, url, domain, amount_cents, currency, interval,
+        next_renewal_date, status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        name = excluded.name,
+        slug = excluded.slug,
+        url = excluded.url,
+        domain = excluded.domain,
+        amount_cents = excluded.amount_cents,
+        currency = excluded.currency,
+        interval = excluded.interval,
+        next_renewal_date = excluded.next_renewal_date,
+        status = excluded.status,
+        updated_at = excluded.updated_at`,
+    )
+    .run(
+      subscription.id,
+      subscription.name,
+      subscription.slug,
+      subscription.url,
+      subscription.domain,
+      Math.round(subscription.amount * 100),
+      subscription.currency,
+      subscription.interval,
+      subscription.nextRenewalDate ?? null,
+      subscription.status,
+      subscription.createdAt,
+      subscription.updatedAt,
+    )
+}
+
 export function getDemoState(database = getDatabase()): DemoState {
   const row = database
     .prepare(

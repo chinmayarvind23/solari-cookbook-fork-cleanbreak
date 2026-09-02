@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: cleanbreak
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    disk:
+      name: cleanbreak-data
+      mountPath: /app/artifacts
+      sizeGB: 1
+    envVars:
+      - key: CLEANBREAK_DATABASE_PATH
+        value: /app/artifacts/cleanbreak.db
+      - key: CLEANBREAK_DRY_RUN
+        value: "true"
+      - key: CLEANBREAK_PUBLIC_BASE_URL
+        sync: false
+      - key: SOLARI_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.6
+      - key: SOLARI_RECORDING
+        value: "true"
+      - key: SOLARI_PERSIST_PROFILE_STATE
+        value: "true"

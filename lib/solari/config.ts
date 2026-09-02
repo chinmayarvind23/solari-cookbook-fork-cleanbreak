@@ -86,7 +86,10 @@ export function parsePublicBaseUrl(value: string | undefined): URL {
   return url
 }
 
-export function readSolariConfig(env: Environment = process.env): SolariConfig {
+export function readSolariConfig(
+  env: Environment = process.env,
+  targetUrlOverride?: string,
+): SolariConfig {
   const apiKey = env.SOLARI_API_KEY?.trim()
   if (!apiKey) {
     throw new SolariConfigurationError(
@@ -96,11 +99,13 @@ export function readSolariConfig(env: Environment = process.env): SolariConfig {
 
   if (env.SOLARI_RECORDING?.trim().toLowerCase() === "false") {
     throw new SolariConfigurationError(
-      "SOLARI_RECORDING must be enabled for the Milestone 2 smoke run.",
+      "SOLARI_RECORDING must be enabled for recorded browser runs.",
     )
   }
 
-  const base = parsePublicBaseUrl(env.CLEANBREAK_PUBLIC_BASE_URL)
+  const base = parsePublicBaseUrl(
+    targetUrlOverride ?? env.CLEANBREAK_PUBLIC_BASE_URL,
+  )
   const timeout = Number(env.SOLARI_NAVIGATION_TIMEOUT_MS ?? "30000")
   if (!Number.isFinite(timeout) || timeout < 1_000 || timeout > 120_000) {
     throw new SolariConfigurationError(
@@ -111,7 +116,9 @@ export function readSolariConfig(env: Environment = process.env): SolariConfig {
   return {
     apiKey,
     publicBaseUrl: base.toString().replace(/\/$/, ""),
-    targetUrl: new URL("/demo/streammax/account", base).toString(),
+    targetUrl: targetUrlOverride
+      ? base.toString()
+      : new URL("/demo/streammax/account", base).toString(),
     profileId: env.SOLARI_PROFILE_ID?.trim() || undefined,
     profileName: env.SOLARI_PROFILE_NAME?.trim() || "cleanbreak-demo",
     stealth: asBoolean(env.SOLARI_STEALTH, false),

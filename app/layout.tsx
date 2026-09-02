@@ -15,7 +15,7 @@ const mono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "CleanBreak — Make this the last charge",
+  title: "CleanBreak — Verified subscription cancellation",
   description:
     "Cancel subscriptions in a real browser, then verify that billing actually stopped.",
 }

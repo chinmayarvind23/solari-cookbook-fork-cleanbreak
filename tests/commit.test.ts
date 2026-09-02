@@ -146,6 +146,7 @@ function harness(
   let sequence = 0
   const dependencies: Partial<CommitDependencies> = {
     repository,
+    dryRun: false,
     artifactDirectory: "artifacts/test-commit",
     now: () => new Date(1_788_364_800_000 + sequence++ * 10),
     id: () => `id_${++sequence}`,
@@ -295,6 +296,26 @@ describe("Milestone 4 durable approval and commit", () => {
       actionFingerprint: proposed.fingerprint,
       status: "APPROVED",
     })
+  })
+
+  it("server-enforced dry-run mode keeps valid approval at the boundary", async () => {
+    const { repository, record, proposed } = prepare(database)
+    const run = harness(repository)
+    const result = await approveCancellation(record.id, proposed.fingerprint, {
+      ...run.dependencies,
+      dryRun: true,
+    })
+
+    expect(result).toMatchObject({
+      state: "AWAITING_APPROVAL",
+      errorCode: "DRY_RUN_ACTIVE",
+      approvalsGranted: 0,
+      commitAttempts: 0,
+      destructiveClicksExecuted: 0,
+    })
+    expect(run.click).not.toHaveBeenCalled()
+    expect(run.launchedProfiles).toHaveLength(0)
+    expect(repository.getLatestApproval(record.id)).toBeNull()
   })
 
   it("rejects a stale client fingerprint and records the block", () => {
