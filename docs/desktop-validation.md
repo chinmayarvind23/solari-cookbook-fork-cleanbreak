@@ -378,9 +378,33 @@ Primary stop is the cancellation boundary; safety limits are 20 steps by default
 policy rejection, and interruption. The intentionally shorter-than-general-CUA
 budget limits risk for this first provider-validation milestone.
 
-Any cancellation-labelled click is conservatively intercepted, including a model
-misclassification as ordinary `click`. **This may stop at an intermediate
-cancellation entry control rather than the provider's ultimate confirmation.**
+Cancellation-related navigation requires the explicit `cancel_flow_navigation`
+decision type. Its case-insensitive exact-label allowlist is: `Start cancellation`,
+`Continue cancellation`, `Proceed with cancellation`, `Proceed to cancellation`,
+`Review cancellation`, and `Manage cancellation`. Coordinates must be valid, the
+provider authenticated and same-origin, and confidence at least the configured
+minimum. Visible context must show an unfinished numbered `Step N of M` (1 <= N < M
+<= 20) or explicitly state that another/next/additional review step, step, or screen
+follows, will follow, or is required. Negated/immediate/last-step context fails closed.
+The model must quote visible non-personal context, not invent reversibility evidence.
+
+Any final cue in target/context overrides that allowlist: confirm, complete, finish,
+final, yes…cancel, cancel/end now, end trial/subscription/membership, effective
+immediately, turn off/stop renewal, will be cancelled/canceled, will end, lose
+access, no further charges, cancellation fee, charged…fee, irreversible, or permanent.
+Every `final_cancel_candidate` is intercepted and has no dispatcher. Cancellation
+labels on ordinary `click` decisions also intercept, as do ambiguous labels such as
+`Cancel subscription` or `Cancel plan`; no Miro-specific label is added without
+private evidence. Ordinary Continue/Next actions in cancellation stages also require
+positive next-step context. A reported FINAL_CONFIRMATION stage never permits clicks.
+
+Every allowed input still requires `NAVIGATE <step> <hash>` and fresh visual stability,
+including the 32-pixel target guard for cancellation-flow clicks. `No thanks` may
+reject retention; only the fixed neutral cancellation reason may be typed. Offer
+acceptance, pause, upgrade/downgrade, purchase, payment and account/security changes
+remain forbidden. No input is automatically retried.
+
+**Uncertain context can still stop at an intermediate cancellation entry control.**
 `AWAITING_APPROVAL` here means a candidate is ready for human inspection, not that
 the complete cancellation flow or its terms have been proven. There is no button
 or command to commit it in Desktop mode.
@@ -390,11 +414,16 @@ or command to commit it in Desktop mode.
 Each run uses a new ignored directory `artifacts/desktop/<run-id>/`:
 
 - `step-NN.png`: private screenshots of the observed screens, one per agent step.
-- `job.json`: private VM ID, structured decision type/coordinates/confidence,
+- `job.json`: private VM ID, structured decision type/coordinates/confidence/flowStage,
   screen dimensions, policy/action results, final candidate, safe live/recording
   references, recording guest path/status, pause/close outcome, and safety counts.
-- `validation.json`: written **only** for `AWAITING_APPROVAL` after pause and close
-  succeed. It uses a hash reference instead of the capability-bearing VM ID.
+- `validation.json`: written **only** for `AWAITING_APPROVAL` with
+  `FINAL_ACTION_BOUNDARY`, zero destructive/unsafe actions, an established provider
+  candidate, successful pause/close, and at least one preceding successfully returned,
+  human-reviewed `cancel_flow_navigation` step. An early boundary alone is not a
+  successful validation (the CLI prints no validation path and exits nonzero).
+  It uses a hash reference instead of the capability-bearing VM ID and includes
+  only enum flow stages, not private screen text.
 
 Free-form model reasoning/visible text/type values are withheld from persisted
 decisions (except the one fixed neutral cancellation reason). They could echo

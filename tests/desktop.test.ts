@@ -19,8 +19,15 @@ import {
   type DesktopDecision,
 } from "@/lib/desktop/decision"
 import { createDesktopPlanner } from "@/lib/desktop/planner"
-import { runDesktopDryRun } from "@/lib/desktop/runtime"
-import { desktopEvidence } from "@/lib/desktop/evidence"
+import {
+  runDesktopDryRun,
+  executeNavigation,
+  type DesktopHandle,
+} from "@/lib/desktop/runtime"
+import {
+  desktopEvidence,
+  successfulDesktopValidation,
+} from "@/lib/desktop/evidence"
 import { startDesktopViewer } from "@/lib/desktop/viewer"
 
 vi.mock("@/lib/desktop/session", async (importOriginal) => ({
@@ -56,6 +63,7 @@ function decision(patch: Partial<DesktopDecision> = {}): DesktopDecision {
     observedOrigin: "https://provider.example",
     destinationOrigin: null,
     pageStatus: "authenticated_provider",
+    flowStage: "BILLING",
     reasoning: "Stop before cancellation",
     confidence: 0.99,
     reason: null,
@@ -205,6 +213,7 @@ describe("Desktop config and strict planner", () => {
     expect(options.text.format.strict).toBe(true)
     expect(options.text.format.schema.additionalProperties).toBe(false)
     expect(options.text.format.schema.required).toContain("type")
+    expect(options.text.format.schema.required).toContain("flowStage")
     expect(options.input[0].role).toBe("developer")
     const parts = options.input[1].content as Array<{
       type: string
@@ -220,6 +229,9 @@ describe("Desktop config and strict planner", () => {
       `data:image/png;base64,${png().toString("base64")}`,
     )
     expect(result.tokens).toBe(30)
+    expect(options.input[0].content).toContain("cancel_flow_navigation")
+    expect(options.input[0].content).toContain("ANY uncertainty")
+    expect(options.input[0].content).not.toContain("ANY cancellation control")
   })
   it("rejects arbitrary code and missing structured fields", () => {
     expect(() =>
@@ -292,7 +304,7 @@ describe("offline visual Desktop dry-run lifecycle", () => {
   ] as Array<[Partial<DesktopDecision>, string]>)(
     "fails closed on unsafe decision %#",
     async (patch, code) => {
-      const h = harness([decision(patch)])
+      const h = harness([decision({ type: "click", ...patch })])
       const result = await runDesktopDryRun(env, h.deps)
       expect(result.stopReason).toBe(code)
       expect(result.state).toBe("FAILED")
@@ -502,6 +514,12 @@ describe("offline visual Desktop dry-run lifecycle", () => {
     const root = mkdtempSync(join(tmpdir(), "cleanbreak-desktop-test-"))
     const h = harness([
       decision({
+        type: "cancel_flow_navigation",
+        targetText: "Start cancellation",
+        visibleText: "Step 1 of 3",
+        flowStage: "CANCELLATION_ENTRY",
+      }),
+      decision({
         reasoning: "password private-password user@example.com",
         visibleText: "private-token",
         reason: "https://secret.example?token=private-token",
@@ -545,6 +563,261 @@ describe("offline visual Desktop dry-run lifecycle", () => {
       rmdirSync(evidence.directory)
       rmdirSync(root)
     }
+  })
+})
+
+describe("reversible cancellation flow and final boundary", () => {
+  const navigation = (patch: Partial<DesktopDecision> = {}) =>
+    decision({
+      type: "cancel_flow_navigation",
+      targetText: "Start cancellation",
+      visibleText: "Step 1 of 3. Another review step follows.",
+      flowStage: "CANCELLATION_ENTRY",
+      ...patch,
+    })
+  const policy = (patch: Partial<DesktopDecision> = {}) =>
+    desktopPolicy(navigation(patch), "https://provider.example", 1280, 720, 0.9)
+
+  it.each([
+    "Start cancellation",
+    "Continue cancellation",
+    "Proceed with cancellation",
+    "Proceed to cancellation",
+    "Review cancellation",
+    "Manage cancellation",
+  ])("allows only reviewed reversible navigation for %s", (targetText) => {
+    expect(policy({ targetText })).toEqual({
+      result: "ALLOW",
+      code: "HUMAN_NAVIGATION_REVIEW_REQUIRED",
+    })
+  })
+  it.each([
+    "Confirm cancellation",
+    "Cancel now",
+    "End trial",
+    "End subscription",
+    "Yes, cancel",
+    "Complete cancellation",
+    "Finish cancellation",
+    "Final cancellation",
+    "End now",
+    "Turn off renewal",
+    "Stop renewal",
+    "Cancel subscription",
+    "Cancel plan",
+  ])("intercepts %s even when the model calls it reversible", (targetText) => {
+    expect(policy({ targetText })).toEqual({
+      result: "INTERCEPT",
+      code: "FINAL_ACTION_BOUNDARY",
+    })
+    expect(policy({ targetText, type: "click" }).result).toBe("INTERCEPT")
+  })
+  it.each([
+    "Confirm",
+    "Complete",
+    "Finish",
+    "Final",
+    "Yes, cancel",
+    "Cancel now",
+    "End now",
+    "End trial",
+    "End subscription",
+    "Effective immediately",
+    "Turn off renewal",
+    "Stop renewal",
+    "Your plan will be cancelled",
+    "Your plan will be canceled",
+    "Your trial will end",
+    "You lose access",
+    "No further charges",
+    "Cancellation fee",
+    "You will be charged a fee",
+  ])("destructive context %s overrides the navigation allowlist", (cue) => {
+    expect(policy({ visibleText: `Step 1 of 3. ${cue}` }).result).toBe(
+      "INTERCEPT",
+    )
+    expect(
+      policy({ type: "click", targetText: "Continue", visibleText: cue })
+        .result,
+    ).toBe("INTERCEPT")
+  })
+  it.each([
+    null,
+    "",
+    "Cancel your subscription",
+    "Step 3 of 3",
+    "Step 0 of 3",
+    "No additional review step follows",
+  ])("intercepts ambiguous/missing reversibility context %s", (visibleText) => {
+    expect(policy({ visibleText }).result).toBe("INTERCEPT")
+  })
+  it.each([
+    { x: null },
+    { y: null },
+    { x: -1 },
+    { y: 720 },
+    { pageStatus: "unknown" },
+    { pageStatus: "login" },
+    { pageStatus: "challenge" },
+    { observedOrigin: "https://other.example" },
+    { destinationOrigin: "https://other.example" },
+    { confidence: 0.89 },
+  ] as Partial<DesktopDecision>[])(
+    "rejects missing authorization/context %#",
+    (patch) => {
+      expect(policy(patch).result).toBe("BLOCK")
+    },
+  )
+  it.each([
+    "Accept offer",
+    "Pause subscription",
+    "Downgrade",
+    "Upgrade",
+    "Purchase",
+    "Payment",
+    "Security",
+    "Delete account",
+  ])("never permits prohibited retention/account action %s", (targetText) => {
+    expect(policy({ type: "click", targetText }).result).not.toBe("ALLOW")
+  })
+  it("always intercepts explicit final candidates and has no dispatcher for them", async () => {
+    const h = harness()
+    const final = decision({
+      x: null,
+      y: null,
+      targetText: null,
+      pageStatus: "unknown",
+      confidence: 0,
+    })
+    expect(
+      desktopPolicy(final, "https://provider.example", 1280, 720, 0.9).result,
+    ).toBe("INTERCEPT")
+    expect(
+      await executeNavigation(h.vm as unknown as DesktopHandle, final),
+    ).toBe("ACTION_NOT_DISPATCHED")
+    expect(h.vm.mouse.click).not.toHaveBeenCalled()
+    expect(h.vm.keyboard.press).not.toHaveBeenCalled()
+    expect(h.vm.keyboard.type).not.toHaveBeenCalled()
+    const result = await runDesktopDryRun(env, {
+      ...h.deps,
+      planner: async () => ({ decision: final, tokens: 1 }),
+    })
+    expect(result.stopReason).toBe("FINAL_ACTION_BOUNDARY")
+    expect(result.proposedAction).toBeNull()
+    expect(successfulDesktopValidation(result)).toBe(false)
+  })
+  it("traverses entry, retention rejection, neutral reason and review, then never dispatches final", async () => {
+    const h = harness([
+      navigation(),
+      decision({
+        type: "click",
+        targetText: "No thanks",
+        visibleText: "Keep your current plan at a discount",
+        flowStage: "RETENTION",
+      }),
+      decision({
+        type: "type",
+        targetText: "cancellation reason",
+        text: NEUTRAL_REASON,
+        flowStage: "REASON",
+      }),
+      navigation({ targetText: "Continue cancellation", flowStage: "REVIEW" }),
+      decision({ flowStage: "FINAL_CONFIRMATION" }),
+    ])
+    const result = await runDesktopDryRun(env, h.deps)
+    expect(result).toMatchObject({
+      state: "AWAITING_APPROVAL",
+      stopReason: "FINAL_ACTION_BOUNDARY",
+      destructiveClicksExecuted: 0,
+      unsafeActionsExecuted: 0,
+    })
+    expect(h.vm.mouse.click).toHaveBeenCalledTimes(3)
+    expect(h.vm.keyboard.type).toHaveBeenCalledExactlyOnceWith(NEUTRAL_REASON)
+    expect(h.deps.confirm).toHaveBeenCalledTimes(4)
+    expect(result.steps.map((step) => step.flowStage)).toEqual([
+      "CANCELLATION_ENTRY",
+      "RETENTION",
+      "REASON",
+      "REVIEW",
+      "FINAL_CONFIRMATION",
+    ])
+    expect(result.steps.at(-1)?.execution).toBe("NOT_EXECUTED")
+    expect(result.steps[0].screenStability?.targetPadding).toBe(32)
+    expect(successfulDesktopValidation(result)).toBe(true)
+    expect(
+      successfulDesktopValidation({
+        ...result,
+        steps: result.steps.slice(1, 3).concat(result.steps.slice(-1)),
+      }),
+    ).toBe(false)
+    expect(
+      successfulDesktopValidation({ ...result, stopReason: "SCREEN_CHANGED" }),
+    ).toBe(false)
+    expect(successfulDesktopValidation({ ...result, paused: false })).toBe(
+      false,
+    )
+    expect(
+      successfulDesktopValidation({
+        ...result,
+        destructiveClicksExecuted: 1,
+      } as unknown as typeof result),
+    ).toBe(false)
+    expect(
+      successfulDesktopValidation({
+        ...result,
+        unsafeActionsExecuted: 1,
+      } as unknown as typeof result),
+    ).toBe(false)
+  })
+  it("does not count an early boundary as completed validation", async () => {
+    const h = harness([decision()])
+    const result = await runDesktopDryRun(env, h.deps)
+    expect(result.state).toBe("AWAITING_APPROVAL")
+    expect(successfulDesktopValidation(result)).toBe(false)
+    expect(h.vm.mouse.click).not.toHaveBeenCalled()
+  })
+  it.each([
+    { pageStatus: "unknown" },
+    { observedOrigin: "https://other.example" },
+    { confidence: 0 },
+  ] as Partial<DesktopDecision>[])(
+    "intercepts but does not validate an unestablished final candidate %#",
+    async (patch) => {
+      const h = harness([navigation(), decision(patch)])
+      const result = await runDesktopDryRun(env, h.deps)
+      expect(result.stopReason).toBe("FINAL_ACTION_BOUNDARY")
+      expect(result.proposedAction).toBeNull()
+      expect(successfulDesktopValidation(result)).toBe(false)
+      expect(h.vm.mouse.click).toHaveBeenCalledOnce()
+    },
+  )
+  it("still requires human confirmation for cancellation navigation", async () => {
+    const h = harness([navigation()])
+    h.deps.confirm.mockResolvedValue(false)
+    const result = await runDesktopDryRun(env, h.deps)
+    expect(result.stopReason).toBe("NAVIGATION_NOT_CONFIRMED")
+    expect(h.vm.mouse.click).not.toHaveBeenCalled()
+    expect(h.deps.confirm).toHaveBeenCalledOnce()
+  })
+  it("applies target-local visual drift protection to cancellation navigation", async () => {
+    const h = harness([navigation()])
+    h.vm.screenshot
+      .mockResolvedValueOnce(png())
+      .mockResolvedValueOnce(await drift(200, 300))
+    const result = await runDesktopDryRun(env, h.deps)
+    expect(result.stopReason).toBe("SCREEN_CHANGED")
+    expect(result.steps[0].screenStability?.targetChanged).toBe(true)
+    expect(h.vm.mouse.click).not.toHaveBeenCalled()
+  })
+  it("never retries a cancellation navigation whose click outcome is unknown", async () => {
+    const h = harness([navigation()])
+    h.vm.mouse.click.mockRejectedValue(new Error("private-sdk-error"))
+    const result = await runDesktopDryRun(env, h.deps)
+    expect(result.stopReason).toBe("ACTION_FAILED_OUTCOME_UNKNOWN_NO_RETRY")
+    expect(h.vm.mouse.click).toHaveBeenCalledOnce()
+    expect(result.destructiveClicksExecuted).toBe(0)
+    expect(result.unsafeActionsExecuted).toBe(0)
+    expect(successfulDesktopValidation(result)).toBe(false)
   })
 })
 

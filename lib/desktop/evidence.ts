@@ -3,6 +3,29 @@ import { resolve } from "node:path"
 import { createHash } from "node:crypto"
 import type { DesktopRun } from "./runtime"
 
+export function successfulDesktopValidation(run: DesktopRun): boolean {
+  return (
+    run.state === "AWAITING_APPROVAL" &&
+    run.stopReason === "FINAL_ACTION_BOUNDARY" &&
+    run.destructiveClicksExecuted === 0 &&
+    run.unsafeActionsExecuted === 0 &&
+    run.proposedAction !== null &&
+    run.paused &&
+    run.controlClosed &&
+    run.steps.at(-1)?.policy === "FINAL_ACTION_BOUNDARY" &&
+    run.steps.at(-1)?.execution === "NOT_EXECUTED" &&
+    run.steps
+      .slice(0, -1)
+      .some(
+        (step) =>
+          step.decision?.type === "cancel_flow_navigation" &&
+          step.policy === "HUMAN_NAVIGATION_REVIEW_REQUIRED" &&
+          step.execution === "NAVIGATION_RETURNED" &&
+          step.screenStability?.stable === true,
+      )
+  )
+}
+
 export function desktopEvidence(
   runId: string,
   root = resolve(process.cwd(), "artifacts", "desktop"),
@@ -26,13 +49,7 @@ export function desktopEvidence(
       )
     },
     validation(run: DesktopRun) {
-      if (
-        run.state !== "AWAITING_APPROVAL" ||
-        !run.proposedAction ||
-        !run.paused ||
-        !run.controlClosed
-      )
-        return false
+      if (!successfulDesktopValidation(run)) return false
       writeFileSync(
         resolve(directory, "validation.json"),
         JSON.stringify(
@@ -41,6 +58,9 @@ export function desktopEvidence(
             executor: "desktop",
             runId,
             state: run.state,
+            stopReason: run.stopReason,
+            cancellationFlowTraversed: true,
+            flowStages: run.steps.map((step) => step.flowStage),
             desktopReference: createHash("sha256")
               .update(run.desktopId)
               .digest("hex"),

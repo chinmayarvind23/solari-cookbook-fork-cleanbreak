@@ -6,6 +6,7 @@ export const desktopDecisionSchema = z
   .object({
     type: z.enum([
       "click",
+      "cancel_flow_navigation",
       "type",
       "key",
       "scroll",
@@ -28,6 +29,14 @@ export const desktopDecisionSchema = z
       "challenge",
       "unknown",
     ]),
+    flowStage: z.enum([
+      "BILLING",
+      "CANCELLATION_ENTRY",
+      "RETENTION",
+      "REASON",
+      "REVIEW",
+      "FINAL_CONFIRMATION",
+    ]),
     reasoning: z.string().max(600),
     confidence: z.number().min(0).max(1),
     reason: z.string().max(300).nullable(),
@@ -35,6 +44,28 @@ export const desktopDecisionSchema = z
   .strict()
 export type DesktopDecision = z.infer<typeof desktopDecisionSchema>
 export const NEUTRAL_REASON = "I no longer need this subscription."
+
+const cancellationLabel =
+  /cancel|end.*(?:membership|subscription|trial)|(?:turn off|stop).*renew/i
+const flowNavigationLabel =
+  /^(?:start cancellation|continue cancellation|proceed (?:with|to) cancellation|review cancellation|manage cancellation)$/i
+const finalConsequence =
+  /\b(?:confirm\w*|complete\w*|finish\w*|final\w*|yes\b.*\bcancel|cancel now|end now|end (?:my |your |the )?(?:trial|subscription|membership)|effective immediately|turn off (?:auto[- ]?)?renewal|stop (?:auto[- ]?)?renewal|will be cancel[le]+d|will end|lose access|no further charges|cancellation fee|charged\b.*\bfee|irreversible|permanent\w*)\b/i
+
+function clearlyHasAnotherStep(context: string): boolean {
+  if (/\b(?:no|not|without|last|only|immediate|immediately)\b/i.test(context))
+    return false
+  const numbered = /\bstep (\d{1,2}) of (\d{1,2})\b/i.exec(context)
+  return (
+    (numbered !== null &&
+      Number(numbered[1]) >= 1 &&
+      Number(numbered[1]) < Number(numbered[2]) &&
+      Number(numbered[2]) <= 20) ||
+    /\b(?:another|next|additional) (?:review step|step|screen) (?:follows|will follow|is required)\b/i.test(
+      context,
+    )
+  )
+}
 
 export type DesktopPolicy = {
   result: "ALLOW" | "BLOCK" | "INTERCEPT"
@@ -48,6 +79,12 @@ export function desktopPolicy(
   minConfidence: number,
 ): DesktopPolicy {
   const block = (code: string): DesktopPolicy => ({ result: "BLOCK", code })
+  const intercept = (): DesktopPolicy => ({
+    result: "INTERCEPT",
+    code: "FINAL_ACTION_BOUNDARY",
+  })
+  // Terminal decision: never reaches any input dispatcher, even with missing context.
+  if (d.type === "final_cancel_candidate") return intercept()
   if (d.confidence < minConfidence) return block("LOW_CONFIDENCE")
   if (d.pageStatus === "challenge") return block("ANTI_BOT_CHALLENGE")
   if (d.pageStatus === "login") return block("LOGIN_REQUIRED")
@@ -61,7 +98,7 @@ export function desktopPolicy(
   if (d.type === "needs_human" || d.type === "failure")
     return block("MODEL_STOPPED")
   if (
-    ["click", "scroll", "final_cancel_candidate"].includes(d.type) &&
+    ["click", "scroll", "cancel_flow_navigation"].includes(d.type) &&
     (d.x === null ||
       d.y === null ||
       d.x < 0 ||
@@ -71,6 +108,13 @@ export function desktopPolicy(
   )
     return block("INVALID_COORDINATES")
   const label = (d.targetText ?? "").trim().toLowerCase()
+  const context = (d.visibleText ?? "").replace(/\s+/g, " ").trim()
+  if (
+    ["click", "cancel_flow_navigation"].includes(d.type) &&
+    (finalConsequence.test(`${label} ${context}`) ||
+      d.flowStage === "FINAL_CONFIRMATION")
+  )
+    return intercept()
   const risk = classifyTarget({
     id: "desktop",
     name: label,
@@ -92,16 +136,25 @@ export function desktopPolicy(
     )
   )
     return block("UNSAFE_TARGET")
-  // Conservative boundary: even a mislabelled click on "Cancel" is intercepted.
-  if (
-    d.type === "final_cancel_candidate" ||
-    (d.type === "click" &&
-      /cancel|end.*(?:membership|subscription)|turn off.*renew/i.test(label))
-  ) {
-    if (!/cancel|end.*(?:membership|subscription)|turn off.*renew/i.test(label))
-      return block("UNCONFIRMED_FINAL_TARGET")
-    return { result: "INTERCEPT", code: "FINAL_ACTION_BOUNDARY" }
+  // Only this explicitly classified, narrowly allowlisted path can advance a
+  // cancellation flow. Nonempty context alone is not evidence of reversibility.
+  if (d.type === "cancel_flow_navigation") {
+    if (
+      !cancellationLabel.test(label) ||
+      !flowNavigationLabel.test(label) ||
+      !clearlyHasAnotherStep(context)
+    )
+      return intercept()
+    return { result: "ALLOW", code: "HUMAN_NAVIGATION_REVIEW_REQUIRED" }
   }
+  if (d.type === "click" && cancellationLabel.test(label)) return intercept()
+  if (
+    d.type === "click" &&
+    /^(continue|next)$/.test(label) &&
+    d.flowStage !== "BILLING" &&
+    !clearlyHasAnotherStep(context)
+  )
+    return intercept()
   if (d.type === "scroll") return block("SCROLL_DELTA_UNSUPPORTED")
   if (
     d.type === "click" &&
@@ -133,6 +186,7 @@ export function safeDesktopDecision(d: DesktopDecision) {
     y: d.y,
     confidence: d.confidence,
     pageStatus: d.pageStatus,
+    flowStage: d.flowStage,
     deltaY: d.deltaY,
     keys:
       d.keys?.filter((k) => ["Escape", "Page_Down", "Page_Up"].includes(k)) ??

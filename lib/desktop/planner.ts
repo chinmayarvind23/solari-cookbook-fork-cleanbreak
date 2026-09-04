@@ -36,8 +36,25 @@ Use absolute pixel coordinates in the supplied dimensions. Read the browser addr
 if origin or authenticated provider UI is not clear, return needs_human with pageStatus unknown.
 Report visible target label exactly. Mark login/challenge pages; never solve or bypass them.
 Never use passwords, tokens, terminal commands, clipboard, address-bar typing, or arbitrary code.
-Return final_cancel_candidate for ANY cancellation control, even if it might be an intermediate step.
-Never click delete account, buy, retention acceptance, pause, upgrade, or security settings.
+Cancellation controls have two classes:
+cancel_flow_navigation: only a control that opens or advances a reversible workflow,
+with visible evidence that another review/confirmation step follows. Examples: Start
+cancellation, Continue cancellation, Proceed with/to cancellation, Review cancellation,
+Manage cancellation. Report the exact targetText and visible non-personal consequence/
+step context, never invent missing evidence. Cancel plan can conceptually open a flow,
+but is NOT on the deterministic allowlist and must stop pending private evidence review.
+final_cancel_candidate: whenever the click may change subscription state, end the trial,
+disable renewal, incur a cancellation fee, terminate access, or otherwise commit.
+Examples: Confirm cancellation, Cancel now, End subscription, End trial, Turn off renewal,
+Yes, cancel, Complete cancellation. If there is ANY uncertainty about reversibility,
+return final_cancel_candidate. Never classify based only on the word cancel: use the
+entire visible screen and consequence text. The deterministic policy remains authority.
+Every navigation still requires fresh human NAVIGATE confirmation, never final execution.
+Report flowStage as BILLING, CANCELLATION_ENTRY, RETENTION, REASON, REVIEW, or
+FINAL_CONFIRMATION based on the observed screen, not an assumed completed action.
+You may choose No thanks to reject retention, advance allowed reversible cancellation
+steps, and enter the fixed neutral reason. Never accept discounts, delete account, buy,
+pause, upgrade/downgrade, modify payment, or change account/security state.
 Typing is limited to the fixed cancellation reason: ${NEUTRAL_REASON}
 Only Escape, Page_Down, Page_Up are supported keys. Scroll delta is unsupported by this SDK; use Page_Down/Up if appropriate.
 Use null for unused fields. Do not transcribe personal data in reasoning or visibleText.`,

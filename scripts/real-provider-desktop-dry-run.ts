@@ -2,6 +2,7 @@ import { resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { readDesktopConfig } from "@/lib/desktop/config"
 import { runDesktopDryRun } from "@/lib/desktop/runtime"
+import { successfulDesktopValidation } from "@/lib/desktop/evidence"
 import { confirmTerminal, terminalSignals } from "./desktop-terminal"
 
 export async function desktopDryRunCommand() {
@@ -37,7 +38,7 @@ export async function desktopDryRunCommand() {
       confirm: (step, decision, hash) => {
         console.log(JSON.stringify({ step, decision }))
         return confirmTerminal(
-          `Inspect the live screen and coordinates. Only NON-DESTRUCTIVE navigation may proceed. Never authorize cancellation, an offer, a purchase, or account/security changes. Type NAVIGATE ${step} ${hash} to approve this one input, otherwise stop.`,
+          `Inspect the live screen and coordinates. Only NON-DESTRUCTIVE navigation may proceed. For cancellation-flow navigation, verify that another review step follows and this click cannot commit cancellation. Never authorize a final cancellation, retention acceptance, purchase, or account/security changes. Type NAVIGATE ${step} ${hash} to approve this one input, otherwise stop.`,
           `NAVIGATE ${step} ${hash}`,
           signals.signal,
         )
@@ -56,10 +57,9 @@ export async function desktopDryRunCommand() {
         state: result.state,
         stopReason: result.stopReason,
         evidence: `artifacts/desktop/${result.id}/job.json`,
-        validation:
-          result.state === "AWAITING_APPROVAL"
-            ? `artifacts/desktop/${result.id}/validation.json`
-            : null,
+        validation: successfulDesktopValidation(result)
+          ? `artifacts/desktop/${result.id}/validation.json`
+          : null,
         recordingStatus: result.recordingStatus,
         paused: result.paused,
         controlClosed: result.controlClosed,
@@ -67,7 +67,7 @@ export async function desktopDryRunCommand() {
         unsafeActionsExecuted: result.unsafeActionsExecuted,
       }),
     )
-    if (result.state !== "AWAITING_APPROVAL") process.exitCode = 1
+    if (!successfulDesktopValidation(result)) process.exitCode = 1
   } catch {
     console.log(
       "Desktop validation failed safely. Inspect private local evidence; if pause was not confirmed, pause the VM in Solari. No raw SDK error is printed.",

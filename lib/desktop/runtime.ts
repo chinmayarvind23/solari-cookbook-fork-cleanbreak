@@ -38,6 +38,7 @@ export type DesktopRun = {
     screenshotPath: string
     screenshotHash: string
     screenStability: ScreenStability | null
+    flowStage: DesktopDecision["flowStage"] | null
     width: number
     height: number
     decision: ReturnType<typeof safeDesktopDecision> | null
@@ -97,12 +98,13 @@ function digest(bytes: Uint8Array) {
 
 // Only these dispatchers are reachable. No code execution, browser/profile APIs,
 // clipboard, shell, lifecycle destroy, Return, or final-action dispatcher exists.
-async function executeNavigation(
+export async function executeNavigation(
   vm: DesktopHandle,
   d: DesktopDecision,
 ): Promise<string> {
   try {
-    if (d.type === "click") await vm.mouse.click(d.x!, d.y!)
+    if (d.type === "click" || d.type === "cancel_flow_navigation")
+      await vm.mouse.click(d.x!, d.y!)
     else if (d.type === "type") await vm.keyboard.type(d.text!)
     else if (d.type === "key") await vm.keyboard.press(d.keys!)
     else return "ACTION_NOT_DISPATCHED"
@@ -204,6 +206,7 @@ export async function runDesktopDryRun(
         screenshotPath,
         screenshotHash: digest(screenshot),
         screenStability: null,
+        flowStage: null,
         width,
         height,
         decision: null,
@@ -223,6 +226,7 @@ export async function runDesktopDryRun(
       signal.throwIfAborted()
       const decision = desktopDecisionSchema.parse(planned.decision)
       entry.decision = safeDesktopDecision(decision)
+      entry.flowStage = decision.flowStage
       tokens += planned.tokens
       if (!Number.isFinite(tokens) || tokens > config.maxTokens) {
         run.stopReason = "TOKEN_BUDGET"
@@ -244,13 +248,28 @@ export async function runDesktopDryRun(
       if (policy.result === "INTERCEPT") {
         run.state = "AWAITING_APPROVAL"
         run.stopReason = "FINAL_ACTION_BOUNDARY"
-        run.proposedAction = {
-          x: decision.x!,
-          y: decision.y!,
-          confidence: decision.confidence,
-          screenshotPath,
-          action: "REVIEW_CANCELLATION_CONTROL",
-        }
+        run.proposedAction =
+          decision.pageStatus === "authenticated_provider" &&
+          decision.observedOrigin ===
+            new URL(config.provider.startUrl).origin &&
+          (decision.destinationOrigin === null ||
+            decision.destinationOrigin ===
+              new URL(config.provider.startUrl).origin) &&
+          decision.confidence >= config.agent.minConfidence &&
+          decision.x !== null &&
+          decision.y !== null &&
+          decision.x >= 0 &&
+          decision.y >= 0 &&
+          decision.x < width &&
+          decision.y < height
+            ? {
+                x: decision.x!,
+                y: decision.y!,
+                confidence: decision.confidence,
+                screenshotPath,
+                action: "REVIEW_CANCELLATION_CONTROL",
+              }
+            : null
         break
       }
       phase = "NAVIGATION_NOT_CONFIRMED"
@@ -271,7 +290,7 @@ export async function runDesktopDryRun(
       entry.screenStability = await screenStability(
         screenshot,
         await vm.screenshot({ format: "png" }),
-        decision.type === "click"
+        decision.type === "click" || decision.type === "cancel_flow_navigation"
           ? { x: decision.x!, y: decision.y! }
           : undefined,
       )
@@ -284,7 +303,9 @@ export async function runDesktopDryRun(
       entry.execution = "DISPATCH_PENDING"
       evidence.job(run)
       entry.execution = await executeNavigation(vm, decision)
-      history.push(`step ${step}: ${decision.type} -> ${entry.execution}`)
+      history.push(
+        `step ${step}: ${decision.flowStage} ${decision.type} -> ${entry.execution}`,
+      )
       evidence.job(run)
       if (entry.execution !== "NAVIGATION_RETURNED") {
         run.stopReason = entry.execution
