@@ -13,3 +13,4 @@ artifacts/solari/*.png
 artifacts/agent/**/*.png
 artifacts/receipts/*.png
 artifacts/desktop/
+.cleanbreak/

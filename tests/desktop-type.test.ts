@@ -5,10 +5,15 @@ import fsPromises from "node:fs/promises"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { readHiddenText, runDesktopType } from "@/scripts/desktop-type"
 
+vi.mock("@/lib/desktop/session", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/desktop/session")>()),
+  readDesktopSessionState: vi.fn(() => undefined),
+}))
+
 // Generated disposable test data, never real credentials or password fixtures.
 const environment = () => ({
   SOLARI_API_KEY: randomBytes(24).toString("hex"),
-  SOLARI_DESKTOP_ID: randomBytes(24).toString("hex"),
+  SOLARI_DESKTOP_SESSION_ID: `pool:vm:org.${randomBytes(24).toString("hex")}`,
 })
 function harness() {
   const vm = {
@@ -56,7 +61,7 @@ afterEach(() => {
 })
 
 describe("developer desktop literal typing", () => {
-  it.each(["SOLARI_API_KEY", "SOLARI_DESKTOP_ID"])(
+  it.each(["SOLARI_API_KEY", "SOLARI_DESKTOP_SESSION_ID"])(
     "requires %s before connecting",
     async (key) => {
       const { deps } = harness()
@@ -76,14 +81,14 @@ describe("developer desktop literal typing", () => {
     const env = environment()
     expect(await runDesktopType(["--test"], env, deps)).toBe(0)
     expect(client.connect).toHaveBeenCalledExactlyOnceWith(
-      env.SOLARI_DESKTOP_ID,
+      env.SOLARI_DESKTOP_SESSION_ID,
     )
     expect(vm.connect).toHaveBeenCalledOnce()
     expect(vm.keyboard.type).toHaveBeenCalledExactlyOnceWith("AbCdEF123")
     expect(deps.readSecret).not.toHaveBeenCalled()
     expect(vm.close).toHaveBeenCalledOnce()
     expect(deps.output.mock.calls).toEqual([
-      [`Desktop target: ${env.SOLARI_DESKTOP_ID}`],
+      [`Desktop target: ${env.SOLARI_DESKTOP_SESSION_ID}`],
       ["Typed test text into focused desktop field."],
     ])
     expect(deps.output.mock.invocationCallOrder[0]).toBeLessThan(
@@ -310,10 +315,13 @@ describe("safe test-stage diagnostics", () => {
     for (const kind of ["key", "controls"]) {
       const { deps } = harness()
       const env = environment()
-      env.SOLARI_DESKTOP_ID =
+      env.SOLARI_DESKTOP_SESSION_ID =
         kind === "key" ? env.SOLARI_API_KEY : "invalid\nAuthorization: data"
-      expect(await runDesktopType(["--test"], env, deps)).toBe(0)
-      expect(deps.output.mock.calls[0]).toEqual(["Desktop target: [redacted]"])
+      expect(await runDesktopType(["--test"], env, deps)).toBe(1)
+      expect(deps.createClient).not.toHaveBeenCalled()
+      expect(
+        deps.output.mock.calls.flat().join(" ").includes(env.SOLARI_API_KEY),
+      ).toBe(false)
     }
   })
   it("keeps secret-mode SDK errors generic even when they echo the entered value", async () => {
@@ -326,7 +334,7 @@ describe("safe test-stage diagnostics", () => {
     const env = environment()
     expect(await runDesktopType(["--secret"], env, deps)).toBe(1)
     expect(deps.output.mock.calls).toEqual([
-      [`Desktop target: ${env.SOLARI_DESKTOP_ID}`],
+      [`Desktop target: ${env.SOLARI_DESKTOP_SESSION_ID}`],
       [
         "Typing was not confirmed; inspect the focused field before retrying. Raw SDK details withheld.",
       ],

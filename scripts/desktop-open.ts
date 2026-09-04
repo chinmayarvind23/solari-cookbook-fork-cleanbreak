@@ -1,35 +1,54 @@
 // Developer-only manual authentication; no planner, screenshots, or recording.
 import { DesktopClient, type Desktop } from "@solarisdk/desktop"
+import { resolve } from "node:path"
+import { pathToFileURL } from "node:url"
 import { readDesktopConnection } from "@/lib/desktop/config"
 import { startDesktopViewer } from "@/lib/desktop/viewer"
 import { confirmTerminal, terminalSignals } from "./desktop-terminal"
 
-async function main() {
+type Dependencies = {
+  createClient(
+    config: ReturnType<typeof readDesktopConnection>,
+  ): Pick<DesktopClient, "connect" | "pause">
+  viewer: typeof startDesktopViewer
+  confirm: typeof confirmTerminal
+  interactive: boolean
+  output(message: string): void
+}
+
+export async function runDesktopOpen(
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+  dependencies: Partial<Dependencies> = {},
+) {
+  const output = dependencies.output ?? console.log
+  let exitCode = 0
   if (
-    !process.stdin.isTTY ||
-    process.env.CLEANBREAK_REAL_PROVIDER_AUTHORIZED?.trim() !== "true"
+    !(dependencies.interactive ?? process.stdin.isTTY) ||
+    environment.CLEANBREAK_REAL_PROVIDER_AUTHORIZED?.trim() !== "true"
   ) {
-    console.log(
+    output(
       "Use an interactive terminal and set CLEANBREAK_REAL_PROVIDER_AUTHORIZED=true for your dedicated VM.",
     )
-    process.exitCode = 1
-    return
+    return 1
   }
   let config: ReturnType<typeof readDesktopConnection>
   try {
-    config = readDesktopConnection()
+    config = readDesktopConnection(environment)
   } catch (error) {
-    console.log(
+    output(
       error instanceof Error ? error.message : "Invalid desktop configuration.",
     )
-    process.exitCode = 1
-    return
+    return 1
   }
-  const client = new DesktopClient({
-    apiKey: config.apiKey,
-    baseUrl: config.baseUrl,
-    callTimeoutMs: 10_000,
-  })
+  const client = (
+    dependencies.createClient ??
+    ((config) =>
+      new DesktopClient({
+        apiKey: config.apiKey,
+        baseUrl: config.baseUrl,
+        callTimeoutMs: 10_000,
+      }))
+  )(config)
   const signals = terminalSignals()
   let vm: Desktop | undefined
   let viewer: Awaited<ReturnType<typeof startDesktopViewer>> | undefined
@@ -46,32 +65,32 @@ async function main() {
       await new Promise((done) => setTimeout(done, 500))
     }
     if (!ready) throw new Error("not ready")
-    viewer = await startDesktopViewer(
+    viewer = await (dependencies.viewer ?? startDesktopViewer)(
       (await vm.stream.start()).streamUrl,
       false,
     )
-    await confirmTerminal(
+    await (dependencies.confirm ?? confirmTerminal)(
       `Private manual desktop: ${viewer.url}\nOpen your provider in the existing browser, log in/MFA manually, and leave the billing page visible. Do not cancel. Press Enter here when ready to pause the VM.`,
       "",
       signals.signal,
     )
   } catch {
-    console.log("Manual desktop connection failed. Raw SDK details withheld.")
-    process.exitCode = 1
+    output("Manual desktop connection failed. Raw SDK details withheld.")
+    exitCode = 1
   } finally {
     try {
       await client.pause(config.desktopId)
-      console.log("Desktop paused; authenticated machine state retained.")
+      output("Desktop paused; authenticated machine state retained.")
     } catch {
-      console.log(
+      output(
         "Pause was not confirmed. Pause the existing VM in Solari; do not destroy it.",
       )
-      process.exitCode = 1
+      exitCode = 1
     }
     try {
       vm?.close()
     } catch {
-      process.exitCode = 1
+      exitCode = 1
     }
     try {
       await viewer?.close()
@@ -79,8 +98,14 @@ async function main() {
       signals.dispose()
     }
   }
+  return exitCode
 }
-await main().catch(() => {
-  console.log("Manual desktop cleanup failed; check VM status in Solari.")
-  process.exitCode = 1
-})
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+) {
+  process.exitCode = await runDesktopOpen().catch(() => {
+    console.log("Manual desktop cleanup failed; check VM status in Solari.")
+    return 1
+  })
+}

@@ -21,11 +21,16 @@ import { runDesktopDryRun } from "@/lib/desktop/runtime"
 import { desktopEvidence } from "@/lib/desktop/evidence"
 import { startDesktopViewer } from "@/lib/desktop/viewer"
 
+vi.mock("@/lib/desktop/session", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/desktop/session")>()),
+  readDesktopSessionState: vi.fn(() => undefined),
+}))
+
 const env: NodeJS.ProcessEnv = {
   NODE_ENV: "test",
   SOLARI_API_KEY: "private-api-sentinel",
   OPENAI_API_KEY: "private-openai-sentinel",
-  SOLARI_DESKTOP_ID: "private-vm-sentinel",
+  SOLARI_DESKTOP_SESSION_ID: "pool:vm:org.private-session-sentinel",
   CLEANBREAK_REAL_PROVIDER_EXECUTOR: "desktop",
   CLEANBREAK_DRY_RUN: "true",
   CLEANBREAK_REAL_PROVIDER_AUTHORIZED: "true",
@@ -131,7 +136,7 @@ function harness(decisions = [decision()]) {
 
 describe("Desktop config and strict planner", () => {
   it.each([
-    "SOLARI_DESKTOP_ID",
+    "SOLARI_DESKTOP_SESSION_ID",
     "CLEANBREAK_DRY_RUN",
     "CLEANBREAK_REAL_PROVIDER_AUTHORIZED",
   ])("requires explicit %s before any VM work", async (key) => {
@@ -221,7 +226,7 @@ describe("offline visual Desktop dry-run lifecycle", () => {
     h.vm.health.mockResolvedValueOnce({ ready: false })
     const result = await runDesktopDryRun(env, h.deps)
     expect(h.client.connect).toHaveBeenCalledExactlyOnceWith(
-      env.SOLARI_DESKTOP_ID,
+      env.SOLARI_DESKTOP_SESSION_ID,
     )
     expect(h.vm.connect).toHaveBeenCalledOnce()
     expect(h.vm.health).toHaveBeenCalledTimes(2)
@@ -437,11 +442,11 @@ describe("offline visual Desktop dry-run lifecycle", () => {
         "utf8",
       )
       const job = readFileSync(join(evidence.directory, "job.json"), "utf8")
-      expect(job).toContain(env.SOLARI_DESKTOP_ID)
+      expect(job).toContain(env.SOLARI_DESKTOP_SESSION_ID)
       for (const secret of [
         env.SOLARI_API_KEY!,
         env.OPENAI_API_KEY!,
-        env.SOLARI_DESKTOP_ID!,
+        env.SOLARI_DESKTOP_SESSION_ID!,
         "private-password",
         "private-token",
         "user@example.com",

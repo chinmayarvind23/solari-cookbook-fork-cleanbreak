@@ -33,7 +33,7 @@ CLEANBREAK_REAL_PROVIDER_EXECUTOR=desktop
 CLEANBREAK_DRY_RUN=true
 CLEANBREAK_REAL_PROVIDER_AUTHORIZED=true
 SOLARI_API_KEY=<your API key>
-SOLARI_DESKTOP_ID=<existing dedicated desktop VM ID>
+SOLARI_DESKTOP_SESSION_ID=
 SOLARI_DESKTOP_BASE_URL=https://api.getsolari.com
 OPENAI_API_KEY=<your API key>
 OPENAI_MODEL=gpt-5.6
@@ -59,14 +59,58 @@ correct provider page open yourself before starting.
 
 ## Prepare and authenticate the VM
 
-1. Manually create a dedicated Solari Desktop VM using Solari's console or its
-   documented `DesktopClient.create()` workflow. Use a lifecycle that pauses,
-   not kills, on timeout. Store its returned ID privately in `.env`; the ID is
-   an opaque capability and must not be posted or committed.
-2. The SDK creation option is `lifecycle: { onTimeout: "pause", autoResume: false }`.
-   The documented office template can host a browser; inspect available templates
-   in your Solari account. This project never creates or destroys VMs automatically.
-3. To open an **existing** VM interactively, run:
+1. In the untracked repo-root `.env`, set `SOLARI_API_KEY` and
+   `SOLARI_DESKTOP_BASE_URL=https://api.getsolari.com`. Remove the ambiguous old
+   `SOLARI_DESKTOP_ID`; it is no longer used. Leave `SOLARI_DESKTOP_SESSION_ID`
+   empty so all commands use the local session reference. Clear any inherited
+   shell override too. Do not copy a console slot such as `vm_123001` into the new
+   variable: the SDK needs its exact session ID, not a guessed VM identifier.
+2. Create the dedicated session once and verify it:
+
+   ```bash
+   npm run desktop:create
+   npm run desktop:check
+   ```
+
+   Creation uses the installed SDK's `"default"` template, `1280x720`, 2 CPUs,
+   4096 MiB RAM, a one-hour rolling idle timeout, no recording, and
+   `lifecycle: { onTimeout: "pause", autoResume: false }`. This is a real provider
+   resource and may incur normal Solari usage charges when **you** run the command.
+   Account capacity/template availability is reported by the SDK, not assumed
+   from a console label; creation errors are sanitized and are not retried here.
+
+   The returned `Desktop.sessionId` is an alias of `Desktop.id`. Creation prints
+   those exact values and `expiresAt`, closes the initial handle, then reconnects
+   using the exact returned `sessionId`, opens control, and requires
+   `health.ready === true`. Only then does it print `CONNECT_ROUND_TRIP_OK` and
+   write `.cleanbreak/desktop-session.json` with **only** `sessionId`, `createdAt`,
+   and `expiresAt`. `.cleanbreak/` is ignored by Git. Never share or commit the
+   file: the SDK describes the compound session ID as an opaque capability.
+
+   Creation pauses the session in cleanup, including on failed verification when
+   its ID is available; it never destroys it. An existing local state file is
+   never overwritten. If creation fails after returning metadata, keep the
+   printed exact ID privately and pause the session in Solari. Do not blindly
+   create duplicates. You can explicitly set the returned compound ID in
+   `SOLARI_DESKTOP_SESSION_ID` and use `desktop:check` to diagnose it. If the ID or
+   expiry is missing/invalid, no local reference is saved. A failed readiness check
+   is not reported as success, and no guessed ID is substituted.
+
+   `desktop:check` resolves the same ID, calls `get`, reconnects, opens control,
+   and checks health once. It prints `DESKTOP_CONNECT_OK`, `sessionId: ...`, and
+   `ready: true` only on success; errors expose a fixed stage, never raw SDK data.
+   It closes its local handle without pausing/destroying the session. Since
+   `connect()` resumes paused sessions, the check can leave it running; pause it
+   in Solari when done if you aren't proceeding to manual authentication.
+
+   Resolution is shared by `desktop:type`, `desktop:open`, `desktop:check`, and
+   Desktop validation: nonempty `SOLARI_DESKTOP_SESSION_ID` wins, otherwise load
+   the locally saved reference. There is no fallback to `SOLARI_DESKTOP_ID` or to
+   a different session after a failed connection. Console-style IDs supplied as
+   environment overrides are rejected. A short ID returned by `create()` may be
+   saved only after its successful SDK round-trip, not inferred from its shape.
+
+3. To open the saved **existing** session interactively, run:
 
    ```bash
    npm run desktop:open
@@ -87,8 +131,9 @@ correct provider page open yourself before starting.
 
 If the viewer changes uppercase letters to lowercase, use the installed Desktop
 SDK's `vm.keyboard.type(text)` API through this separate helper. It reads
-`SOLARI_API_KEY` and `SOLARI_DESKTOP_ID` from the repo-root `.env` (and honors the
-optional `SOLARI_DESKTOP_BASE_URL`). No new VM, browser, or agent run is launched.
+`SOLARI_API_KEY` from the repo-root `.env` and resolves the exact session ID as
+described above (honoring optional `SOLARI_DESKTOP_BASE_URL`). No new VM, browser,
+or agent run is launched by the typing helper.
 
 1. Keep your manual viewer open, with `npm run desktop:open` still running in its
    first terminal. Do **not** run validation, recording, screenshots, or other
@@ -130,7 +175,7 @@ finished and press Enter there to pause it, or pause it in Solari yourself.
 On a typing error, inspect/clear the field before retrying: delivery may already
 have happened and there is no automatic retry.
 
-Before connecting, `desktop:type` prints `Desktop target: <SOLARI_DESKTOP_ID>`.
+Before connecting, `desktop:type` prints `Desktop target: <resolved session ID>`.
 In `--test` mode, failures also report the stage (`client_connect`, `vm_connect`,
 `health_check`, or `keyboard_type`) and a safe error name. Only recognized,
 non-sensitive error messages are shown; other messages are replaced with

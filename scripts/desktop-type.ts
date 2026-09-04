@@ -3,6 +3,7 @@ import { resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { DesktopClient, type Desktop } from "@solarisdk/desktop"
 import { readDesktopConnection } from "@/lib/desktop/config"
+import { validDesktopSessionId } from "@/lib/desktop/session"
 import { terminalSignals } from "./desktop-terminal"
 
 type Input = Pick<
@@ -246,7 +247,7 @@ export async function runDesktopType(
     // The target ID is non-secret, but malformed/misconfigured values must not
     // inject terminal controls or disclose a configured credential.
     output(
-      `Desktop target: ${/^[a-zA-Z0-9_-]{1,160}$/.test(config.desktopId) && !containsConfiguredSecret(config.desktopId, secrets) ? config.desktopId : "[redacted]"}`,
+      `Desktop target: ${validDesktopSessionId(config.desktopId) && !containsConfiguredSecret(config.desktopId, secrets) ? config.desktopId : "[redacted]"}`,
     )
     const client = (
       dependencies.createClient ??

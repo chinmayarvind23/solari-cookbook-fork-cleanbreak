@@ -22,6 +22,8 @@
     "real-provider:desktop-dry-run": "node --conditions react-server --env-file=.env --import tsx scripts/real-provider-desktop-dry-run.ts",
     "desktop:open": "node --conditions react-server --env-file=.env --import tsx scripts/desktop-open.ts",
     "desktop:type": "node --conditions react-server --env-file=.env --import tsx scripts/desktop-type.ts",
+    "desktop:create": "node --conditions react-server --env-file=.env --import tsx scripts/desktop-session.ts --create",
+    "desktop:check": "node --conditions react-server --env-file=.env --import tsx scripts/desktop-session.ts --check",
     "approved:smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/approved-smoke.ts",
     "verified:smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/verified-smoke.ts",
     "receipt:integrity-smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/receipt-integrity-smoke.ts",

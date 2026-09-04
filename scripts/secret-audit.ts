@@ -1,12 +1,15 @@
 import { execFileSync } from "node:child_process"
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { extname, join, resolve } from "node:path"
+import { readDesktopSessionState } from "../lib/desktop/session"
 
 const repositoryRoot = resolve(process.cwd())
 const credentials = [
   process.env.SOLARI_API_KEY,
   process.env.OPENAI_API_KEY,
   process.env.SOLARI_DESKTOP_ID,
+  process.env.SOLARI_DESKTOP_SESSION_ID,
+  readDesktopSessionState()?.sessionId,
 ].filter((value): value is string => Boolean(value && value.length >= 8))
 
 if (credentials.length === 0) {

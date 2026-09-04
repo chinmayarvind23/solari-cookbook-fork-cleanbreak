@@ -179,6 +179,10 @@ For real providers that cannot reuse transferred Browser authentication, see the
 [Desktop validation guide](docs/desktop-validation.md). It adds a dedicated
 manually authenticated VM and a human-supervised screenshot loop without changing
 the Browser/StreamMax architecture. Desktop mode has no cancellation commit path.
+Start with `npm run desktop:create`, then `npm run desktop:check` to create and
+verify an SDK session. Desktop commands share `SOLARI_DESKTOP_SESSION_ID` or the
+ignored `.cleanbreak/desktop-session.json`; console `vm_XXXXXX` slot IDs are not
+substituted for SDK session IDs. See the guide for manual authentication setup.
 
 Requirements: Node.js 22+, npm, a Solari API key, and an OpenAI API key.
 
