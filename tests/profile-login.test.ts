@@ -7,6 +7,7 @@ import {
   CONFIRMATION_PROMPT,
   profileMetadata,
   runProfileHelper,
+  storageStateDiagnostics,
   waitForConfirmation,
 } from "@/scripts/profile-login"
 
@@ -29,6 +30,23 @@ function harness() {
       {
         origin: "https://miro.com",
         localStorage: [{ name: "token", value: "private-token" }],
+        indexedDB: [
+          {
+            name: "private-db-name",
+            version: 1,
+            stores: [
+              {
+                name: "private-store-name",
+                records: [
+                  {
+                    key: "private-record-key",
+                    value: "private-indexeddb-token",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
       },
     ],
     toJSON: vi.fn(() => {
@@ -89,7 +107,7 @@ describe("developer local profile login", () => {
         timeout: 60_000,
       },
     )
-    expect(run.context.storageState.mock.calls).toEqual([[]])
+    expect(run.context.storageState.mock.calls).toEqual([[{ indexedDB: true }]])
     expect(run.client.profiles.save).toHaveBeenCalledOnce()
     expect(run.client.profiles.save.mock.calls[0][0]).toBe("prof_test")
     expect(run.client.profiles.save.mock.calls[0][1]).toBe(run.storageState)
@@ -102,14 +120,18 @@ describe("developer local profile login", () => {
       id: "prof_test",
       version: 2,
       sizeBytes: 321,
-      nonEmpty: true,
     })
     const output = run.dependencies.output.mock.calls.flat().join(" ")
     for (const secret of [
       environment.SOLARI_API_KEY,
       "private-cookie",
       "private-token",
+      "private-db-name",
+      "private-store-name",
+      "private-record-key",
+      "private-indexeddb-token",
       "localStorage",
+      "indexedDB",
     ])
       expect(output).not.toContain(secret)
     expect(output).toContain(CONFIRMATION_PROMPT)
@@ -225,7 +247,7 @@ describe("developer local profile login", () => {
       /(?:node:fs|writeFile|createWriteStream|launchPersistentContext|recordVideo|recordHar|\.tracing|\.screenshot)/,
     )
     expect(source).toContain("headless: false")
-    expect(source).toContain("context.storageState()")
+    expect(source).toContain("context.storageState({ indexedDB: true })")
     expect(source).not.toMatch(/CANVA_BILLING_URL|canva\.com|Canva/)
   })
 
@@ -340,6 +362,107 @@ describe("developer local profile login", () => {
     expect(run.client.profiles.save).not.toHaveBeenCalled()
     expect(run.browser.close).toHaveBeenCalledOnce()
     expect(run.client.close).toHaveBeenCalledOnce()
+  })
+
+  it("fails closed on IndexedDB capture errors without a partial-state fallback", async () => {
+    const run = harness()
+    run.context.storageState.mockRejectedValue(
+      new Error("private-indexeddb-token"),
+    )
+    expect(await runProfileHelper([], environment, run.dependencies)).toBe(1)
+    expect(run.context.storageState.mock.calls).toEqual([[{ indexedDB: true }]])
+    expect(run.client.profiles.save).not.toHaveBeenCalled()
+    expect(run.dependencies.output.mock.calls.flat().join(" ")).not.toContain(
+      "private-indexeddb-token",
+    )
+    expect(run.browser.close).toHaveBeenCalledOnce()
+    expect(run.client.close).toHaveBeenCalledOnce()
+  })
+})
+
+describe("count-only storage state diagnostics", () => {
+  it("reports only counts and IndexedDB presence without reading any names or values", () => {
+    const forbiddenRead = () => {
+      throw new Error("Diagnostic read a private value")
+    }
+    const state = {
+      cookies: [
+        {
+          get name(): string {
+            return forbiddenRead()
+          },
+          get value(): string {
+            return forbiddenRead()
+          },
+        },
+      ],
+      origins: [
+        {
+          get origin(): string {
+            return forbiddenRead()
+          },
+          get localStorage(): [] {
+            return forbiddenRead()
+          },
+          indexedDB: [
+            {
+              get name(): string {
+                return forbiddenRead()
+              },
+              get stores(): [] {
+                return forbiddenRead()
+              },
+            },
+          ],
+        },
+      ],
+      toJSON: forbiddenRead,
+    }
+    const output = vi.spyOn(console, "log").mockImplementation(() => undefined)
+    const diagnostics = storageStateDiagnostics(state)
+    expect(diagnostics).toEqual({
+      cookieCount: 1,
+      originCount: 1,
+      hasIndexedDB: true,
+    })
+    expect(JSON.stringify(diagnostics)).toBe(
+      '{"cookieCount":1,"originCount":1,"hasIndexedDB":true}',
+    )
+    expect(output).not.toHaveBeenCalled()
+  })
+
+  it("handles absent state collections and origins with no IndexedDB", () => {
+    expect(storageStateDiagnostics({})).toEqual({
+      cookieCount: 0,
+      originCount: 0,
+      hasIndexedDB: false,
+    })
+    const state = {
+      cookies: [],
+      origins: [
+        { origin: "https://provider.example", localStorage: [], indexedDB: [] },
+      ],
+    }
+    expect(storageStateDiagnostics(state)).toEqual({
+      cookieCount: 0,
+      originCount: 1,
+      hasIndexedDB: false,
+    })
+  })
+
+  it("checks every origin rather than only the first origin", () => {
+    const state = {
+      cookies: [],
+      origins: [
+        { origin: "https://first.example", localStorage: [], indexedDB: [] },
+        { origin: "https://second.example", localStorage: [], indexedDB: [{}] },
+      ],
+    }
+    expect(storageStateDiagnostics(state)).toEqual({
+      cookieCount: 0,
+      originCount: 2,
+      hasIndexedDB: true,
+    })
   })
 })
 

@@ -270,20 +270,32 @@ to the terminal and press Enter at this prompt:
 Press Enter after the provider billing/subscription page is open and the account is authenticated.
 ```
 
-Only then does the helper call `context.storageState()` without a file path and
+Only then does the helper call `context.storageState({ indexedDB: true })` without a file path and
 immediately upload that in-memory object with `solari.profiles.save(profile.id,
 storageState)`, as supported by [Solari's profile API](https://docs.getsolari.com/profiles).
+The installed `patchright-core@1.62.2` API explicitly supports IndexedDB capture,
+so this includes IndexedDB snapshots alongside cookies and localStorage. No state
+fields are filtered before upload, and a capture failure aborts without uploading
+a partial fallback. This does not export sessionStorage or real passkeys, nor
+guarantee that a remote provider accepts the session.
 It does not read password fields, record the browser, or print cookies, tokens,
-localStorage, or serialized storage state. The browser uses a fresh nonpersistent
+IndexedDB data, localStorage, or serialized storage state. The browser uses a fresh nonpersistent
 context, and both the local browser and Solari client close in `finally`. Ctrl+C,
 terminal EOF, or closing the browser before confirmation cancels without uploading.
 Piped input is rejected for login; run it in your own interactive terminal.
 
-The final JSON line contains only `name`, `id`, `version`, `sizeBytes`, and
-`nonEmpty`. Check for `nonEmpty: true`, then run `npm run profile:list` again and
+The final JSON line contains only `name`, `id`, `version`, and `sizeBytes`.
+Check for a positive `sizeBytes`, then run `npm run profile:list` again and
 confirm the configured profile has the returned version and a positive byte count.
 That confirms stored state; it does not independently prove remote provider login
 will succeed. These helpers do not run cancellation or the real-provider dry run.
+
+For offline developer tests, the exported `storageStateDiagnostics(state)` helper
+returns only `cookieCount`, `originCount`, and `hasIndexedDB`. It does not log,
+serialize the state, or read cookie/origin/database/store names, keys, or values.
+It is not called by the login CLI, so normal terminal output remains unchanged
+apart from the metadata fields documented above. External-provider profile-overwrite
+protections remain separate and unchanged.
 
 Automated checks:
 

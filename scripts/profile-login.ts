@@ -4,7 +4,12 @@ import { createInterface } from "node:readline"
 import { pathToFileURL } from "node:url"
 
 import { Solari, type Profile, type StorageState } from "@solarisdk/browser"
-import { chromium, type Browser, type Page } from "patchright-core"
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type Page,
+} from "patchright-core"
 
 export const CONFIRMATION_PROMPT =
   "Press Enter after the provider billing/subscription page is open and the account is authenticated."
@@ -18,7 +23,12 @@ type LocalBrowser = Pick<Browser, "close"> & {
   off(event: "disconnected", listener: () => void): unknown
   newContext(options: { viewport: null; acceptDownloads: false }): Promise<{
     newPage(): Promise<Pick<Page, "goto">>
-    storageState(): Promise<StorageState>
+    storageState(
+      options: Pick<
+        NonNullable<Parameters<BrowserContext["storageState"]>[0]>,
+        "indexedDB"
+      >,
+    ): Promise<StorageState>
   }>
 }
 type Dependencies = {
@@ -84,6 +94,27 @@ export function profileMetadata(profile: Profile) {
     id: profile.id,
     version: numericMetadata(profile.version),
     sizeBytes: numericMetadata(profile.sizeBytes),
+  }
+}
+
+// Developer test diagnostic only; never logs, serializes, or enumerates keys or
+// values. The installed runtime returns origins[].indexedDB, although its public
+// StorageState return type omits that optional field.
+export function storageStateDiagnostics(state: StorageState): {
+  cookieCount: number
+  originCount: number
+  hasIndexedDB: boolean
+} {
+  return {
+    cookieCount: state.cookies?.length ?? 0,
+    originCount: state.origins?.length ?? 0,
+    hasIndexedDB:
+      state.origins?.some(
+        (origin) =>
+          "indexedDB" in origin &&
+          Array.isArray(origin.indexedDB) &&
+          origin.indexedDB.length > 0,
+      ) ?? false,
   }
 }
 
@@ -217,7 +248,7 @@ export async function runProfileHelper(
         failureMessage =
           "Could not read browser storage state. No upload was attempted."
         // No path, persistent context, recording, trace, or state logging.
-        const storageState = await context.storageState()
+        const storageState = await context.storageState({ indexedDB: true })
         controller.signal.throwIfAborted()
         failureMessage =
           "Solari profile upload was not confirmed. Check npm run profile:list before retrying."
@@ -228,8 +259,6 @@ export async function runProfileHelper(
             id: profile.id,
             version: numericMetadata(saved.version),
             sizeBytes: numericMetadata(saved.sizeBytes),
-            nonEmpty:
-              typeof saved.sizeBytes === "number" && saved.sizeBytes > 0,
           }),
         )
       }
