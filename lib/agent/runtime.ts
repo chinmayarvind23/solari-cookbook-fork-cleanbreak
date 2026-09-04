@@ -19,7 +19,18 @@ import {
   type AgentRepository,
 } from "@/lib/agent/repository"
 import { assertJobTransition } from "@/lib/agent/state"
-import type { CancellationJob, PublicAgentJob } from "@/lib/agent/types"
+import type {
+  CancellationJob,
+  PageObservation,
+  PublicAgentJob,
+} from "@/lib/agent/types"
+import {
+  hasNonEmptyProfileState,
+  profileStateSaveEligibility,
+  providerPageBlocker,
+  type ProfileStateRefreshFlow,
+  type ProfileStateSaveSkippedReason,
+} from "@/lib/solari/profile-persistence"
 import {
   getDemoState,
   getStreamMaxSubscription,
@@ -72,6 +83,9 @@ export type CancellationRuntimeTarget = {
   subscription: Subscription
   planName: string
   autoRenew: boolean
+  // Absent for the dry-run CLI. Only a trusted, explicitly confirmed refresh
+  // workflow may opt in; attachment alone never authorizes a profile write.
+  profileStateRefresh?: ProfileStateRefreshFlow
 }
 
 function initialJob(options: {
@@ -108,6 +122,7 @@ function initialJob(options: {
     browserReleased: false,
     clientClosed: false,
     profileStateSaved: false,
+    profileStateSaveSkippedReason: null,
     errorCode: null,
     errorMessage: null,
     approvalsRequested: 0,
@@ -230,6 +245,9 @@ export async function runCancellationAgent(
   let result: Awaited<ReturnType<typeof runAgentLoop>> | null = null
   let runtimeFailure: { code: string; message: string } | null = null
   let latestScreenshotPath: string | null = null
+  let lastObservation: PageObservation | null = null
+  let profileStateSaveSkippedReason: ProfileStateSaveSkippedReason | null =
+    target ? "PROVIDER_NOT_REACHED" : "PERSISTENCE_DISABLED"
 
   try {
     client = createClient(solariConfig.apiKey)
@@ -259,7 +277,11 @@ export async function runCancellationAgent(
       config: agentConfig,
       allowedOrigin: new URL(solariConfig.targetUrl).origin,
       repository,
-      observe: () => observePage(page),
+      observe: async () => {
+        const observed = await observePage(page)
+        lastObservation = observed.observation
+        return observed
+      },
       plan: planner,
       execute: (observed, decision) =>
         executeDecision(
@@ -284,14 +306,66 @@ export async function runCancellationAgent(
       },
     })
 
-    if (solariConfig.persistProfileState) {
-      await client.profiles.save(
-        profile.id,
-        await page.context().storageState(),
-      )
-      profileSaved = true
+    // Profile attachment above and persistence here are separate permissions.
+    // Never save external state from finally or merely because the browser closed.
+    let profileStateEligibleForSave =
+      !target && solariConfig.persistProfileState
+    if (target) {
+      const eligibility = () =>
+        profileStateSaveEligibility({
+          observation: lastObservation,
+          allowedOrigin: new URL(solariConfig.targetUrl).origin,
+          persistenceEnabled: solariConfig.persistProfileState,
+          runSuccessful: result?.state === "AWAITING_APPROVAL",
+          refreshFlow: target.profileStateRefresh,
+        })
+      let decision = eligibility()
+      profileStateSaveSkippedReason = decision.skippedReason
+      if (decision.profileStateEligibleForSave) {
+        profileStateSaveSkippedReason = "SAVE_NOT_CONFIRMED"
+        if ((await target.profileStateRefresh!.confirmSave()) === true) {
+          // Confirmation may take time: reject login expiry, redirects, or a
+          // challenge arriving after the earlier authenticated observation.
+          lastObservation = (await observePage(page)).observation
+          decision = eligibility()
+          profileStateSaveSkippedReason = decision.skippedReason
+          profileStateEligibleForSave = decision.profileStateEligibleForSave
+        }
+      }
+    }
+    if (profileStateEligibleForSave) {
+      profileStateSaveSkippedReason = "PROFILE_SAVE_FAILED"
+      const state = await page.context().storageState()
+      if (target) {
+        // Recheck after capture too; never persist a stale auth assertion.
+        lastObservation = (await observePage(page)).observation
+        const decision = profileStateSaveEligibility({
+          observation: lastObservation,
+          allowedOrigin: new URL(solariConfig.targetUrl).origin,
+          persistenceEnabled: solariConfig.persistProfileState,
+          runSuccessful: result?.state === "AWAITING_APPROVAL",
+          refreshFlow: target.profileStateRefresh,
+        })
+        profileStateEligibleForSave =
+          decision.profileStateEligibleForSave && hasNonEmptyProfileState(state)
+        profileStateSaveSkippedReason =
+          decision.skippedReason ??
+          (profileStateEligibleForSave ? "PROFILE_SAVE_FAILED" : "STATE_EMPTY")
+      }
+      if (profileStateEligibleForSave) {
+        await client.profiles.save(profile.id, state)
+        profileSaved = true
+        profileStateSaveSkippedReason = null
+      }
     }
   } catch {
+    if (target && !profileSaved && profileStateSaveSkippedReason === null) {
+      profileStateSaveSkippedReason =
+        providerPageBlocker(
+          lastObservation,
+          new URL(solariConfig.targetUrl).origin,
+        ) ?? "AUTHENTICATION_NOT_ESTABLISHED"
+    }
     runtimeFailure = {
       code: "AGENT_RUNTIME_FAILED",
       message: "The recorded browser dry run failed safely.",
@@ -350,6 +424,7 @@ export async function runCancellationAgent(
       browserReleased,
       clientClosed,
       profileStateSaved: profileSaved,
+      profileStateSaveSkippedReason,
       errorCode:
         runtimeFailure?.code ??
         (result ? result.errorCode : "AGENT_RUNTIME_FAILED"),

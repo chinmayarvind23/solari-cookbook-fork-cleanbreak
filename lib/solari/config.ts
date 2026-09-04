@@ -122,7 +122,10 @@ export function readSolariConfig(
     profileId: env.SOLARI_PROFILE_ID?.trim() || undefined,
     profileName: env.SOLARI_PROFILE_NAME?.trim() || "cleanbreak-demo",
     stealth: asBoolean(env.SOLARI_STEALTH, false),
-    persistProfileState: asBoolean(env.SOLARI_PERSIST_PROFILE_STATE, true),
+    persistProfileState: asBoolean(
+      env.SOLARI_PERSIST_PROFILE_STATE,
+      targetUrlOverride === undefined,
+    ),
     navigationTimeoutMs: timeout,
   }
 }

@@ -327,7 +327,12 @@ export async function approveCancellation(
     })
     terminalTransition = true
 
-    if (config.persistProfileState) {
+    // Approval to cancel is not approval to replace external credentials.
+    // This fixture commit path has no authenticated-provider refresh flow.
+    if (
+      config.persistProfileState &&
+      job.scenario !== "real-provider-dry-run"
+    ) {
       try {
         await client.profiles.save(
           job.profileId,

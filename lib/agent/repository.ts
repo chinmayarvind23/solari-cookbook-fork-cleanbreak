@@ -40,6 +40,7 @@ const jobColumns: Record<keyof CancellationJob, string> = {
   browserReleased: "browser_released",
   clientClosed: "client_closed",
   profileStateSaved: "profile_state_saved",
+  profileStateSaveSkippedReason: "profile_state_save_skipped_reason",
   errorCode: "error_code",
   errorMessage: "error_message",
   approvalsRequested: "approvals_requested",
@@ -99,6 +100,9 @@ function jobFrom(row: Row): CancellationJob {
     browserReleased: Boolean(row.browser_released),
     clientClosed: Boolean(row.client_closed),
     profileStateSaved: Boolean(row.profile_state_saved),
+    profileStateSaveSkippedReason:
+      (row.profile_state_save_skipped_reason as CancellationJob["profileStateSaveSkippedReason"]) ??
+      null,
     errorCode: (row.error_code as string | null) ?? null,
     errorMessage: (row.error_message as string | null) ?? null,
     approvalsRequested: Number(row.approvals_requested ?? 0),

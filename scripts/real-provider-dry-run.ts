@@ -13,6 +13,14 @@ const result = await runCancellationAgent(undefined, {
   autoRenew: true,
 })
 
+console.log(
+  JSON.stringify({
+    jobId: result.id,
+    profile_state_saved: result.profileStateSaved,
+    profile_state_save_skipped_reason: result.profileStateSaveSkippedReason,
+  }),
+)
+
 if (result.state !== "AWAITING_APPROVAL" || !result.proposedAction) {
   throw new Error(
     `Real-provider dry run stopped in ${result.state} (${result.errorCode ?? "no error code"}); no validation artifact was written.`,

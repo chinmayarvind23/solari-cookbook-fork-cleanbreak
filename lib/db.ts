@@ -94,6 +94,20 @@ export function createDatabase(path = databasePath()): DatabaseSync {
   if (version < 4) {
     database.exec(readFileSync(milestone6MigrationPath, "utf8"))
   }
+  if (version < 5) {
+    database.exec(
+      readFileSync(
+        join(
+          process.cwd(),
+          "lib",
+          "db",
+          "migrations",
+          "005_profile_persistence.sql",
+        ),
+        "utf8",
+      ),
+    )
+  }
   seedDatabase(database)
   return database
 }

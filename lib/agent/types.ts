@@ -237,6 +237,9 @@ export type CancellationJob = AgentMetrics & {
   browserReleased: boolean
   clientClosed: boolean
   profileStateSaved: boolean
+  profileStateSaveSkippedReason?:
+    | import("@/lib/solari/profile-persistence").ProfileStateSaveSkippedReason
+    | null
   errorCode: string | null
   errorMessage: string | null
   approvalsRequested: number

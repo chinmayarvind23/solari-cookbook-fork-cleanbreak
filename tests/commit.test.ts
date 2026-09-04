@@ -142,6 +142,7 @@ function harness(
   const click = vi.fn(options.click ?? (async () => undefined))
   const closeBrowser = vi.fn(async () => undefined)
   const closeClient = vi.fn(async () => undefined)
+  const saveProfile = vi.fn(async () => ({}))
   const launchedProfiles: string[] = []
   let sequence = 0
   const dependencies: Partial<CommitDependencies> = {
@@ -158,7 +159,7 @@ function harness(
       profiles: {
         list: async () => [{ id: "profile_1", name: "cleanbreak-demo" }],
         create: async ({ name }) => ({ id: "profile_new", name }),
-        save: async () => ({}),
+        save: saveProfile,
       },
       sessions: {
         getReplayUrl: async () => ({ url: "https://replay.example/commit" }),
@@ -206,7 +207,14 @@ function harness(
       close: closeClient,
     }),
   }
-  return { dependencies, click, closeBrowser, closeClient, launchedProfiles }
+  return {
+    dependencies,
+    click,
+    closeBrowser,
+    closeClient,
+    launchedProfiles,
+    saveProfile,
+  }
 }
 
 describe("Milestone 4 approval snapshot", () => {
@@ -296,6 +304,25 @@ describe("Milestone 4 durable approval and commit", () => {
       actionFingerprint: proposed.fingerprint,
       status: "APPROVED",
     })
+  })
+
+  it("does not grant external profile write authority through cancellation approval", async () => {
+    const { repository, record, proposed } = prepare(database)
+    repository.updateJob(record.id, {
+      scenario: "real-provider-dry-run",
+      profileStateSaved: false,
+    })
+    process.env.SOLARI_PERSIST_PROFILE_STATE = "true"
+    const run = harness(repository)
+    const result = await approveCancellation(
+      record.id,
+      proposed.fingerprint,
+      run.dependencies,
+    )
+    expect(result.commitAttempt?.profileStateSaved).toBe(false)
+    expect(run.saveProfile).not.toHaveBeenCalled()
+    expect(run.closeBrowser).toHaveBeenCalledOnce()
+    expect(run.closeClient).toHaveBeenCalledOnce()
   })
 
   it("server-enforced dry-run mode keeps valid approval at the boundary", async () => {

@@ -151,11 +151,10 @@ Two evidence classes are intentionally kept separate:
   executed one explicitly approved click, verified in a distinct session, and
   produced a receipt. This proves the live browser/model integration, not external
   provider compatibility.
-- An external-provider dry run has **not yet been performed**. No provider was
-  selected in the server configuration, and CleanBreak does not guess which account
-  the developer owns or controls. Therefore
-  `artifacts/real-provider-validation.json` is intentionally absent rather than
-  fabricated.
+- A Canva dry run stopped at a Cloudflare interstitial on its first observation,
+  with zero destructive clicks and zero unsafe actions. It did not establish
+  authentication or reach billing/approval. No successful external-provider
+  validation artifact exists; live fixture success does not prove Canva compatibility.
 
 When an authorized provider is configured, `npm run real-provider:dry-run` requires
 server dry-run mode and ownership/control attestation, uses the configured reusable
@@ -192,7 +191,8 @@ the hosting platform's server-side secret store. At minimum, configure
 For external-provider validation, first choose an easy-to-recreate subscription in
 an account you own or control. Log in manually to the provider using a dedicated
 Solari profile, set that profile ID plus the commented
-`CLEANBREAK_REAL_PROVIDER_*` fields in `.env`, leave `CLEANBREAK_DRY_RUN=true`, and
+`CLEANBREAK_REAL_PROVIDER_*` fields in `.env`, leave `CLEANBREAK_DRY_RUN=true`, set
+`SOLARI_PERSIST_PROFILE_STATE=false`, and
 run:
 
 ```bash
@@ -201,6 +201,34 @@ npm run real-provider:dry-run
 
 Do not paste credentials into source, terminal output, screenshots, replay titles,
 or tracked artifacts. Review the resulting artifact before committing it.
+
+### External profile protection
+
+Treat external-provider profiles as valuable credentials. Attaching a profile to
+a browser does **not** authorize replacing it. `real-provider:dry-run` never saves
+profile state, even if a fixture configuration left `SOLARI_PERSIST_PROFILE_STATE=true`.
+Closing a browser normally is not authentication evidence. Challenge, CAPTCHA,
+login, access-denied, unrelated-origin, navigation-failure, and other unverified
+states cannot replace the stored profile. Browser/client cleanup still runs.
+
+The runtime's separate refresh interface requires an explicit environment opt-in,
+a trusted server-side provider-specific positive authentication check, an exact
+authenticated-page URL allowlist, a successful run, and fresh human save confirmation.
+It rechecks the page after confirmation and state capture and rejects empty state.
+Neither planner output nor the absence of challenge text establishes authentication.
+No provider refresh adapter is enabled by the dry-run CLI; use the developer-only
+manual `profile:login` workflow when you intentionally want to refresh credentials.
+Fixture runs retain their existing persistence behavior and default.
+
+Jobs retain `profileStateSaved` and `profileStateSaveSkippedReason` (SQLite column
+`profile_state_save_skipped_reason`). The dry-run CLI prints only the job ID, saved
+flag, and fixed reason code, such as `ANTI_BOT_CHALLENGE`, `LOGIN_REQUIRED`,
+`PROVIDER_NOT_REACHED`, or `PERSISTENCE_DISABLED`; it never prints storage state.
+See the [profile persistence trust-boundary memo](docs/profile-persistence-trust-boundary.md).
+
+The earlier failed Canva run overwrote the previously uploaded state. This fix
+prevents recurrence; it does not recover that older profile version. Reauthenticate
+manually before any separately authorized future provider test.
 
 Developer-only profile helpers (run from the repo root with `.env` present):
 
