@@ -72,7 +72,7 @@ correct provider page open yourself before starting.
    npm run desktop:check
    ```
 
-   Creation uses the installed SDK's `"default"` template, `1280x720`, 2 CPUs,
+   Creation explicitly selects the `"office"` full-GUI template, `1280x720`, 2 CPUs,
    4096 MiB RAM, a one-hour rolling idle timeout, no recording, and
    `lifecycle: { onTimeout: "pause", autoResume: false }`. This is a real provider
    resource and may incur normal Solari usage charges when **you** run the command.
@@ -80,7 +80,7 @@ correct provider page open yourself before starting.
    from a console label; creation errors are sanitized and are not retried here.
 
    The returned `Desktop.sessionId` is an alias of `Desktop.id`. Creation prints
-   those exact values and `expiresAt`, closes the initial handle, then reconnects
+   `Desktop template: office`, those exact values and `expiresAt`, closes the initial handle, then reconnects
    using the exact returned `sessionId`, opens control, and requires
    `health.ready === true`. Only then does it print `CONNECT_ROUND_TRIP_OK` and
    write `.cleanbreak/desktop-session.json` with **only** `sessionId`, `createdAt`,
@@ -152,6 +152,23 @@ failed.` and does not present a viewer. Nothing is installed automatically.
    validation. Use a dedicated provider account/VM, not a general-purpose desktop.
 
 ## Browser launch diagnostics (developer-only)
+
+To replace an older saved session with a fresh `office` Desktop, stop local
+Desktop helpers and pause the old Desktop in Solari first. Leave
+`SOLARI_DESKTOP_SESSION_ID=` empty in `.env`. From the repo root, run these
+PowerShell commands one at a time, stopping if a command fails:
+
+```powershell
+Remove-Item -LiteralPath Env:SOLARI_DESKTOP_SESSION_ID -ErrorAction SilentlyContinue
+Rename-Item -LiteralPath ".cleanbreak\desktop-session.json" -NewName ("desktop-session.previous-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".json")
+npm run desktop:create
+npm run desktop:check
+```
+
+Renaming retires the active local reference but keeps it recoverable inside the
+ignored directory. It does not destroy the old remote Desktop. Creation should
+print `Desktop template: office` and `CONNECT_ROUND_TRIP_OK`; checking should
+print `DESKTOP_CONNECT_OK`. Do not create duplicates if either operation fails.
 
 For a launch failure with a healthy session, run this temporary developer command
 first (it uses **example.com**, not the configured provider):

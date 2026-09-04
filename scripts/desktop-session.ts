@@ -19,9 +19,9 @@ import {
 } from "@/lib/desktop/session"
 import { terminalSignals } from "./desktop-terminal"
 
-// Verified against installed @solarisdk/desktop 0.1.2 create() defaults/types.
+// Explicit full-GUI template; creation options use the installed SDK types.
 export const DESKTOP_CREATE_OPTIONS: CreateDesktopOptions = {
-  template: "default",
+  template: "office",
   resolution: "1280x720",
   cpu: 2,
   memMb: 4096,
@@ -112,6 +112,7 @@ export async function runDesktopSession(
       )
         throw new Error("Invalid metadata")
       output("Created CleanBreak Desktop")
+      output(`Desktop template: ${DESKTOP_CREATE_OPTIONS.template}`)
       output(`sessionId: ${sessionId}`)
       output(`id: ${created.id}`)
       output(`expiresAt: ${created.expiresAt}`)

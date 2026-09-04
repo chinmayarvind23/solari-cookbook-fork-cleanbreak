@@ -83,7 +83,7 @@ describe("SDK Desktop create/check", () => {
     const h = harness()
     expect(await runDesktopSession(["--create"], h.env, h.deps)).toBe(0)
     expect(h.client.create).toHaveBeenCalledExactlyOnceWith({
-      template: "default",
+      template: "office",
       resolution: "1280x720",
       cpu: 2,
       memMb: 4096,
@@ -119,6 +119,7 @@ describe("SDK Desktop create/check", () => {
       `sessionId: ${h.sessionId}\nid: ${h.sessionId}\nexpiresAt: ${expiresAt}`,
     )
     expect(output).toContain("CONNECT_ROUND_TRIP_OK")
+    expect(h.deps.output).toHaveBeenCalledWith("Desktop template: office")
     for (const value of [
       h.hidden,
       h.env.SOLARI_API_KEY,
