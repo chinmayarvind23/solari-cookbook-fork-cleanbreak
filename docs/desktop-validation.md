@@ -130,6 +130,14 @@ finished and press Enter there to pause it, or pause it in Solari yourself.
 On a typing error, inspect/clear the field before retrying: delivery may already
 have happened and there is no automatic retry.
 
+Before connecting, `desktop:type` prints `Desktop target: <SOLARI_DESKTOP_ID>`.
+In `--test` mode, failures also report the stage (`client_connect`, `vm_connect`,
+`health_check`, or `keyboard_type`) and a safe error name. Only recognized,
+non-sensitive error messages are shown; other messages are replaced with
+`[redacted]`, including credentials, tokens, headers, bodies, and URL query data.
+The helper never prints stacks or full error objects. `--secret` retains generic
+failure messages and never includes the entered text in diagnostics.
+
 Text stays in process memory only, then travels directly to the configured Solari
 service. No clipboard, file, log, screenshot, or recording API is used. Input
 buffers owned by the reader are wiped and temporary references released promptly;

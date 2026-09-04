@@ -32,6 +32,88 @@ type Dependencies = {
   wait(): Promise<void>
 }
 
+type TestStage =
+  "client_connect" | "vm_connect" | "health_check" | "keyboard_type"
+const ERROR_NAMES = new Set([
+  "Error",
+  "TypeError",
+  "RangeError",
+  "AbortError",
+  "SolariError",
+  "ConnectionError",
+  "TimeoutError",
+  "ActionError",
+  "GatewayError",
+  "AuthError",
+  "PlanError",
+  "ConcurrencyLimitError",
+  "NoCapacityError",
+])
+
+function configuredSecrets(
+  environment: Readonly<Record<string, string | undefined>>,
+) {
+  return Object.entries(environment)
+    .filter(([key]) =>
+      /api.?key|authorization|cookie|token|secret|password/i.test(key),
+    )
+    .map(([, value]) => value?.trim())
+    .filter((value): value is string => Boolean(value))
+}
+
+function containsConfiguredSecret(value: string, secrets: string[]) {
+  return secrets.some((secret) =>
+    [
+      secret,
+      encodeURIComponent(secret),
+      Buffer.from(secret).toString("base64"),
+    ].some((encoded) => value.includes(encoded)),
+  )
+}
+
+function testFailure(error: unknown, stage: TestStage, secrets: string[]) {
+  const diagnostic = { stage, name: "Error", message: "[redacted]" }
+  // Never serialize the error object, cause, body, headers, or stack. A fixed
+  // name allowlist also prevents an attacker-controlled error.name leaking data.
+  try {
+    if (!(error instanceof Error)) return diagnostic
+    if (
+      ERROR_NAMES.has(error.name) &&
+      !containsConfiguredSecret(error.name, secrets)
+    )
+      diagnostic.name = error.name
+    const raw = error.message
+    if (
+      typeof raw !== "string" ||
+      raw.length > 300 ||
+      containsConfiguredSecret(raw, secrets) ||
+      /api[ _-]?key|authorization|cookie|token|secret|password|credential|bearer|headers?|request[ _-]?body|storage[ _-]?state|localstorage/i.test(
+        raw,
+      ) ||
+      /[\p{Cc}\p{Cf}{}\[\]<>?&#%=]|:\/\/|\bwww\./u.test(raw)
+    )
+      return diagnostic
+    const message = raw.trim().replace(/ +/g, " ")
+    // Fail closed: even an unlabeled token/password can look like ordinary text.
+    // Only known SDK/runtime messages and bounded non-sensitive variants pass.
+    const safeMessage =
+      /^(?:connect failed|fetch failed|WebSocket error|Control channel (?:is )?closed|Not connected — call connect\(\) first|Action failed|Desktop not ready|Connection (?:failed|refused|timed out)|The operation was aborted\.?)$/i.test(
+        message,
+      ) ||
+      /^Action "(?:connect|health|input\.key|desktop\.health)" timed out after \d{1,6}ms$/.test(
+        message,
+      ) ||
+      /^(?:Gateway request failed with status |WebSocket error: Unexpected server response: |Unexpected server response: )[1-5]\d{2}$/.test(
+        message,
+      ) ||
+      /^Control channel closed \(\d{4}\)$/.test(message)
+    if (safeMessage) diagnostic.message = message
+  } catch {
+    /* Hostile/custom error getters are not diagnostic authority. */
+  }
+  return diagnostic
+}
+
 // Raw TTY input suppresses echo without readline/history/clipboard. Retain bytes
 // only until Enter, wipe our buffer, and remove listeners on every exit path.
 // JS strings and SDK transport buffers cannot be reliably zeroized by JavaScript.
@@ -158,7 +240,14 @@ export async function runDesktopType(
   let text: string | undefined
   let code = 0
   let dispatched = false
+  let stage: TestStage = "client_connect"
+  const secrets = configuredSecrets(environment)
   try {
+    // The target ID is non-secret, but malformed/misconfigured values must not
+    // inject terminal controls or disclose a configured credential.
+    output(
+      `Desktop target: ${/^[a-zA-Z0-9_-]{1,160}$/.test(config.desktopId) && !containsConfiguredSecret(config.desktopId, secrets) ? config.desktopId : "[redacted]"}`,
+    )
     const client = (
       dependencies.createClient ??
       ((config) =>
@@ -170,8 +259,10 @@ export async function runDesktopType(
     )(config)
     // Existing VM only; never create, launch, navigate, or inspect the field.
     vm = await client.connect(config.desktopId)
+    stage = "vm_connect"
     signals.signal.throwIfAborted()
     await vm.connect()
+    stage = "health_check"
     let ready = false
     for (let attempt = 0; attempt < 30; attempt++) {
       signals.signal.throwIfAborted()
@@ -194,6 +285,7 @@ export async function runDesktopType(
           )
     signals.signal.throwIfAborted()
     if (!text || /[\p{Cc}\p{Cf}]/u.test(text)) throw new Error("Invalid input")
+    stage = "keyboard_type"
     dispatched = true
     try {
       // Verified @solarisdk/core API: input.key { text, action: "press" }.
@@ -207,7 +299,11 @@ export async function runDesktopType(
         ? "Typed test text into focused desktop field."
         : "Typed secret into focused desktop field.",
     )
-  } catch {
+  } catch (error) {
+    if (args[0] === "--test")
+      output(
+        `Desktop test failure: ${JSON.stringify(testFailure(error, stage, secrets))}`,
+      )
     output(
       dispatched
         ? "Typing was not confirmed; inspect the focused field before retrying. Raw SDK details withheld."

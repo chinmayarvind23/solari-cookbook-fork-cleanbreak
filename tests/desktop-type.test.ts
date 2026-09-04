@@ -83,8 +83,12 @@ describe("developer desktop literal typing", () => {
     expect(deps.readSecret).not.toHaveBeenCalled()
     expect(vm.close).toHaveBeenCalledOnce()
     expect(deps.output.mock.calls).toEqual([
+      [`Desktop target: ${env.SOLARI_DESKTOP_ID}`],
       ["Typed test text into focused desktop field."],
     ])
+    expect(deps.output.mock.invocationCallOrder[0]).toBeLessThan(
+      client.connect.mock.invocationCallOrder[0],
+    )
   })
   it("uploads only terminal-confirmed text, with safe status and no console/file output", async () => {
     const { vm, deps } = harness()
@@ -127,7 +131,7 @@ describe("developer desktop literal typing", () => {
         vm.keyboard.type.mock.calls[0][0] === generated,
     ).toBe(true)
     const output = deps.output.mock.calls.flat().join(" ")
-    for (const value of [generated, env.SOLARI_API_KEY, env.SOLARI_DESKTOP_ID])
+    for (const value of [generated, env.SOLARI_API_KEY])
       expect(output.includes(value)).toBe(false)
     expect(deps.output.mock.calls.at(-1)).toEqual([
       "Typed secret into focused desktop field.",
@@ -202,6 +206,135 @@ describe("developer desktop literal typing", () => {
     expect(vm.keyboard.type).not.toHaveBeenCalled()
     expect(vm.close).toHaveBeenCalledOnce()
     expect(process.listenerCount("SIGINT")).toBe(baseline)
+  })
+})
+
+describe("safe test-stage diagnostics", () => {
+  it.each(["client_connect", "vm_connect", "health_check", "keyboard_type"])(
+    "exposes %s and safe name/message, without error metadata",
+    async (stage) => {
+      const { vm, client, deps } = harness()
+      const generated = randomBytes(24).toString("hex")
+      const error = Object.assign(new Error("  Control channel closed  "), {
+        name: "ConnectionError",
+        headers: generated,
+        body: generated,
+        cause: generated,
+        stack: generated,
+      })
+      if (stage === "client_connect")
+        client.connect.mockRejectedValueOnce(error)
+      if (stage === "vm_connect") vm.connect.mockRejectedValueOnce(error)
+      if (stage === "health_check") vm.health.mockRejectedValueOnce(error)
+      if (stage === "keyboard_type")
+        vm.keyboard.type.mockRejectedValueOnce(error)
+      expect(await runDesktopType(["--test"], environment(), deps)).toBe(1)
+      expect(deps.output.mock.calls[1]).toEqual([
+        `Desktop test failure: ${JSON.stringify({ stage, name: "ConnectionError", message: "Control channel closed" })}`,
+      ])
+      expect(deps.output.mock.calls.flat().join(" ").includes(generated)).toBe(
+        false,
+      )
+      expect(vm.keyboard.type.mock.calls.length).toBe(
+        stage === "keyboard_type" ? 1 : 0,
+      )
+      expect(vm.close.mock.calls.length).toBe(
+        stage === "client_connect" ? 0 : 1,
+      )
+    },
+  )
+  it.each([
+    "api-key",
+    "encoded-key",
+    "base64-key",
+    "configured-token",
+    "authorization",
+    "cookie",
+    "token",
+    "secret",
+    "password",
+    "query",
+    "body",
+    "headers",
+    "stack",
+    "opaque",
+    "name",
+    "controls",
+  ])("redacts %s without losing the stage", async (kind) => {
+    const { vm, deps } = harness()
+    const env = {
+      ...environment(),
+      TEST_ACCESS_TOKEN: randomBytes(24).toString("hex"),
+    }
+    const generated = randomBytes(24).toString("base64")
+    const messages: Record<string, string> = {
+      "api-key": env.SOLARI_API_KEY,
+      "encoded-key": encodeURIComponent(env.SOLARI_API_KEY),
+      "base64-key": Buffer.from(env.SOLARI_API_KEY).toString("base64"),
+      "configured-token": env.TEST_ACCESS_TOKEN,
+      authorization: `Authorization: Bearer ${generated}`,
+      cookie: `Cookie: session=${generated}`,
+      token: `token=${generated}`,
+      secret: `secret: ${generated}`,
+      password: `password: ${generated}`,
+      query: `https://example.invalid/connect?data=${generated}`,
+      body: JSON.stringify({ data: generated }),
+      headers: `X-Custom: ${generated}`,
+      stack: `Control channel closed\n at ${generated}`,
+      opaque: generated,
+      controls: `Control channel closed\u001b[31m${generated}`,
+      name: "unrecognized remote response",
+    }
+    const error = new Error(messages[kind])
+    error.name = kind === "name" ? generated : "ConnectionError"
+    vm.connect.mockRejectedValueOnce(error)
+    expect(await runDesktopType(["--test"], env, deps)).toBe(1)
+    expect(deps.output.mock.calls[1]).toEqual([
+      `Desktop test failure: ${JSON.stringify({ stage: "vm_connect", name: kind === "name" ? "Error" : "ConnectionError", message: "[redacted]" })}`,
+    ])
+    const output = deps.output.mock.calls.flat().join(" ")
+    for (const value of [generated, env.SOLARI_API_KEY, env.TEST_ACCESS_TOKEN])
+      expect(output.includes(value)).toBe(false)
+  })
+  it("redacts a configured credential even when it matches otherwise safe text", async () => {
+    const { vm, deps } = harness()
+    vm.connect.mockRejectedValueOnce(new Error("Control channel closed"))
+    await runDesktopType(
+      ["--test"],
+      { ...environment(), TEST_SECRET: "Control channel closed" },
+      deps,
+    )
+    expect(deps.output.mock.calls[1][0]).toContain('"message":"[redacted]"')
+  })
+  it("redacts malformed desktop targets and keys accidentally used as the ID", async () => {
+    for (const kind of ["key", "controls"]) {
+      const { deps } = harness()
+      const env = environment()
+      env.SOLARI_DESKTOP_ID =
+        kind === "key" ? env.SOLARI_API_KEY : "invalid\nAuthorization: data"
+      expect(await runDesktopType(["--test"], env, deps)).toBe(0)
+      expect(deps.output.mock.calls[0]).toEqual(["Desktop target: [redacted]"])
+    }
+  })
+  it("keeps secret-mode SDK errors generic even when they echo the entered value", async () => {
+    const { vm, deps } = harness()
+    const generated = randomBytes(24).toString("base64")
+    deps.readSecret.mockResolvedValueOnce(generated)
+    vm.keyboard.type.mockImplementationOnce(async (value) => {
+      throw Object.assign(new Error(value), { name: value })
+    })
+    const env = environment()
+    expect(await runDesktopType(["--secret"], env, deps)).toBe(1)
+    expect(deps.output.mock.calls).toEqual([
+      [`Desktop target: ${env.SOLARI_DESKTOP_ID}`],
+      [
+        "Typing was not confirmed; inspect the focused field before retrying. Raw SDK details withheld.",
+      ],
+    ])
+    expect(deps.output.mock.calls.flat().join(" ").includes(generated)).toBe(
+      false,
+    )
+    expect(vm.close).toHaveBeenCalledOnce()
   })
 })
 
