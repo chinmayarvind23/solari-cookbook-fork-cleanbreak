@@ -39,6 +39,7 @@ function harness() {
     connect: vi.fn(async () => undefined),
     health: vi.fn(async () => ({ ready: true, display: true, vnc: true })),
     close: vi.fn(),
+    open: vi.fn(async () => 123),
     destroy: vi.fn(),
     keyboard: { type: vi.fn(async (_text: string) => undefined) },
     stream: {
@@ -310,7 +311,11 @@ describe("shared Desktop session resolution", () => {
     }
     expect(
       await runDesktopOpen(
-        { ...h.env, CLEANBREAK_REAL_PROVIDER_AUTHORIZED: "true" },
+        {
+          ...h.env,
+          CLEANBREAK_REAL_PROVIDER_AUTHORIZED: "true",
+          CLEANBREAK_REAL_PROVIDER_URL: "https://provider.example/billing",
+        },
         {
           createClient: () => ({
             ...h.client,
@@ -321,6 +326,7 @@ describe("shared Desktop session resolution", () => {
           output: vi.fn(),
           viewer: vi.fn(async () => viewer),
           confirm: vi.fn(async () => true),
+          wait: vi.fn(async () => undefined),
         },
       ),
     ).toBe(0)

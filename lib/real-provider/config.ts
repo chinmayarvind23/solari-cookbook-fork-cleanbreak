@@ -40,19 +40,7 @@ export function readRealProviderConfig(
 
   const providerName = required(environment, "CLEANBREAK_REAL_PROVIDER_NAME")
   const planName = required(environment, "CLEANBREAK_REAL_PROVIDER_PLAN_NAME")
-  const parsedUrl = parsePublicBaseUrl(
-    required(environment, "CLEANBREAK_REAL_PROVIDER_URL"),
-  )
-  if (parsedUrl.protocol !== "https:") {
-    throw new RealProviderConfigurationError(
-      "CLEANBREAK_REAL_PROVIDER_URL must use HTTPS.",
-    )
-  }
-  if (parsedUrl.username || parsedUrl.password) {
-    throw new RealProviderConfigurationError(
-      "CLEANBREAK_REAL_PROVIDER_URL must not contain credentials.",
-    )
-  }
+  const parsedUrl = readRealProviderUrl(environment)
 
   const amountCents = Number(
     required(environment, "CLEANBREAK_REAL_PROVIDER_AMOUNT_CENTS"),
@@ -103,4 +91,23 @@ export function readRealProviderConfig(
       updatedAt: now,
     },
   }
+}
+
+// Manual authentication needs the same URL validation, without plan/price fields
+// or starting a validation run. Errors never include the configured URL.
+export function readRealProviderUrl(
+  environment: Environment = process.env,
+): URL {
+  const parsedUrl = parsePublicBaseUrl(
+    required(environment, "CLEANBREAK_REAL_PROVIDER_URL"),
+  )
+  if (parsedUrl.protocol !== "https:")
+    throw new RealProviderConfigurationError(
+      "CLEANBREAK_REAL_PROVIDER_URL must use HTTPS.",
+    )
+  if (parsedUrl.username || parsedUrl.password)
+    throw new RealProviderConfigurationError(
+      "CLEANBREAK_REAL_PROVIDER_URL must not contain credentials.",
+    )
+  return parsedUrl
 }

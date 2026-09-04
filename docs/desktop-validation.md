@@ -54,7 +54,7 @@ by Browser validation; use the real configured price/currency/interval, not the
 example labels if they differ. Optional `CLEANBREAK_REAL_PROVIDER_NEXT_RENEWAL`
 and `CLEANBREAK_OPENAI_TIMEOUT_MS` retain their existing meaning. Browser profile
 name/ID are not used by this executor. The URL defines the allowed origin; the
-script **does not launch a browser or navigate the address bar**. Leave the
+validation executor **does not launch a browser or navigate the address bar**. Leave the
 correct provider page open yourself before starting.
 
 ## Prepare and authenticate the VM
@@ -117,15 +117,43 @@ correct provider page open yourself before starting.
    ```
 
    Open the private `http://127.0.0.1:<port>/<random-path>/` link printed in your
-   terminal. In this manual-only viewer, open Firefox/Chromium if necessary, log
-   into your provider, complete MFA yourself, and leave its billing page visible.
+   terminal. After connection and health readiness, this command launches Firefox
+   at `CLEANBREAK_REAL_PROVIDER_URL`, using the existing provider URL validation
+   (public HTTPS, no embedded credentials, query/fragment removed). It waits 1.5
+   seconds and checks health again before starting the stream and viewer. It
+   prints `Desktop connected.`, `Launching provider in Firefox...`, and
+   `Browser launched.` without exposing the provider URL or account identifiers.
+   In the manual-only viewer, log into your provider, complete MFA yourself, and
+   leave its billing page visible.
    Verify the intended account and trial/plan. Do not cancel anything. Return to
    the terminal and press Enter to pause the VM. This helper does not screenshot,
    record, call a planner, read credentials, or export browser state.
 
+   If Firefox launch fails, the helper probes for Firefox absence and executable
+   presence at known Chromium/Chrome paths before allowing one fallback launch.
+   Probes use fixed commands/paths only, never provider URLs or user input. If
+   absence/presence cannot be established, it fails with `Desktop browser launch
+failed.` and does not present a viewer. Nothing is installed automatically.
+   Health readiness and the startup delay are not proof that the GUI rendered;
+   visually inspect the viewer. No screenshots are taken to check rendering.
+
 4. Close unrelated tabs/apps and make sure no credentials, password manager,
    recovery codes, notifications, or other private information is visible before
    validation. Use a dedicated provider account/VM, not a general-purpose desktop.
+
+## Firefox launch diagnostic (developer-only)
+
+```bash
+npm run desktop:browser-test
+```
+
+This connects to the same saved session, calls `vm.open("firefox",
+["https://example.com"])`, waits 1.5 seconds, verifies `health().ready === true`,
+and closes its local control handle. Success prints only
+`DESKTOP_BROWSER_LAUNCH_OK`. It tests Firefox only, with no fallback, provider
+navigation, screenshots, recording, typing, or software installation. It never
+pauses or destroys the desktop; inspect the already-open viewer or pause the
+desktop manually when finished. A paused session may be resumed by `connect()`.
 
 ## Literal keyboard input (developer-only)
 

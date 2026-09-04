@@ -3,8 +3,10 @@ import { DesktopClient, type Desktop } from "@solarisdk/desktop"
 import { resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { readDesktopConnection } from "@/lib/desktop/config"
+import { readRealProviderUrl } from "@/lib/real-provider/config"
 import { startDesktopViewer } from "@/lib/desktop/viewer"
 import { confirmTerminal, terminalSignals } from "./desktop-terminal"
+import { launchDesktopBrowser } from "./desktop-browser"
 
 type Dependencies = {
   createClient(
@@ -14,6 +16,7 @@ type Dependencies = {
   confirm: typeof confirmTerminal
   interactive: boolean
   output(message: string): void
+  wait(ms: number): Promise<void>
 }
 
 export async function runDesktopOpen(
@@ -32,8 +35,10 @@ export async function runDesktopOpen(
     return 1
   }
   let config: ReturnType<typeof readDesktopConnection>
+  let providerUrl: string
   try {
     config = readDesktopConnection(environment)
+    providerUrl = readRealProviderUrl(environment).toString()
   } catch (error) {
     output(
       error instanceof Error ? error.message : "Invalid desktop configuration.",
@@ -52,30 +57,44 @@ export async function runDesktopOpen(
   const signals = terminalSignals()
   let vm: Desktop | undefined
   let viewer: Awaited<ReturnType<typeof startDesktopViewer>> | undefined
+  let failureMessage =
+    "Manual desktop connection failed. Raw SDK details withheld."
   try {
     vm = await client.connect(config.desktopId)
     await vm.connect()
     let ready = false
     for (let i = 0; i < 30; i++) {
       signals.signal.throwIfAborted()
-      if ((await vm.health()).ready) {
+      if ((await vm.health()).ready === true) {
         ready = true
         break
       }
-      await new Promise((done) => setTimeout(done, 500))
+      await (
+        dependencies.wait ??
+        ((ms) => new Promise<void>((done) => setTimeout(done, ms)))
+      )(500)
     }
     if (!ready) throw new Error("not ready")
+    output("Desktop connected.")
+    failureMessage = "Desktop browser launch failed."
+    output("Launching provider in Firefox...")
+    await launchDesktopBrowser(vm, providerUrl, signals.signal, {
+      fallback: true,
+      wait: dependencies.wait,
+    })
+    output("Browser launched.")
+    failureMessage = "Manual desktop viewer failed. Raw SDK details withheld."
     viewer = await (dependencies.viewer ?? startDesktopViewer)(
       (await vm.stream.start()).streamUrl,
       false,
     )
     await (dependencies.confirm ?? confirmTerminal)(
-      `Private manual desktop: ${viewer.url}\nOpen your provider in the existing browser, log in/MFA manually, and leave the billing page visible. Do not cancel. Press Enter here when ready to pause the VM.`,
+      `Private manual desktop: ${viewer.url}\nLog in and complete MFA manually in the launched browser, and leave the billing page visible. Do not cancel. Press Enter here when ready to pause the VM.`,
       "",
       signals.signal,
     )
   } catch {
-    output("Manual desktop connection failed. Raw SDK details withheld.")
+    output(failureMessage)
     exitCode = 1
   } finally {
     try {

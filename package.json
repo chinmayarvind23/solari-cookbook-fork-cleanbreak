@@ -24,6 +24,7 @@
     "desktop:type": "node --conditions react-server --env-file=.env --import tsx scripts/desktop-type.ts",
     "desktop:create": "node --conditions react-server --env-file=.env --import tsx scripts/desktop-session.ts --create",
     "desktop:check": "node --conditions react-server --env-file=.env --import tsx scripts/desktop-session.ts --check",
+    "desktop:browser-test": "node --conditions react-server --env-file=.env --import tsx scripts/desktop-browser-test.ts",
     "approved:smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/approved-smoke.ts",
     "verified:smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/verified-smoke.ts",
     "receipt:integrity-smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/receipt-integrity-smoke.ts",
