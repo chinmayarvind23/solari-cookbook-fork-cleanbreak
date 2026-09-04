@@ -206,31 +206,44 @@ Developer-only profile helpers (run from the repo root with `.env` present):
 
 ```bash
 npm run profile:list
+npm run profile:install
 npm run profile:login
 ```
 
 `profile:list` calls `solari.profiles.list()` and prints only name, ID, and numeric
 `version`/`sizeBytes` when exposed. Missing metadata is reported as “not exposed”,
-not zero. Set `SOLARI_PROFILE_NAME=cleanbreak-canva` in `.env` for the login check;
+not zero. Set `SOLARI_PROFILE_NAME=cleanbreak-canva` in `.env` for login;
 the name must match exactly. Neither command creates a profile or writes storage
 state to disk.
 
-**Manual login is currently blocked.** The installed `@solarisdk/browser@0.1.3`
-exposes Playwright/CDP protocol endpoints but no interactive browser viewer URL.
-Its replay URL is a recording download after release. `profile:login` therefore
-checks the profile and exits with a clear limitation before launching or saving.
-It does not prompt for Enter or claim a successful login. Solari's
-[profile documentation](https://docs.getsolari.com/profiles) describes Console →
-Profiles → Open editor; if that control is missing, Solari must restore/enable it
-or provide a supported interactive attachment method before this helper can
-complete the Canva login at `https://www.canva.com/settings/billing-and-teams`.
+`profile:install` is a one-time setup command for the local Chromium binary. The
+helper reuses `patchright-core@1.62.2`, Solari's existing Playwright-compatible
+dependency, also declared explicitly as a developer dependency.
 
-Once manual interaction is available, the SDK's supported save sequence is
-`page.context().storageState()` (without a file path), followed by
-`solari.profiles.save(profile.id, state)`, after explicit terminal confirmation.
-The save response contains `version` and `sizeBytes`. Positive saved size indicates
-stored data, not proof that a Canva session is authenticated; a subsequent session
-must still reach Billing & plans. No save is performed by the current helper.
+`profile:login` finds the exact existing profile, opens a **local, visible Chromium
+window** at `https://www.canva.com/settings/billing-and-teams`, and waits. Log in,
+complete MFA/email verification yourself, and open Settings → Billing & plans.
+Confirm that your Canva Pro trial is visible, then return to the terminal and press
+Enter at this prompt:
+
+```text
+Press Enter after Canva Billing & plans is open and the account is authenticated.
+```
+
+Only then does the helper call `context.storageState()` without a file path and
+immediately upload that in-memory object with `solari.profiles.save(profile.id,
+storageState)`, as supported by [Solari's profile API](https://docs.getsolari.com/profiles).
+It does not read password fields, record the browser, or print cookies, tokens,
+localStorage, or serialized storage state. The browser uses a fresh nonpersistent
+context, and both the local browser and Solari client close in `finally`. Ctrl+C,
+terminal EOF, or closing the browser before confirmation cancels without uploading.
+Piped input is rejected for login; run it in your own interactive terminal.
+
+The final JSON line contains only `name`, `id`, `version`, `sizeBytes`, and
+`nonEmpty`. Check for `nonEmpty: true`, then run `npm run profile:list` again and
+confirm `cleanbreak-canva` has the returned version and a positive byte count.
+That confirms stored state; it does not independently prove remote Canva login
+will succeed. These helpers do not run cancellation or the real-provider dry run.
 
 Automated checks:
 

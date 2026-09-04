@@ -1,25 +1,38 @@
 // Developer CLI only. Never imported by the CleanBreak application.
 import { resolve } from "node:path"
+import { createInterface } from "node:readline"
 import { pathToFileURL } from "node:url"
 
-import { Solari, type Profile } from "@solarisdk/browser"
+import { Solari, type Profile, type StorageState } from "@solarisdk/browser"
+import { chromium, type Browser, type Page } from "patchright-core"
 
-export const MANUAL_LOGIN_LIMITATION =
-  "Manual login unavailable with the installed @solarisdk/browser 0.1.3: " +
-  "BrowserSession exposes wsEndpoint/cdpEndpoint for protocol clients, " +
-  "but no live/debug/stream/view URL for interactive browser use. " +
-  "getReplayUrl() is a recording download after session release, not an interactive editor. " +
-  "Solari documents Console > Profiles > Open editor; if that control is missing, " +
-  "ask Solari to enable or restore it. No browser was launched and no profile was saved."
+export const CANVA_BILLING_URL =
+  "https://www.canva.com/settings/billing-and-teams"
+export const CONFIRMATION_PROMPT =
+  "Press Enter after Canva Billing & plans is open and the account is authenticated."
 
 type ProfileClient = {
-  profiles: Pick<Solari["profiles"], "list">
+  profiles: Pick<Solari["profiles"], "list" | "save">
   close: Solari["close"]
+}
+type LocalBrowser = Pick<Browser, "close"> & {
+  on(event: "disconnected", listener: () => void): unknown
+  off(event: "disconnected", listener: () => void): unknown
+  newContext(options: { viewport: null; acceptDownloads: false }): Promise<{
+    newPage(): Promise<Pick<Page, "goto">>
+    storageState(): Promise<StorageState>
+  }>
+}
+type Dependencies = {
+  createClient(apiKey: string): ProfileClient
+  launchBrowser(): Promise<LocalBrowser>
+  confirm(signal: AbortSignal): Promise<void>
+  interactive: boolean
+  output(message: string): void
 }
 type Environment = Readonly<Record<string, string | undefined>>
 
 function numericMetadata(value: unknown): number | string {
-  // The live profile API also serializes byte counts as decimal strings.
   const numeric =
     typeof value === "string" && /^\d+$/.test(value) ? Number(value) : value
   return typeof numeric === "number" &&
@@ -29,7 +42,7 @@ function numericMetadata(value: unknown): number | string {
     : "not exposed"
 }
 
-// Profile has an open-ended SDK type: explicitly select safe fields only.
+// The profile API may return additional private fields: select safe fields only.
 export function profileMetadata(profile: Profile) {
   return {
     name: profile.name,
@@ -39,13 +52,39 @@ export function profileMetadata(profile: Profile) {
   }
 }
 
+export function waitForConfirmation(signal: AbortSignal): Promise<void> {
+  signal.throwIfAborted()
+  return new Promise((resolveConfirmation, reject) => {
+    const terminal = createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    })
+    const finish = (confirmed: boolean) => {
+      terminal.removeAllListeners("line")
+      terminal.removeAllListeners("close")
+      terminal.removeAllListeners("SIGINT")
+      signal.removeEventListener("abort", cancel)
+      terminal.close()
+      if (confirmed) resolveConfirmation()
+      else reject(new Error("Manual confirmation canceled."))
+    }
+    const cancel = () => finish(false)
+    terminal.on("line", (line) => {
+      // Ignore other input without logging its content.
+      if (line === "") finish(true)
+    })
+    terminal.once("close", cancel)
+    terminal.once("SIGINT", cancel)
+    signal.addEventListener("abort", cancel, { once: true })
+  })
+}
+
 export async function runProfileHelper(
   args: string[],
   environment: Environment = process.env,
-  createClient: (apiKey: string) => ProfileClient = (apiKey) =>
-    new Solari({ apiKey }),
-  output: (message: string) => void = console.log,
+  dependencies: Partial<Dependencies> = {},
 ): Promise<number> {
+  const output = dependencies.output ?? console.log
   if (args.length > 1 || (args.length === 1 && args[0] !== "--list")) {
     output("Usage: npm run profile:login OR npm run profile:list")
     return 1
@@ -59,17 +98,35 @@ export async function runProfileHelper(
     )
     return 1
   }
+  if (
+    !listOnly &&
+    !(dependencies.interactive ?? Boolean(process.stdin.isTTY))
+  ) {
+    output(
+      "Run profile:login in an interactive terminal. Piped input cannot authorize an upload.",
+    )
+    return 1
+  }
 
+  const controller = new AbortController()
+  const cancel = () => controller.abort()
+  for (const event of ["SIGINT", "SIGTERM", "SIGHUP"] as const)
+    process.on(event, cancel)
   let solari: ProfileClient | undefined
+  let browser: LocalBrowser | undefined
   let exitCode = 0
+  let failureMessage =
+    "Solari profile lookup failed. Check the API key and service connectivity."
   try {
-    solari = createClient(apiKey)
+    solari = (
+      dependencies.createClient ?? ((apiKey) => new Solari({ apiKey }))
+    )(apiKey)
     const profiles = await solari.profiles.list()
+    controller.signal.throwIfAborted()
     if (listOnly) {
       if (!profiles.length) output("No Solari profiles found.")
-      for (const profile of profiles) {
+      for (const profile of profiles)
         output(JSON.stringify(profileMetadata(profile)))
-      }
     } else {
       const matches = profiles.filter((profile) => profile.name === profileName)
       if (matches.length !== 1) {
@@ -80,24 +137,84 @@ export async function runProfileHelper(
         )
         exitCode = 1
       } else {
-        output(JSON.stringify(profileMetadata(matches[0])))
-        output(MANUAL_LOGIN_LIMITATION)
-        exitCode = 1
+        const profile = matches[0]
+        output(JSON.stringify({ name: profile.name, id: profile.id }))
+        failureMessage =
+          "Local Chromium could not start. Run npm run profile:install, then retry."
+        browser = await (
+          dependencies.launchBrowser ??
+          (() =>
+            chromium.launch({
+              headless: false,
+              handleSIGINT: false,
+              handleSIGTERM: false,
+              handleSIGHUP: false,
+            }))
+        )()
+        browser.on("disconnected", cancel)
+        controller.signal.throwIfAborted()
+        failureMessage =
+          "The local browser could not open Canva Billing & plans. No upload was attempted."
+        const context = await browser.newContext({
+          viewport: null,
+          acceptDownloads: false,
+        })
+        const page = await context.newPage()
+        await page.goto(CANVA_BILLING_URL, {
+          waitUntil: "domcontentloaded",
+          timeout: 60_000,
+        })
+        controller.signal.throwIfAborted()
+        output(
+          "Log in and complete MFA manually in the local Chromium window. Check that your Canva Pro trial is visible in Billing & plans.",
+        )
+        output(CONFIRMATION_PROMPT)
+        failureMessage =
+          "Manual confirmation canceled. No upload was attempted."
+        await (dependencies.confirm ?? waitForConfirmation)(controller.signal)
+        controller.signal.throwIfAborted()
+        failureMessage =
+          "Could not read browser storage state. No upload was attempted."
+        // No path, persistent context, recording, trace, or state logging.
+        const storageState = await context.storageState()
+        controller.signal.throwIfAborted()
+        failureMessage =
+          "Solari profile upload was not confirmed. Check npm run profile:list before retrying."
+        const saved = await solari.profiles.save(profile.id, storageState)
+        output(
+          JSON.stringify({
+            name: profile.name,
+            id: profile.id,
+            version: numericMetadata(saved.version),
+            sizeBytes: numericMetadata(saved.sizeBytes),
+            nonEmpty:
+              typeof saved.sizeBytes === "number" && saved.sizeBytes > 0,
+          }),
+        )
       }
     }
   } catch {
-    // SDK error messages can contain HTTP response bodies and signed URLs.
-    output(
-      "Solari profile lookup failed. Check the API key and service connectivity. Raw error details are withheld.",
-    )
+    // SDK errors can contain response bodies, credentials, or signed URLs.
+    output(failureMessage)
     exitCode = 1
   } finally {
+    try {
+      browser?.off("disconnected", cancel)
+      await browser?.close()
+    } catch {
+      output(
+        "Local browser cleanup failed. Close the Chromium window manually.",
+      )
+      exitCode = 1
+    }
     try {
       await solari?.close()
     } catch {
       output("Solari client cleanup failed. Raw error details are withheld.")
       exitCode = 1
     }
+    for (const event of ["SIGINT", "SIGTERM", "SIGHUP"] as const)
+      process.off(event, cancel)
   }
   return exitCode
 }
