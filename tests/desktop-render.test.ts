@@ -80,7 +80,16 @@ describe("process and render gate", () => {
     await h.launch()
     expect(h.vm.open.mock.calls).toEqual([
       ["firefox", [h.url]],
-      ["/usr/bin/google-chrome", ["--new-window", h.url]],
+      [
+        "/usr/bin/google-chrome",
+        [
+          "--no-sandbox",
+          "--disable-dev-shm-usage",
+          "--user-data-dir=/tmp/cleanbreak-chrome",
+          "--new-window",
+          h.url,
+        ],
+      ],
     ])
     expect(h.vm.process.list).toHaveBeenCalledTimes(2)
     expect(h.vm.screenshot).toHaveBeenCalledExactlyOnceWith()
@@ -106,14 +115,16 @@ describe("process and render gate", () => {
     expect(h.vm.open).toHaveBeenCalledTimes(2)
     expect(h.vm.exec.mock.calls.some(([cmd]) => cmd === "id")).toBe(false)
   })
-  it("does not accept an unrelated existing Chrome PID as a launched child", async () => {
+  it("accepts a surviving Chrome process even if the initial launcher PID exited", async () => {
     const h = harness()
     h.vm.process.list.mockResolvedValue([
       { pid: 999, name: "chrome", cmd: h.privateValue },
     ])
-    expect(await h.failure()).toBe(true)
-    expect(h.options.output).toHaveBeenCalledWith(
-      "reason: CHROME_PROCESS_EXITED",
+    await h.launch()
+    expect(h.options.output).toHaveBeenCalledWith("launchPidValid: false")
+    expect(h.options.output).toHaveBeenCalledWith("chromeProcessDetected: true")
+    expect(h.options.saveScreenshot).toHaveBeenCalledExactlyOnceWith(
+      renderImage,
     )
   })
   it("requires the process to remain alive after screenshot capture", async () => {
@@ -168,42 +179,36 @@ describe("process and render gate", () => {
       "reason: DESKTOP_NOT_READY",
     )
   })
-  it("attempts normal Chrome before exactly one opted-in, root-evidenced no-sandbox fallback", async () => {
+  it("uses the fixed flags once even with the legacy sandbox option enabled", async () => {
     const h = harness()
-    h.vm.process.list.mockResolvedValueOnce([]).mockResolvedValueOnce([])
     await h.launch(true)
-    expect(h.vm.open.mock.calls).toEqual([
-      ["firefox", [h.url]],
-      ["/usr/bin/google-chrome", ["--new-window", h.url]],
-      ["/usr/bin/google-chrome", ["--no-sandbox", "--new-window", h.url]],
+    expect(h.vm.open).toHaveBeenCalledTimes(2)
+    expect(h.vm.open).toHaveBeenLastCalledWith("/usr/bin/google-chrome", [
+      "--no-sandbox",
+      "--disable-dev-shm-usage",
+      "--user-data-dir=/tmp/cleanbreak-chrome",
+      "--new-window",
+      h.url,
     ])
-    expect(h.vm.exec).toHaveBeenCalledWith("id", {
-      args: ["-u"],
-      timeoutMs: 1000,
-    })
-    expect(h.options.output).toHaveBeenCalledWith("rootContextDetected: true")
-    expect(h.options.output).toHaveBeenCalledWith("sandboxRelaxationUsed: true")
+    expect(h.vm.exec.mock.calls.some(([cmd]) => cmd === "id")).toBe(false)
     const args = h.vm.open.mock.calls.flatMap(([, args]) => args ?? [])
     expect(args.includes("--headless")).toBe(false)
     expect(args.includes("--disable-gpu")).toBe(false)
+    expect(writeFileSync).not.toHaveBeenCalled()
+    expect(mkdirSync).not.toHaveBeenCalled()
   })
-  it("does not weaken sandboxing without a confirmed root UID", async () => {
+  it("does not probe root or retry after Chrome exits", async () => {
     const h = harness()
     h.vm.process.list.mockResolvedValue([])
-    const normalExec = h.vm.exec.getMockImplementation()!
-    h.vm.exec.mockImplementation(async (cmd, opts) =>
-      cmd === "id"
-        ? { exitCode: 0, stdout: "1000\n", stderr: h.privateValue }
-        : normalExec(cmd, opts),
-    )
     expect(await h.failure(true)).toBe(true)
     expect(h.vm.open).toHaveBeenCalledTimes(2)
+    expect(h.vm.exec.mock.calls.some(([cmd]) => cmd === "id")).toBe(false)
   })
-  it("never retries sandbox flags more than once or after an ambiguous process-list failure", async () => {
+  it("never retries after process exit or an ambiguous process-list failure", async () => {
     const h = harness()
     h.vm.process.list.mockResolvedValue([])
     expect(await h.failure(true)).toBe(true)
-    expect(h.vm.open).toHaveBeenCalledTimes(3)
+    expect(h.vm.open).toHaveBeenCalledTimes(2)
     const ambiguous = harness()
     ambiguous.vm.process.list.mockRejectedValue(
       new Error(ambiguous.privateValue),

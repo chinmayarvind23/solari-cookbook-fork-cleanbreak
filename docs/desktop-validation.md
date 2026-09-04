@@ -186,32 +186,22 @@ detected, exit 1 means absent. An unavailable/invalid probe emits
 example.com using the **same launch helper and fallback policy as desktop:open**.
 It closes only the local control handle, never pauses or destroys the session.
 
-For detected `/usr/bin/google-chrome`, the normal launch is exactly
-`vm.open("/usr/bin/google-chrome", ["--new-window", url])`. There is no headless or
-disable-GPU flag. After launch, the PID must still be a browser process both
-before and after a valid screenshot. Diagnosing saves that screenshot only to
+For detected `/usr/bin/google-chrome`, the launch is exactly
+`vm.open("/usr/bin/google-chrome", ["--no-sandbox", "--disable-dev-shm-usage", "--user-data-dir=/tmp/cleanbreak-chrome", "--new-window", url])`.
+There is no headless or disable-GPU flag. At least one Chrome process must remain
+alive before and after a valid screenshot, even if the initial launcher PID exits.
+Diagnosing saves that screenshot only to
 ignored `.cleanbreak/browser-render-test.png` and prints byte counts/path, never
 image data or process command lines. The file can contain private desktop UI:
 close unrelated/private windows first and do not commit/share it unreviewed.
 Successful diagnostics overwrite this one image; failed runs may leave the old
 artifact untouched, so trust only a path printed by the current successful run.
 
-If normal Chrome exits in this dedicated VM, you can explicitly allow **one**
-developer-only sandbox-relaxed retry:
-
-```bash
-npm run desktop:browser-diagnose -- --allow-no-sandbox
-```
-
-The command still tries normal Chrome first. The retry additionally requires a
-confirmed root UID (`id -u` returns exactly 0) and no remaining browser process;
-unknown process/probe outcomes cannot authorize it. Only then is the same detected
-executable opened with `--no-sandbox --new-window`. This reduces Chrome isolation;
-use only the dedicated trusted developer VM. It is never an automatic flag cycle.
-Each launch receives its own bounded ten-second render check. To explicitly allow
-the same retry for manual `desktop:open`, set
-`CLEANBREAK_DESKTOP_ALLOW_NO_SANDBOX=true` in the local `.env`; otherwise it stays
-disabled. This setting is not consumed by the validation executor.
+These fixed flags reduce Chrome isolation; use only the dedicated trusted
+developer VM. The Chrome profile remains at `/tmp/cleanbreak-chrome` inside that
+VM and is never copied or serialized by the helper. Both diagnostic and manual
+open commands use this launcher with a bounded ten-second render check and no
+launch retry. The legacy sandbox opt-in setting/flag is no longer needed.
 
 Key successful Chrome-render diagnostic lines:
 
@@ -234,7 +224,7 @@ is a necessary check, not identification of the browser window: inspect the imag
 Successful diagnostics end with `result: ok`. For a failed launch, both diagnostic
 commands print `launchStage`, a fixed `reason`, and `result: failed`. Stages are
 `firefox_open`, `firefox_probe`, `chromium_probe`, `fallback_open`, `render_wait`,
-`health_recheck`, `process_check`, `screenshot`, and `sandbox_probe`. Example key lines when Firefox is installed but open fails:
+`health_recheck`, `process_check`, and `screenshot`. Example key lines when Firefox is installed but open fails:
 
 ```text
 ready: true

@@ -282,6 +282,53 @@ describe("developer browser test", () => {
 })
 
 describe("safe shared browser diagnostics", () => {
+  it.each(["diagnose", "manual"])(
+    "%s uses the same fixed Google Chrome launcher and render gate",
+    async (mode) => {
+      const h = harness()
+      h.vm.open.mockRejectedValueOnce(new Error(h.marker))
+      h.vm.exec.mockImplementation(async (_cmd, options) => ({
+        exitCode: (options as { args: string[] }).args.includes(
+          "/usr/bin/google-chrome",
+        )
+          ? 0
+          : 1,
+        stdout: h.marker,
+        stderr: h.env.SOLARI_API_KEY,
+      }))
+      expect(
+        await (mode === "diagnose" ? runDesktopBrowserDiagnose : runDesktopOpen)(
+          h.env,
+          h.deps,
+        ),
+      ).toBe(0)
+      expect(h.vm.open).toHaveBeenLastCalledWith("/usr/bin/google-chrome", [
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--user-data-dir=/tmp/cleanbreak-chrome",
+        "--new-window",
+        mode === "diagnose"
+          ? "https://example.com"
+          : h.env.CLEANBREAK_REAL_PROVIDER_URL.split("?")[0],
+      ])
+      expect(h.vm.process.list).toHaveBeenCalledTimes(2)
+      expect(h.vm.screenshot).toHaveBeenCalledOnce()
+      if (mode === "diagnose") {
+        expect(h.deps.saveScreenshot).toHaveBeenCalledExactlyOnceWith(renderImage)
+        expect(h.deps.output).toHaveBeenCalledWith(
+          "renderArtifact: .cleanbreak/browser-render-test.png",
+        )
+      } else {
+        expect(h.vm.screenshot.mock.invocationCallOrder[0]).toBeLessThan(
+          h.vm.stream.start.mock.invocationCallOrder[0],
+        )
+        expect(h.deps.saveScreenshot).not.toHaveBeenCalled()
+      }
+      const log = h.deps.output.mock.calls.flat().join(" ")
+      for (const value of [h.marker, h.env.SOLARI_API_KEY, "wss://"])
+        expect(log.includes(value)).toBe(false)
+    },
+  )
   it.each(["test", "manual"])(
     "%s enables identical fallback semantics",
     async (mode) => {

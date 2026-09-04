@@ -18,7 +18,6 @@ type LaunchStage =
   | "health_recheck"
   | "process_check"
   | "screenshot"
-  | "sandbox_probe"
 type LaunchReason =
   | "FIREFOX_PRESENT_BUT_OPEN_FAILED"
   | "FIREFOX_OPEN_FAILED"
@@ -110,7 +109,7 @@ export async function launchDesktopBrowser(
   signal: AbortSignal,
   options: {
     fallback?: boolean
-    allowNoSandbox?: boolean
+    allowNoSandbox?: boolean // Legacy option; detected Google Chrome uses fixed VM flags.
     wait?: (ms: number) => Promise<void>
     output?: (message: string) => void
     saveScreenshot?: (bytes: Uint8Array) => void
@@ -166,7 +165,15 @@ export async function launchDesktopBrowser(
       signal.throwIfAborted()
       pid = await vm.open(
         executable,
-        executable === "/usr/bin/google-chrome" ? ["--new-window", url] : [url],
+        executable === "/usr/bin/google-chrome"
+          ? [
+              "--no-sandbox",
+              "--disable-dev-shm-usage",
+              "--user-data-dir=/tmp/cleanbreak-chrome",
+              "--new-window",
+              url,
+            ]
+          : [url],
       )
     }
     if (!Number.isSafeInteger(pid) || pid <= 0)
@@ -181,10 +188,8 @@ export async function launchDesktopBrowser(
       ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)))
     const google = executable === "/usr/bin/google-chrome"
     const chrome = executable !== "firefox"
-    let relaxed = false
-    // Each verification pass is bounded in wall time AND poll count. A timed-out
-    // SDK call is not evidence of an exited process and cannot trigger a relaunch.
-    for (;;) {
+    // Verification is bounded in wall time AND poll count. Never relaunch.
+    {
       const deadline = Date.now() + BROWSER_RENDER_TIMEOUT_MS
       async function bounded<T>(action: () => Promise<T>): Promise<T> {
         const remaining = deadline - Date.now()
@@ -211,7 +216,11 @@ export async function launchDesktopBrowser(
         ).test(name)
       const matches = (
         process: Awaited<ReturnType<Desktop["process"]["list"]>>[number],
-      ) => process.pid === pid && browserName(process.name)
+      ) =>
+        Number.isSafeInteger(process.pid) &&
+        process.pid > 0 &&
+        (google || process.pid === pid) &&
+        browserName(process.name)
       stage = "render_wait"
       reason = "RENDER_WAIT_FAILED"
       await bounded(() => wait(BROWSER_RENDER_WAIT_MS))
@@ -255,7 +264,9 @@ export async function launchDesktopBrowser(
             exited = true
             break
           }
-          options.output?.("launchPidValid: true")
+          options.output?.(
+            `launchPidValid: ${afterCapture.some((p) => p.pid === pid && matches(p))}`,
+          )
           options.output?.(
             `${chrome ? "chromeProcessDetected" : "browserProcessDetected"}: true`,
           )
@@ -270,36 +281,7 @@ export async function launchDesktopBrowser(
       }
       if (!exited)
         throw new BrowserLaunchFailure("screenshot", "SCREENSHOT_FAILED")
-      // Root UID is positive evidence of Chrome's root/sandbox restriction. This
-      // is a single explicit developer opt-in, only after the normal PID exited.
-      // Never retry after an ambiguous open/process-list error or screenshot error.
-      if (!google || relaxed || !options.allowNoSandbox)
-        throw new BrowserLaunchFailure("process_check", "CHROME_PROCESS_EXITED")
-      stage = "sandbox_probe"
-      reason = "CHROME_PROCESS_EXITED"
-      signal.throwIfAborted()
-      const uid = await vm.exec("id", { args: ["-u"], timeoutMs: 1000 })
-      if (uid.exitCode !== 0 || uid.stdout.trim() !== "0")
-        throw new BrowserLaunchFailure(stage, reason)
-      // Do not relaunch if a delayed/other browser appeared during the probe.
-      if (
-        (await vm.process.list()).some(
-          (p) => p.pid === pid || browserName(p.name),
-        )
-      )
-        throw new BrowserLaunchFailure(stage, reason)
-      options.output?.("rootContextDetected: true")
-      options.output?.("sandboxRelaxationUsed: true")
-      relaxed = true
-      stage = "fallback_open"
-      reason = "CHROME_OPEN_FAILED"
-      pid = await vm.open("/usr/bin/google-chrome", [
-        "--no-sandbox",
-        "--new-window",
-        url,
-      ])
-      if (!Number.isSafeInteger(pid) || pid <= 0)
-        throw new BrowserLaunchFailure(stage, reason)
+      throw new BrowserLaunchFailure("process_check", "CHROME_PROCESS_EXITED")
     }
   } catch (error) {
     if (signal.aborted) throw new BrowserLaunchFailure(stage, "CANCELED")
