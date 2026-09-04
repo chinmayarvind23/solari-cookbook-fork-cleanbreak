@@ -6,6 +6,7 @@ const repositoryRoot = resolve(process.cwd())
 const credentials = [
   process.env.SOLARI_API_KEY,
   process.env.OPENAI_API_KEY,
+  process.env.SOLARI_DESKTOP_ID,
 ].filter((value): value is string => Boolean(value && value.length >= 8))
 
 if (credentials.length === 0) {

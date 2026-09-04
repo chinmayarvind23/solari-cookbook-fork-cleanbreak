@@ -175,6 +175,11 @@ reliable demo is:
 
 ## Setup
 
+For real providers that cannot reuse transferred Browser authentication, see the
+[Desktop validation guide](docs/desktop-validation.md). It adds a dedicated
+manually authenticated VM and a human-supervised screenshot loop without changing
+the Browser/StreamMax architecture. Desktop mode has no cancellation commit path.
+
 Requirements: Node.js 22+, npm, a Solari API key, and an OpenAI API key.
 
 ```bash
