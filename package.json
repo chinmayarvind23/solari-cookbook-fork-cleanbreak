@@ -14,6 +14,8 @@
     "test": "vitest run",
     "benchmark": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/benchmark.ts",
     "solari:smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/solari-smoke.ts",
+    "profile:login": "node --env-file=.env --import tsx scripts/profile-login.ts",
+    "profile:list": "node --env-file=.env --import tsx scripts/profile-login.ts --list",
     "agent:smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/agent-smoke.ts",
     "real-provider:dry-run": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/real-provider-dry-run.ts",
     "approved:smoke": "node --conditions react-server --env-file-if-exists=.env --import tsx scripts/approved-smoke.ts",

@@ -202,7 +202,37 @@ npm run real-provider:dry-run
 Do not paste credentials into source, terminal output, screenshots, replay titles,
 or tracked artifacts. Review the resulting artifact before committing it.
 
-Useful checks:
+Developer-only profile helpers (run from the repo root with `.env` present):
+
+```bash
+npm run profile:list
+npm run profile:login
+```
+
+`profile:list` calls `solari.profiles.list()` and prints only name, ID, and numeric
+`version`/`sizeBytes` when exposed. Missing metadata is reported as “not exposed”,
+not zero. Set `SOLARI_PROFILE_NAME=cleanbreak-canva` in `.env` for the login check;
+the name must match exactly. Neither command creates a profile or writes storage
+state to disk.
+
+**Manual login is currently blocked.** The installed `@solarisdk/browser@0.1.3`
+exposes Playwright/CDP protocol endpoints but no interactive browser viewer URL.
+Its replay URL is a recording download after release. `profile:login` therefore
+checks the profile and exits with a clear limitation before launching or saving.
+It does not prompt for Enter or claim a successful login. Solari's
+[profile documentation](https://docs.getsolari.com/profiles) describes Console →
+Profiles → Open editor; if that control is missing, Solari must restore/enable it
+or provide a supported interactive attachment method before this helper can
+complete the Canva login at `https://www.canva.com/settings/billing-and-teams`.
+
+Once manual interaction is available, the SDK's supported save sequence is
+`page.context().storageState()` (without a file path), followed by
+`solari.profiles.save(profile.id, state)`, after explicit terminal confirmation.
+The save response contains `version` and `sizeBytes`. Positive saved size indicates
+stored data, not proof that a Canva session is authenticated; a subsequent session
+must still reach Billing & plans. No save is performed by the current helper.
+
+Automated checks:
 
 ```bash
 npm test
