@@ -20,6 +20,7 @@ import {
 import { runDesktopOpen } from "@/scripts/desktop-open"
 import { runDesktopType } from "@/scripts/desktop-type"
 import { runDesktopDryRun } from "@/lib/desktop/runtime"
+import { renderImage } from "./helpers/render-image"
 
 const expiresAt = "2026-12-01T12:00:00.000Z"
 const createdAt = "2026-12-01T11:00:00.000Z"
@@ -40,6 +41,8 @@ function harness() {
     health: vi.fn(async () => ({ ready: true, display: true, vnc: true })),
     close: vi.fn(),
     open: vi.fn(async () => 123),
+    screenshot: vi.fn(async () => renderImage),
+    process: { list: vi.fn(async () => [{ pid: 123, name: "firefox" }]) },
     destroy: vi.fn(),
     keyboard: { type: vi.fn(async (_text: string) => undefined) },
     stream: {

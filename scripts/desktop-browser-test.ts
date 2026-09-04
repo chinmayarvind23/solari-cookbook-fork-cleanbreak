@@ -9,14 +9,19 @@ import {
   reportBrowserLaunchFailure,
 } from "./desktop-browser"
 import { terminalSignals } from "./desktop-terminal"
+import { RENDER_ARTIFACT, writeBrowserRenderArtifact } from "./desktop-render"
 
-type Handle = Pick<Desktop, "connect" | "open" | "exec" | "health" | "close">
+type Handle = Pick<
+  Desktop,
+  "connect" | "open" | "exec" | "health" | "close" | "process" | "screenshot"
+>
 type Dependencies = {
   createClient(config: ReturnType<typeof readDesktopConnection>): {
     connect(id: string): Promise<Handle>
   }
   output(message: string): void
   wait(ms: number): Promise<void>
+  saveScreenshot(bytes: Uint8Array): void
 }
 
 export async function runDesktopBrowserTest(
@@ -67,13 +72,22 @@ async function runBrowserCommand(
     }
     await launchDesktopBrowser(vm, "https://example.com", signals.signal, {
       fallback: true,
+      allowNoSandbox:
+        environment.CLEANBREAK_DESKTOP_ALLOW_NO_SANDBOX === "true",
       wait: dependencies.wait,
+      output: diagnose ? output : undefined,
+      saveScreenshot: diagnose
+        ? (bytes) => {
+            ;(dependencies.saveScreenshot ?? writeBrowserRenderArtifact)(bytes)
+            output(`renderArtifact: ${RENDER_ARTIFACT}`)
+          }
+        : undefined,
     })
   } catch (error) {
     if (!reportBrowserLaunchFailure(error, output)) {
       if (diagnose) {
         if (!ready) output("ready: false")
-        output("reason: DIAGNOSTIC_UNAVAILABLE")
+        output("reason: DESKTOP_NOT_READY")
         output("result: failed")
       } else output("Desktop browser launch failed.")
     }
@@ -97,10 +111,20 @@ if (
   import.meta.url === pathToFileURL(resolve(process.argv[1])).href
 ) {
   const args = process.argv.slice(2)
-  if (args.length === 0) process.exitCode = await runDesktopBrowserTest()
-  else if (args.length === 1 && args[0] === "--diagnose")
-    process.exitCode = await runDesktopBrowserDiagnose()
-  else {
+  const allowed = new Set(["--diagnose", "--allow-no-sandbox"])
+  if (
+    args.every((arg) => allowed.has(arg)) &&
+    new Set(args).size === args.length
+  ) {
+    const environment = args.includes("--allow-no-sandbox")
+      ? { ...process.env, CLEANBREAK_DESKTOP_ALLOW_NO_SANDBOX: "true" }
+      : process.env
+    process.exitCode = await (
+      args.includes("--diagnose")
+        ? runDesktopBrowserDiagnose
+        : runDesktopBrowserTest
+    )(environment)
+  } else {
     console.log(
       "Usage: npm run desktop:browser-test OR npm run desktop:browser-diagnose",
     )

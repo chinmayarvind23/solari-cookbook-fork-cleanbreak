@@ -119,23 +119,33 @@ correct provider page open yourself before starting.
    Open the private `http://127.0.0.1:<port>/<random-path>/` link printed in your
    terminal. After connection and health readiness, this command launches Firefox
    at `CLEANBREAK_REAL_PROVIDER_URL`, using the existing provider URL validation
-   (public HTTPS, no embedded credentials, query/fragment removed). It waits 1.5
-   seconds and checks health again before starting the stream and viewer. It
+   (public HTTPS, no embedded credentials, query/fragment removed). It waits briefly
+   and verifies health, a surviving browser PID, and a decoded non-blank screenshot
+   before starting the stream and viewer. It
    prints `Desktop connected.`, `Launching provider in Firefox...`, and
    `Browser launched.` without exposing the provider URL or account identifiers.
    In the manual-only viewer, log into your provider, complete MFA yourself, and
    leave its billing page visible.
    Verify the intended account and trial/plan. Do not cancel anything. Return to
-   the terminal and press Enter to pause the VM. This helper does not screenshot,
-   record, call a planner, read credentials, or export browser state.
+   the terminal and press Enter to pause the VM. Its startup screenshot is checked
+   in memory only, never saved or sent to a planner. It does not record, read
+   credentials, or export browser state. Keep private windows closed during startup.
 
    If Firefox launch fails, the helper probes for Firefox absence and executable
    presence at known Chromium/Chrome paths before allowing one fallback launch.
    Probes use fixed commands/paths only, never provider URLs or user input. If
    absence/presence cannot be established, it fails with `Desktop browser launch
 failed.` and does not present a viewer. Nothing is installed automatically.
-   Health readiness and the startup delay are not proof that the GUI rendered;
-   visually inspect the viewer. No screenshots are taken to check rendering.
+   Render verification uses the installed SDK's `screenshot(): Promise<Uint8Array>`
+   and `process.list()`. It polls at most eight times within ten seconds per launch,
+   decodes PNGs with the already-installed Sharp library (now an explicit developer
+   dependency), and rejects empty, truncated, tiny, or essentially uniform images.
+   `Browser launched.` requires both a live browser process and a valid image.
+   The SDK has no parent PID field: the helper requires the returned PID with a
+   recognized browser name, not an unrelated pre-existing Chrome process assumed
+   to be a child. This is deliberately conservative for daemonizing launchers.
+   **A live process plus non-blank desktop pixels is not semantic proof of a Chrome
+   window.** Inspect the viewer/artifact to confirm the browser UI and intended page.
 
 4. Close unrelated tabs/apps and make sure no credentials, password manager,
    recovery codes, notifications, or other private information is visible before
@@ -159,10 +169,55 @@ detected, exit 1 means absent. An unavailable/invalid probe emits
 example.com using the **same launch helper and fallback policy as desktop:open**.
 It closes only the local control handle, never pauses or destroys the session.
 
+For detected `/usr/bin/google-chrome`, the normal launch is exactly
+`vm.open("/usr/bin/google-chrome", ["--new-window", url])`. There is no headless or
+disable-GPU flag. After launch, the PID must still be a browser process both
+before and after a valid screenshot. Diagnosing saves that screenshot only to
+ignored `.cleanbreak/browser-render-test.png` and prints byte counts/path, never
+image data or process command lines. The file can contain private desktop UI:
+close unrelated/private windows first and do not commit/share it unreviewed.
+Successful diagnostics overwrite this one image; failed runs may leave the old
+artifact untouched, so trust only a path printed by the current successful run.
+
+If normal Chrome exits in this dedicated VM, you can explicitly allow **one**
+developer-only sandbox-relaxed retry:
+
+```bash
+npm run desktop:browser-diagnose -- --allow-no-sandbox
+```
+
+The command still tries normal Chrome first. The retry additionally requires a
+confirmed root UID (`id -u` returns exactly 0) and no remaining browser process;
+unknown process/probe outcomes cannot authorize it. Only then is the same detected
+executable opened with `--no-sandbox --new-window`. This reduces Chrome isolation;
+use only the dedicated trusted developer VM. It is never an automatic flag cycle.
+Each launch receives its own bounded ten-second render check. To explicitly allow
+the same retry for manual `desktop:open`, set
+`CLEANBREAK_DESKTOP_ALLOW_NO_SANDBOX=true` in the local `.env`; otherwise it stays
+disabled. This setting is not consumed by the validation executor.
+
+Key successful Chrome-render diagnostic lines:
+
+```text
+ready: true
+chromeDetected: true
+launchPidValid: true
+chromeProcessDetected: true
+screenshotCaptured: true
+screenshotBytes: <byte count>
+renderArtifact: .cleanbreak/browser-render-test.png
+result: ok
+```
+
+Chrome/render failures use fixed reasons `CHROME_OPEN_FAILED`,
+`CHROME_PROCESS_EXITED`, `SCREENSHOT_FAILED`, or `DESKTOP_NOT_READY`; existing
+executable-discovery stage diagnostics remain. A valid image plus a live process
+is a necessary check, not identification of the browser window: inspect the image.
+
 Successful diagnostics end with `result: ok`. For a failed launch, both diagnostic
 commands print `launchStage`, a fixed `reason`, and `result: failed`. Stages are
 `firefox_open`, `firefox_probe`, `chromium_probe`, `fallback_open`, `render_wait`,
-and `health_recheck`. Example key lines when Firefox is installed but open fails:
+`health_recheck`, `process_check`, `screenshot`, and `sandbox_probe`. Example key lines when Firefox is installed but open fails:
 
 ```text
 ready: true
@@ -200,12 +255,12 @@ For the shorter launch check:
 npm run desktop:browser-test
 ```
 
-This connects to the same saved session, calls `vm.open("firefox",
-["https://example.com"])`, waits 1.5 seconds, verifies `health().ready === true`,
-and closes its local control handle. It now enables the same verified fallback
+This connects to the same saved session, launches example.com, verifies a live
+browser PID plus a decoded non-blank screenshot, and closes its local control
+handle. It enables the same verified fallback
 policy as `desktop:open`. Success prints only `DESKTOP_BROWSER_LAUNCH_OK`; failure
-prints the safe stage/reason described above. There is no provider navigation,
-screenshots, recording, typing, or software installation. It never
+prints the safe stage/reason described above. Its screenshot stays in memory;
+there is no provider navigation, recording, typing, or software installation. It never
 pauses or destroys the desktop; inspect the already-open viewer or pause the
 desktop manually when finished. A paused session may be resumed by `connect()`.
 

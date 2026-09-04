@@ -1,4 +1,4 @@
-// Developer-only manual authentication; no planner, screenshots, or recording.
+// Developer-only manual authentication; render screenshot is in-memory only.
 import { DesktopClient, type Desktop } from "@solarisdk/desktop"
 import { resolve } from "node:path"
 import { pathToFileURL } from "node:url"
@@ -80,6 +80,8 @@ export async function runDesktopOpen(
     output("Launching provider in Firefox...")
     await launchDesktopBrowser(vm, providerUrl, signals.signal, {
       fallback: true,
+      allowNoSandbox:
+        environment.CLEANBREAK_DESKTOP_ALLOW_NO_SANDBOX === "true",
       wait: dependencies.wait,
     })
     output("Browser launched.")

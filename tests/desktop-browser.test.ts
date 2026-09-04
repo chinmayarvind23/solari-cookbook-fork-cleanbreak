@@ -7,6 +7,7 @@ import {
   runDesktopBrowserTest,
 } from "@/scripts/desktop-browser-test"
 import { BROWSER_RENDER_WAIT_MS } from "@/scripts/desktop-browser"
+import { renderImage } from "./helpers/render-image"
 
 function harness() {
   const marker = randomBytes(24).toString("hex")
@@ -20,6 +21,13 @@ function harness() {
     connect: vi.fn(async () => undefined),
     health: vi.fn(async () => ({ ready: true, display: true, vnc: true })),
     open: vi.fn(async (_name: string, _args?: string[]) => 123),
+    screenshot: vi.fn(async () => renderImage),
+    process: {
+      list: vi.fn(async () => [
+        { pid: 123, name: "firefox", cmd: marker },
+        { pid: 123, name: "chrome", cmd: marker },
+      ]),
+    },
     exec: vi.fn(async (_cmd: string, _opts?: unknown) => ({
       exitCode: 1,
       stdout: "",
@@ -55,6 +63,7 @@ function harness() {
     wait: vi.fn(async (_ms: number) => undefined),
     viewer: vi.fn(async () => viewer),
     confirm: vi.fn(async (_prompt: string) => true),
+    saveScreenshot: vi.fn(),
   }
   return { marker, env, vm, client, viewer, deps }
 }
@@ -204,6 +213,18 @@ describe("manual Desktop browser launch", () => {
     expect(await runDesktopOpen(h.env, h.deps)).toBe(1)
     expect(h.vm.health).toHaveBeenCalledTimes(30)
     expect(h.vm.open).not.toHaveBeenCalled()
+  })
+  it("manual auth never claims launch or presents a viewer when screenshot validation fails", async () => {
+    const h = harness()
+    h.vm.screenshot.mockRejectedValue(new Error(h.marker))
+    expect(await runDesktopOpen(h.env, h.deps)).toBe(1)
+    expect(h.deps.output).not.toHaveBeenCalledWith("Browser launched.")
+    expect(h.deps.viewer).not.toHaveBeenCalled()
+    expect(h.deps.saveScreenshot).not.toHaveBeenCalled()
+    expect(h.vm.close).toHaveBeenCalledOnce()
+    expect(h.deps.output.mock.calls.flat().join(" ").includes(h.marker)).toBe(
+      false,
+    )
   })
 })
 
@@ -399,6 +420,11 @@ describe("safe shared browser diagnostics", () => {
       ["chromiumBrowserDetected: false"],
       ["chromeExitCode: 1"],
       ["chromeDetected: false"],
+      ["launchPidValid: true"],
+      ["chromeProcessDetected: true"],
+      ["screenshotCaptured: true"],
+      [`screenshotBytes: ${renderImage.length}`],
+      ["renderArtifact: .cleanbreak/browser-render-test.png"],
       ["result: ok"],
     ])
     expect(h.vm.exec.mock.invocationCallOrder[4]).toBeLessThan(
