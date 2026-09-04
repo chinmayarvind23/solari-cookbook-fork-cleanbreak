@@ -83,6 +83,61 @@ correct provider page open yourself before starting.
    recovery codes, notifications, or other private information is visible before
    validation. Use a dedicated provider account/VM, not a general-purpose desktop.
 
+## Literal keyboard input (developer-only)
+
+If the viewer changes uppercase letters to lowercase, use the installed Desktop
+SDK's `vm.keyboard.type(text)` API through this separate helper. It reads
+`SOLARI_API_KEY` and `SOLARI_DESKTOP_ID` from the repo-root `.env` (and honors the
+optional `SOLARI_DESKTOP_BASE_URL`). No new VM, browser, or agent run is launched.
+
+1. Keep your manual viewer open, with `npm run desktop:open` still running in its
+   first terminal. Do **not** run validation, recording, screenshots, or other
+   automation while entering credentials. The typing helper does not start any of
+   these, but cannot detect/stop another process's recording.
+2. Focus a harmless text field in the remote desktop. In a **second terminal** at
+   the repo root, run:
+
+   ```bash
+   npm run desktop:type -- --test
+   ```
+
+   Check the field contains exactly `AbCdEF123`, preserving case. Clear it manually.
+   Stop if the test is incorrect; do not enter a secret until this works.
+
+3. Focus the intended **masked password field** in the remote viewer, then run:
+
+   ```bash
+   npm run desktop:type -- --secret
+   ```
+
+   Wait for the hidden-input prompt, type the text in this second terminal, and
+   press Enter. Nothing is echoed (not even asterisks). Backspace works; Ctrl+C
+   cancels. Input must be a single line; control sequences/multiline pastes are
+   rejected, and waiting times out after five minutes. Piped input and text in
+   command-line arguments are not accepted. Do not put passwords in `.env`, files,
+   shell commands, chat, screenshots, logs, or test fixtures.
+
+4. Success prints only `Typed secret into focused desktop field.` Terminal Enter
+   **does not submit the remote form**. Verify focus yourself and complete login/MFA
+   manually in the viewer. The helper never reads the field, checks login, clicks,
+   captures evidence, or exports/persists browser state. It cannot guarantee the
+   field remained focused: keep the remote desktop untouched during entry.
+
+The helper closes its own control connection in `finally`; the SDK has no separate
+client close method. It deliberately leaves the existing VM/viewer running (and
+can resume a paused VM), so return to the original `desktop:open` terminal when
+finished and press Enter there to pause it, or pause it in Solari yourself.
+On a typing error, inspect/clear the field before retrying: delivery may already
+have happened and there is no automatic retry.
+
+Text stays in process memory only, then travels directly to the configured Solari
+service. No clipboard, file, log, screenshot, or recording API is used. Input
+buffers owned by the reader are wiped and temporary references released promptly;
+JavaScript strings and SDK transport buffers cannot be reliably zeroized. The
+selected application receives the text, so use only a trusted, dedicated VM and
+the correct masked field. The helper is not imported by production CleanBreak and
+does not change Browser profile-overwrite protections.
+
 ## Validate and watch live
 
 ```bash
