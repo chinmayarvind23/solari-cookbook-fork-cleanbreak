@@ -141,7 +141,60 @@ failed.` and does not present a viewer. Nothing is installed automatically.
    recovery codes, notifications, or other private information is visible before
    validation. Use a dedicated provider account/VM, not a general-purpose desktop.
 
-## Firefox launch diagnostic (developer-only)
+## Browser launch diagnostics (developer-only)
+
+For a launch failure with a healthy session, run this temporary developer command
+first (it uses **example.com**, not the configured provider):
+
+```bash
+npm run desktop:browser-diagnose
+```
+
+It connects to the saved session, requires initial health readiness, and probes
+`firefox` on PATH plus `/usr/bin/firefox`, `/usr/bin/chromium`,
+`/usr/bin/chromium-browser`, and `/usr/bin/google-chrome`. It prints only fixed
+labels with booleans/bounded exit codes, never command stdout/stderr. Exit 0 means
+detected, exit 1 means absent. An unavailable/invalid probe emits
+`<name>ProbeSucceeded: false`, not a false claim of absence. It then attempts
+example.com using the **same launch helper and fallback policy as desktop:open**.
+It closes only the local control handle, never pauses or destroys the session.
+
+Successful diagnostics end with `result: ok`. For a failed launch, both diagnostic
+commands print `launchStage`, a fixed `reason`, and `result: failed`. Stages are
+`firefox_open`, `firefox_probe`, `chromium_probe`, `fallback_open`, `render_wait`,
+and `health_recheck`. Example key lines when Firefox is installed but open fails:
+
+```text
+ready: true
+firefoxExitCode: 0
+firefoxDetected: true
+launchStage: firefox_open
+reason: FIREFOX_PRESENT_BUT_OPEN_FAILED
+result: failed
+```
+
+The full output also contains the four path probe results before the launch.
+Firefox found either on PATH or at its known path stops fallback on open failure:
+an ambiguous launch failure is not permission to start another app. Only confirmed
+absence at both locations permits probing known Chromium/Chrome executable paths.
+No executable names are guessed from stdout and nothing is installed.
+
+Next steps:
+
+- `result: ok`: run `npm run desktop:open` for manual provider authentication.
+- `FIREFOX_PRESENT_BUT_OPEN_FAILED` or `FALLBACK_OPEN_FAILED`: retain the safe
+  diagnostic output for launch/API investigation. `npm run desktop:check` can
+  confirm control health but does not repair application launch. Do not recreate
+  sessions or repeatedly launch apps as a workaround.
+- `NO_SUPPORTED_BROWSER`: stop. No launch command can repair a missing installed
+  browser; arrange a supported image/browser through Solari before rerunning
+  `npm run desktop:browser-diagnose`. No automatic installation is provided.
+- `PROBE_FAILED`, render-wait failure, or health-recheck failure: run
+  `npm run desktop:check` and inspect the safe failing stage. After the underlying
+  issue is corrected, rerun `npm run desktop:browser-diagnose`.
+- `ready: false`: run `npm run desktop:check` first; no probe/launch was attempted.
+
+For the shorter launch check:
 
 ```bash
 npm run desktop:browser-test
@@ -149,9 +202,10 @@ npm run desktop:browser-test
 
 This connects to the same saved session, calls `vm.open("firefox",
 ["https://example.com"])`, waits 1.5 seconds, verifies `health().ready === true`,
-and closes its local control handle. Success prints only
-`DESKTOP_BROWSER_LAUNCH_OK`. It tests Firefox only, with no fallback, provider
-navigation, screenshots, recording, typing, or software installation. It never
+and closes its local control handle. It now enables the same verified fallback
+policy as `desktop:open`. Success prints only `DESKTOP_BROWSER_LAUNCH_OK`; failure
+prints the safe stage/reason described above. There is no provider navigation,
+screenshots, recording, typing, or software installation. It never
 pauses or destroys the desktop; inspect the already-open viewer or pause the
 desktop manually when finished. A paused session may be resumed by `connect()`.
 

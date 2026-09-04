@@ -2,7 +2,10 @@ import { randomBytes } from "node:crypto"
 import type { Desktop } from "@solarisdk/desktop"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { runDesktopOpen } from "@/scripts/desktop-open"
-import { runDesktopBrowserTest } from "@/scripts/desktop-browser-test"
+import {
+  runDesktopBrowserDiagnose,
+  runDesktopBrowserTest,
+} from "@/scripts/desktop-browser-test"
 import { BROWSER_RENDER_WAIT_MS } from "@/scripts/desktop-browser"
 
 function harness() {
@@ -135,6 +138,7 @@ describe("manual Desktop browser launch", () => {
     expect(await runDesktopOpen(h.env, h.deps)).toBe(1)
     expect(h.vm.exec.mock.calls).toEqual([
       ["which", { args: ["firefox"], timeoutMs: 5000 }],
+      ["test", { args: ["-x", "/usr/bin/firefox"], timeoutMs: 5000 }],
       ["test", { args: ["-x", "/usr/bin/chromium"], timeoutMs: 5000 }],
       ["test", { args: ["-x", "/usr/bin/chromium-browser"], timeoutMs: 5000 }],
       ["test", { args: ["-x", "/usr/bin/google-chrome"], timeoutMs: 5000 }],
@@ -154,13 +158,14 @@ describe("manual Desktop browser launch", () => {
     h.vm.open.mockRejectedValueOnce(new Error(h.marker))
     h.vm.exec
       .mockResolvedValueOnce({ exitCode: 1, stdout: "", stderr: "" })
+      .mockResolvedValueOnce({ exitCode: 1, stdout: "", stderr: "" })
       .mockResolvedValueOnce({ exitCode: 0, stdout: "", stderr: "" })
     expect(await runDesktopOpen(h.env, h.deps)).toBe(0)
     expect(h.vm.open.mock.calls).toEqual([
       ["firefox", [h.env.CLEANBREAK_REAL_PROVIDER_URL.split("?")[0]]],
       ["/usr/bin/chromium", [h.env.CLEANBREAK_REAL_PROVIDER_URL.split("?")[0]]],
     ])
-    expect(h.vm.exec.mock.invocationCallOrder[1]).toBeLessThan(
+    expect(h.vm.exec.mock.invocationCallOrder[2]).toBeLessThan(
       h.vm.open.mock.invocationCallOrder[1],
     )
   })
@@ -250,7 +255,205 @@ describe("developer browser test", () => {
       expect(h.vm.close).toHaveBeenCalledOnce()
       expect(h.client.pause).not.toHaveBeenCalled()
       expect(h.client.destroy).not.toHaveBeenCalled()
-      expect(h.vm.exec).not.toHaveBeenCalled()
+      expect(h.vm.exec.mock.calls.length).toBe(stage === "open" ? 5 : 0)
     },
   )
+})
+
+describe("safe shared browser diagnostics", () => {
+  it.each(["test", "manual"])(
+    "%s enables identical fallback semantics",
+    async (mode) => {
+      const h = harness()
+      h.vm.open.mockRejectedValueOnce(new Error(h.marker))
+      h.vm.exec
+        .mockResolvedValueOnce({
+          exitCode: 1,
+          stdout: h.marker,
+          stderr: h.marker,
+        })
+        .mockResolvedValueOnce({
+          exitCode: 1,
+          stdout: h.marker,
+          stderr: h.marker,
+        })
+        .mockResolvedValueOnce({
+          exitCode: 0,
+          stdout: h.marker,
+          stderr: h.marker,
+        })
+      expect(
+        await (mode === "test" ? runDesktopBrowserTest : runDesktopOpen)(
+          h.env,
+          h.deps,
+        ),
+      ).toBe(0)
+      expect(h.vm.open.mock.calls.map(([name]) => name)).toEqual([
+        "firefox",
+        "/usr/bin/chromium",
+      ])
+      const log = h.deps.output.mock.calls.flat().join(" ")
+      expect(log.includes(h.marker)).toBe(false)
+      expect(log.includes(h.env.CLEANBREAK_REAL_PROVIDER_URL)).toBe(false)
+      expect(log.includes(h.env.SOLARI_API_KEY)).toBe(false)
+    },
+  )
+  it.each([
+    "firefox_open",
+    "firefox_probe",
+    "chromium_probe",
+    "fallback_open",
+    "render_wait",
+    "health_recheck",
+  ])("reports only the safe %s failure stage", async (stage) => {
+    const h = harness()
+    const error = Object.assign(new Error(h.env.CLEANBREAK_REAL_PROVIDER_URL), {
+      body: h.marker,
+      headers: h.env.SOLARI_API_KEY,
+      stack: h.marker,
+    })
+    if (
+      [
+        "firefox_open",
+        "firefox_probe",
+        "chromium_probe",
+        "fallback_open",
+      ].includes(stage)
+    )
+      h.vm.open.mockRejectedValueOnce(error)
+    if (stage === "firefox_open")
+      h.vm.exec.mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: h.marker,
+        stderr: h.marker,
+      })
+    if (stage === "firefox_probe") h.vm.exec.mockRejectedValueOnce(error)
+    if (stage === "fallback_open") {
+      h.vm.exec
+        .mockResolvedValueOnce({ exitCode: 1, stdout: h.marker, stderr: "" })
+        .mockResolvedValueOnce({ exitCode: 1, stdout: "", stderr: "" })
+        .mockResolvedValueOnce({ exitCode: 0, stdout: "", stderr: "" })
+      h.vm.open.mockRejectedValueOnce(error)
+    }
+    if (stage === "render_wait") h.deps.wait.mockRejectedValueOnce(error)
+    if (stage === "health_recheck") h.vm.health.mockRejectedValueOnce(error)
+    expect(await runDesktopBrowserTest(h.env, h.deps)).toBe(1)
+    expect(h.deps.output.mock.calls[0]).toEqual([`launchStage: ${stage}`])
+    expect(h.deps.output).toHaveBeenCalledWith("result: failed")
+    if (stage === "firefox_open")
+      expect(h.deps.output).toHaveBeenCalledWith(
+        "reason: FIREFOX_PRESENT_BUT_OPEN_FAILED",
+      )
+    if (stage === "chromium_probe")
+      expect(h.deps.output).toHaveBeenCalledWith("reason: NO_SUPPORTED_BROWSER")
+    const log = h.deps.output.mock.calls.flat().join(" ")
+    for (const value of [
+      h.marker,
+      h.env.SOLARI_API_KEY,
+      h.env.CLEANBREAK_REAL_PROVIDER_URL,
+      "wss://",
+      "https://",
+      "headers",
+      "body",
+    ])
+      expect(log.includes(value)).toBe(false)
+    expect(h.vm.close).toHaveBeenCalledOnce()
+    expect(h.client.pause).not.toHaveBeenCalled()
+    expect(h.client.destroy).not.toHaveBeenCalled()
+  })
+  it("detects Firefox at its fixed path even when PATH lookup says absent", async () => {
+    const h = harness()
+    h.vm.open.mockRejectedValueOnce(new Error(h.marker))
+    h.vm.exec
+      .mockResolvedValueOnce({ exitCode: 1, stdout: "", stderr: "" })
+      .mockResolvedValueOnce({ exitCode: 0, stdout: "", stderr: "" })
+    expect(await runDesktopBrowserTest(h.env, h.deps)).toBe(1)
+    expect(h.deps.output).toHaveBeenCalledWith(
+      "reason: FIREFOX_PRESENT_BUT_OPEN_FAILED",
+    )
+    expect(h.vm.open).toHaveBeenCalledOnce()
+  })
+  it("diagnoses five locations with booleans/exit codes, then uses the same fallback helper", async () => {
+    const h = harness()
+    h.vm.open.mockRejectedValueOnce(
+      new Error(h.env.CLEANBREAK_REAL_PROVIDER_URL),
+    )
+    h.vm.exec.mockImplementation(async (_cmd, options) => {
+      const args = (options as { args: string[] }).args
+      return {
+        exitCode: args.includes("/usr/bin/chromium") ? 0 : 1,
+        stdout: h.marker,
+        stderr: h.env.SOLARI_API_KEY,
+      }
+    })
+    expect(await runDesktopBrowserDiagnose(h.env, h.deps)).toBe(0)
+    expect(h.deps.output.mock.calls).toEqual([
+      ["ready: true"],
+      ["firefoxExitCode: 1"],
+      ["firefoxDetected: false"],
+      ["firefoxPathExitCode: 1"],
+      ["firefoxPathDetected: false"],
+      ["chromiumExitCode: 0"],
+      ["chromiumDetected: true"],
+      ["chromiumBrowserExitCode: 1"],
+      ["chromiumBrowserDetected: false"],
+      ["chromeExitCode: 1"],
+      ["chromeDetected: false"],
+      ["result: ok"],
+    ])
+    expect(h.vm.exec.mock.invocationCallOrder[4]).toBeLessThan(
+      h.vm.open.mock.invocationCallOrder[0],
+    )
+    expect(h.vm.open.mock.calls).toEqual([
+      ["firefox", ["https://example.com"]],
+      ["/usr/bin/chromium", ["https://example.com"]],
+    ])
+    expect(h.vm.health).toHaveBeenCalledTimes(2)
+    expect(h.vm.close).toHaveBeenCalledOnce()
+    expect(h.client.pause).not.toHaveBeenCalled()
+    expect(h.client.destroy).not.toHaveBeenCalled()
+    expect(h.client.create).not.toHaveBeenCalled()
+    expect(h.vm.stream.start).not.toHaveBeenCalled()
+  })
+  it("diagnose reports Firefox-present launch failure without disclosing probe stdout", async () => {
+    const h = harness()
+    h.vm.exec.mockResolvedValue({
+      exitCode: 0,
+      stdout: h.marker,
+      stderr: h.marker,
+    })
+    h.vm.open.mockRejectedValueOnce(new Error(h.env.SOLARI_API_KEY))
+    expect(await runDesktopBrowserDiagnose(h.env, h.deps)).toBe(1)
+    expect(h.deps.output).toHaveBeenCalledWith("launchStage: firefox_open")
+    expect(h.deps.output).toHaveBeenCalledWith(
+      "reason: FIREFOX_PRESENT_BUT_OPEN_FAILED",
+    )
+    const log = h.deps.output.mock.calls.flat().join(" ")
+    expect(log.includes(h.marker)).toBe(false)
+    expect(log.includes(h.env.SOLARI_API_KEY)).toBe(false)
+    expect(log.includes(h.env.CLEANBREAK_REAL_PROVIDER_URL)).toBe(false)
+  })
+  it("distinguishes unavailable probes from confirmed absence", async () => {
+    const h = harness()
+    h.vm.exec.mockRejectedValue(new Error(h.marker))
+    expect(await runDesktopBrowserDiagnose(h.env, h.deps)).toBe(0)
+    expect(h.deps.output).toHaveBeenCalledWith("firefoxProbeSucceeded: false")
+    expect(h.deps.output).not.toHaveBeenCalledWith("firefoxDetected: false")
+    expect(h.deps.output.mock.calls.flat().join(" ").includes(h.marker)).toBe(
+      false,
+    )
+  })
+  it("does not probe or launch when the initial health check is not ready", async () => {
+    const h = harness()
+    h.vm.health.mockResolvedValueOnce({
+      ready: false,
+      display: false,
+      vnc: false,
+    })
+    expect(await runDesktopBrowserDiagnose(h.env, h.deps)).toBe(1)
+    expect(h.deps.output).toHaveBeenCalledWith("ready: false")
+    expect(h.vm.exec).not.toHaveBeenCalled()
+    expect(h.vm.open).not.toHaveBeenCalled()
+    expect(h.vm.close).toHaveBeenCalledOnce()
+  })
 })
