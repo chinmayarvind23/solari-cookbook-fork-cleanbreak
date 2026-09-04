@@ -4,7 +4,6 @@ import { createInterface } from "node:readline"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
-  CANVA_BILLING_URL,
   CONFIRMATION_PROMPT,
   profileMetadata,
   runProfileHelper,
@@ -16,7 +15,11 @@ afterEach(() => vi.restoreAllMocks())
 
 const environment = {
   SOLARI_API_KEY: "test-key-not-for-output",
-  SOLARI_PROFILE_NAME: "cleanbreak-canva",
+  SOLARI_PROFILE_NAME: "cleanbreak-miro",
+  CLEANBREAK_REAL_PROVIDER_NAME: "Miro",
+  CLEANBREAK_REAL_PROVIDER_URL:
+    "https://miro.com/app/settings/company/test-company/billing",
+  CLEANBREAK_REAL_PROVIDER_PLAN_NAME: "Business Trial",
 }
 
 function harness() {
@@ -24,7 +27,7 @@ function harness() {
     cookies: [{ name: "session", value: "private-cookie" }],
     origins: [
       {
-        origin: "https://www.canva.com",
+        origin: "https://miro.com",
         localStorage: [{ name: "token", value: "private-token" }],
       },
     ],
@@ -34,7 +37,7 @@ function harness() {
   }
   const profile = {
     id: "prof_test",
-    name: "cleanbreak-canva",
+    name: "cleanbreak-miro",
     version: 1,
     sizeBytes: "0",
     storageState,
@@ -79,10 +82,13 @@ describe("developer local profile login", () => {
     })
     expect(await runProfileHelper([], environment, run.dependencies)).toBe(0)
     expect(run.client.profiles.list).toHaveBeenCalledOnce()
-    expect(run.page.goto).toHaveBeenCalledWith(CANVA_BILLING_URL, {
-      waitUntil: "domcontentloaded",
-      timeout: 60_000,
-    })
+    expect(run.page.goto).toHaveBeenCalledWith(
+      environment.CLEANBREAK_REAL_PROVIDER_URL,
+      {
+        waitUntil: "domcontentloaded",
+        timeout: 60_000,
+      },
+    )
     expect(run.context.storageState.mock.calls).toEqual([[]])
     expect(run.client.profiles.save).toHaveBeenCalledOnce()
     expect(run.client.profiles.save.mock.calls[0][0]).toBe("prof_test")
@@ -92,7 +98,7 @@ describe("developer local profile login", () => {
     expect(run.browser.close).toHaveBeenCalledOnce()
     expect(run.client.close).toHaveBeenCalledOnce()
     expect(JSON.parse(run.dependencies.output.mock.calls.at(-1)![0])).toEqual({
-      name: "cleanbreak-canva",
+      name: "cleanbreak-miro",
       id: "prof_test",
       version: 2,
       sizeBytes: 321,
@@ -107,9 +113,15 @@ describe("developer local profile login", () => {
     ])
       expect(output).not.toContain(secret)
     expect(output).toContain(CONFIRMATION_PROMPT)
+    expect(run.dependencies.output.mock.calls[1]).toEqual([
+      "Log in and complete MFA manually in the local Chromium window. Confirm that Business Trial is visible in Miro's billing/subscription page.",
+    ])
+    expect(output).not.toContain(environment.CLEANBREAK_REAL_PROVIDER_URL)
+    expect(output).not.toContain("Canva")
+    expect(Object.keys(run.storageState)).not.toContain("provider")
   })
 
-  it.each(["missing", "CleanBreak-Canva", "cleanbreak-canva "])(
+  it.each(["missing", "CleanBreak-Miro", "cleanbreak-miro "])(
     "fails on nonmatching name %s without creating a profile or browser",
     async (name) => {
       const run = harness()
@@ -174,12 +186,16 @@ describe("developer local profile login", () => {
   it("lists only safe metadata without browser or state access", async () => {
     const run = harness()
     expect(
-      await runProfileHelper(["--list"], environment, run.dependencies),
+      await runProfileHelper(
+        ["--list"],
+        { SOLARI_API_KEY: environment.SOLARI_API_KEY },
+        run.dependencies,
+      ),
     ).toBe(0)
     expect(run.dependencies.output.mock.calls).toEqual([
       [
         JSON.stringify({
-          name: "cleanbreak-canva",
+          name: "cleanbreak-miro",
           id: "prof_test",
           version: 1,
           sizeBytes: 0,
@@ -210,6 +226,120 @@ describe("developer local profile login", () => {
     )
     expect(source).toContain("headless: false")
     expect(source).toContain("context.storageState()")
+    expect(source).not.toMatch(/CANVA_BILLING_URL|canva\.com|Canva/)
+  })
+
+  it.each([
+    [undefined, "Set CLEANBREAK_REAL_PROVIDER_URL"],
+    ["  ", "Set CLEANBREAK_REAL_PROVIDER_URL"],
+    ["not-a-url", "must be a valid HTTPS URL"],
+    ["http://miro.com/billing", "must use HTTPS"],
+    ["javascript:alert(1)", "must use HTTPS"],
+    [
+      "https://private-user:private-password@miro.com/billing",
+      "must not contain embedded username/password",
+    ],
+    [
+      "https://private-user@miro.com/billing",
+      "must not contain embedded username/password",
+    ],
+    [
+      "https://:private-password@miro.com/billing",
+      "must not contain embedded username/password",
+    ],
+  ])(
+    "rejects invalid provider URL %# before any client/browser work",
+    async (url, message) => {
+      const run = harness()
+      expect(
+        await runProfileHelper(
+          [],
+          { ...environment, CLEANBREAK_REAL_PROVIDER_URL: url },
+          run.dependencies,
+        ),
+      ).toBe(1)
+      const output = run.dependencies.output.mock.calls.flat().join(" ")
+      expect(output).toContain(message)
+      expect(output).not.toContain("private-user")
+      expect(output).not.toContain("private-password")
+      expect(run.dependencies.createClient).not.toHaveBeenCalled()
+      expect(run.dependencies.launchBrowser).not.toHaveBeenCalled()
+      expect(run.client.profiles.save).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([
+    "CLEANBREAK_REAL_PROVIDER_NAME",
+    "CLEANBREAK_REAL_PROVIDER_PLAN_NAME",
+  ])("requires a safe %s display label", async (key) => {
+    for (const value of [
+      undefined,
+      " ",
+      "Bad\nInjected message",
+      "Bad\u001b[2J",
+      "Bad\u202eLabel",
+      environment.SOLARI_API_KEY,
+    ]) {
+      const run = harness()
+      expect(
+        await runProfileHelper(
+          [],
+          { ...environment, [key]: value },
+          run.dependencies,
+        ),
+      ).toBe(1)
+      const output = run.dependencies.output.mock.calls.flat().join(" ")
+      expect(output).toContain(key)
+      expect(output).not.toContain("Injected message")
+      expect(output).not.toContain(environment.SOLARI_API_KEY)
+      expect(run.dependencies.createClient).not.toHaveBeenCalled()
+      expect(run.dependencies.launchBrowser).not.toHaveBeenCalled()
+    }
+  })
+
+  it("uses arbitrary provider/plan labels only in the instruction prompt, never for profile selection or navigation", async () => {
+    const run = harness()
+    const config = {
+      ...environment,
+      CLEANBREAK_REAL_PROVIDER_NAME: "Other Provider",
+      CLEANBREAK_REAL_PROVIDER_PLAN_NAME: "Professional Annual",
+    }
+    expect(await runProfileHelper([], config, run.dependencies)).toBe(0)
+    const lines = run.dependencies.output.mock.calls.flat() as string[]
+    expect(
+      lines.filter(
+        (line) =>
+          line.includes("Other Provider") ||
+          line.includes("Professional Annual"),
+      ),
+    ).toEqual([
+      "Log in and complete MFA manually in the local Chromium window. Confirm that Professional Annual is visible in Other Provider's billing/subscription page.",
+    ])
+    expect(run.page.goto).toHaveBeenCalledWith(
+      environment.CLEANBREAK_REAL_PROVIDER_URL,
+      { waitUntil: "domcontentloaded", timeout: 60_000 },
+    )
+    expect(run.client.profiles.save.mock.calls[0]).toEqual([
+      "prof_test",
+      run.storageState,
+    ])
+    expect(run.storageState.toJSON).not.toHaveBeenCalled()
+  })
+
+  it("suppresses raw navigation errors, including private URL parameters", async () => {
+    const run = harness()
+    run.page.goto.mockRejectedValue(new Error("private-url-token"))
+    const config = {
+      ...environment,
+      CLEANBREAK_REAL_PROVIDER_URL: `${environment.CLEANBREAK_REAL_PROVIDER_URL}?token=private-url-token`,
+    }
+    expect(await runProfileHelper([], config, run.dependencies)).toBe(1)
+    expect(run.dependencies.output.mock.calls.flat().join(" ")).not.toContain(
+      "private-url-token",
+    )
+    expect(run.client.profiles.save).not.toHaveBeenCalled()
+    expect(run.browser.close).toHaveBeenCalledOnce()
+    expect(run.client.close).toHaveBeenCalledOnce()
   })
 })
 

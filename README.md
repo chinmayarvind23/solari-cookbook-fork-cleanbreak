@@ -240,22 +240,34 @@ npm run profile:login
 
 `profile:list` calls `solari.profiles.list()` and prints only name, ID, and numeric
 `version`/`sizeBytes` when exposed. Missing metadata is reported as “not exposed”,
-not zero. Set `SOLARI_PROFILE_NAME=cleanbreak-canva` in `.env` for login;
-the name must match exactly. Neither command creates a profile or writes storage
-state to disk.
+not zero. Listing requires only `SOLARI_API_KEY`, not provider configuration.
+For login, set these server-side `.env` values (replace the example company ID):
+
+```env
+SOLARI_PROFILE_NAME=cleanbreak-miro
+CLEANBREAK_REAL_PROVIDER_NAME=Miro
+CLEANBREAK_REAL_PROVIDER_URL=https://miro.com/app/settings/company/YOUR_COMPANY_ID/billing
+CLEANBREAK_REAL_PROVIDER_PLAN_NAME=Business Trial
+```
+
+The profile name must match an existing Solari profile exactly. The URL is required,
+must use HTTPS, and must not contain embedded username/password credentials. Provider
+and plan names are required non-secret display labels; terminal control characters
+are rejected. Neither command creates a profile or writes storage state to disk.
 
 `profile:install` is a one-time setup command for the local Chromium binary. The
 helper reuses `patchright-core@1.62.2`, Solari's existing Playwright-compatible
 dependency, also declared explicitly as a developer dependency.
 
 `profile:login` finds the exact existing profile, opens a **local, visible Chromium
-window** at `https://www.canva.com/settings/billing-and-teams`, and waits. Log in,
-complete MFA/email verification yourself, and open Settings → Billing & plans.
-Confirm that your Canva Pro trial is visible, then return to the terminal and press
-Enter at this prompt:
+window** at `CLEANBREAK_REAL_PROVIDER_URL`, and waits. Log in and complete MFA/email
+verification yourself. The helper asks you to confirm that the configured plan is
+visible on the configured provider's billing/subscription page; those labels are
+used only for instructions, not to select a profile or drive the browser. Return
+to the terminal and press Enter at this prompt:
 
 ```text
-Press Enter after Canva Billing & plans is open and the account is authenticated.
+Press Enter after the provider billing/subscription page is open and the account is authenticated.
 ```
 
 Only then does the helper call `context.storageState()` without a file path and
@@ -269,8 +281,8 @@ Piped input is rejected for login; run it in your own interactive terminal.
 
 The final JSON line contains only `name`, `id`, `version`, `sizeBytes`, and
 `nonEmpty`. Check for `nonEmpty: true`, then run `npm run profile:list` again and
-confirm `cleanbreak-canva` has the returned version and a positive byte count.
-That confirms stored state; it does not independently prove remote Canva login
+confirm the configured profile has the returned version and a positive byte count.
+That confirms stored state; it does not independently prove remote provider login
 will succeed. These helpers do not run cancellation or the real-provider dry run.
 
 Automated checks:

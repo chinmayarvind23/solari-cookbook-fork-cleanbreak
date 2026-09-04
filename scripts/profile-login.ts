@@ -6,10 +6,8 @@ import { pathToFileURL } from "node:url"
 import { Solari, type Profile, type StorageState } from "@solarisdk/browser"
 import { chromium, type Browser, type Page } from "patchright-core"
 
-export const CANVA_BILLING_URL =
-  "https://www.canva.com/settings/billing-and-teams"
 export const CONFIRMATION_PROMPT =
-  "Press Enter after Canva Billing & plans is open and the account is authenticated."
+  "Press Enter after the provider billing/subscription page is open and the account is authenticated."
 
 type ProfileClient = {
   profiles: Pick<Solari["profiles"], "list" | "save">
@@ -31,6 +29,43 @@ type Dependencies = {
   output(message: string): void
 }
 type Environment = Readonly<Record<string, string | undefined>>
+
+function loginProviderConfig(environment: Environment) {
+  const configuredUrl = environment.CLEANBREAK_REAL_PROVIDER_URL?.trim()
+  if (!configuredUrl)
+    return "Set CLEANBREAK_REAL_PROVIDER_URL in the repo-root .env file."
+  let url: URL
+  try {
+    url = new URL(configuredUrl)
+  } catch {
+    return "CLEANBREAK_REAL_PROVIDER_URL must be a valid HTTPS URL."
+  }
+  if (url.protocol !== "https:")
+    return "CLEANBREAK_REAL_PROVIDER_URL must use HTTPS."
+  if (url.username || url.password)
+    return "CLEANBREAK_REAL_PROVIDER_URL must not contain embedded username/password credentials."
+
+  const labels: string[] = []
+  for (const key of [
+    "CLEANBREAK_REAL_PROVIDER_NAME",
+    "CLEANBREAK_REAL_PROVIDER_PLAN_NAME",
+  ] as const) {
+    const raw = environment[key]
+    if (!raw?.trim()) return `Set ${key} in the repo-root .env file.`
+    // Display labels only: reject terminal controls/bidi spoofing and accidental
+    // configured API keys, and never echo rejected values or the provider URL.
+    if (
+      raw.length > 160 ||
+      /[\p{Cc}\p{Cf}]/u.test(raw) ||
+      [environment.SOLARI_API_KEY, environment.OPENAI_API_KEY].some(
+        (secret) => secret?.trim() && raw.includes(secret.trim()),
+      )
+    )
+      return `${key} must be a short, printable, non-secret display label.`
+    labels.push(raw.trim())
+  }
+  return { url: url.href, name: labels[0], plan: labels[1] }
+}
 
 function numericMetadata(value: unknown): number | string {
   const numeric =
@@ -98,6 +133,12 @@ export async function runProfileHelper(
     )
     return 1
   }
+  // Listing profiles does not require any provider/login configuration.
+  const provider = listOnly ? null : loginProviderConfig(environment)
+  if (typeof provider === "string") {
+    output(provider)
+    return 1
+  }
   if (
     !listOnly &&
     !(dependencies.interactive ?? Boolean(process.stdin.isTTY))
@@ -154,19 +195,19 @@ export async function runProfileHelper(
         browser.on("disconnected", cancel)
         controller.signal.throwIfAborted()
         failureMessage =
-          "The local browser could not open Canva Billing & plans. No upload was attempted."
+          "The local browser could not open the configured provider billing/subscription page. No upload was attempted."
         const context = await browser.newContext({
           viewport: null,
           acceptDownloads: false,
         })
         const page = await context.newPage()
-        await page.goto(CANVA_BILLING_URL, {
+        await page.goto(provider!.url, {
           waitUntil: "domcontentloaded",
           timeout: 60_000,
         })
         controller.signal.throwIfAborted()
         output(
-          "Log in and complete MFA manually in the local Chromium window. Check that your Canva Pro trial is visible in Billing & plans.",
+          `Log in and complete MFA manually in the local Chromium window. Confirm that ${provider!.plan} is visible in ${provider!.name}'s billing/subscription page.`,
         )
         output(CONFIRMATION_PROMPT)
         failureMessage =
