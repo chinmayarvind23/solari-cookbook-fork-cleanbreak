@@ -360,8 +360,16 @@ For each proposed navigation input, inspect the screen and coordinates and type
 the exact `NAVIGATE <step> <screenshot-hash>` phrase shown in the terminal. This
 confirms **one non-destructive input only**, not cancellation. Any other input,
 EOF, Ctrl+C, or five-minute confirmation timeout stops. The screen is recaptured
-and must be byte-identical before dispatch; animations or clock updates may
-therefore stop a run with `SCREEN_CHANGED`. There is no automatic input retry.
+and decoded to RGBA before dispatch. Dimensions must match and at most 0.5% of
+pixels may change (any RGB channel difference greater than 16 counts; alpha
+changes also count). Clicks additionally reject any changed pixel within the
+inclusive 32-pixel padded box around the target. Small cursor/animation drift
+away from click targets can pass; material drift, target drift, dimension changes,
+or decode failures stop with `SCREEN_CHANGED`. The original SHA-256 screenshot
+hash and aggregate `screenStability` diagnostics are saved in the step's private
+`job.json` evidence, not the fresh comparison image. This is a conservative pixel
+check, not proof that the page has identical meaning. Human review and final-action
+interception remain mandatory. There is no automatic input retry.
 
 The visual planner receives the PNG, dimensions, goal, and last six action-result
 summaries using OpenAI Responses strict Structured Outputs. It cannot emit code.
@@ -469,7 +477,7 @@ counter as independent evidence of every remote side effect. No live Miro run or
 cancellation was performed to validate this code.
 
 Worked offline trace: screenshot of Billing → model proposes Billing click with
-high confidence → policy requests human review → unchanged screen and confirmation
+high confidence → policy requests human review → visually stable screen and confirmation
 → navigation returns → new screenshot → cancellation candidate → INTERCEPT →
 AWAITING_APPROVAL → record stops → VM pauses → control closes. Recorded reasoning
 is withheld; the policy result explains each dispatch/stop. Tool failure produces

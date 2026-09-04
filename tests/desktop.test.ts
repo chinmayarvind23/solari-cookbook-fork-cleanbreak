@@ -7,6 +7,8 @@ import {
 } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { createHash } from "node:crypto"
+import sharp from "sharp"
 import { describe, it, expect, vi } from "vitest"
 import type { Desktop } from "@solarisdk/desktop"
 import { readDesktopConfig, realProviderExecutor } from "@/lib/desktop/config"
@@ -60,13 +62,23 @@ function decision(patch: Partial<DesktopDecision> = {}): DesktopDecision {
     ...patch,
   }
 }
-function png() {
-  const bytes = Buffer.alloc(24)
-  Buffer.from("89504e470d0a1a0a", "hex").copy(bytes)
-  bytes.write("IHDR", 12)
-  bytes.writeUInt32BE(1280, 16)
-  bytes.writeUInt32BE(720, 20)
-  return bytes
+const baseScreenshot = await sharp({
+  create: { width: 1280, height: 720, channels: 4, background: "white" },
+})
+  .png()
+  .toBuffer()
+const png = () => Buffer.from(baseScreenshot)
+
+async function drift(left = 10, top = 10) {
+  const cursor = await sharp({
+    create: { width: 2, height: 20, channels: 4, background: "black" },
+  })
+    .png()
+    .toBuffer()
+  return sharp(png())
+    .composite([{ input: cursor, left, top }])
+    .png()
+    .toBuffer()
 }
 function harness(decisions = [decision()]) {
   const vm = {
@@ -339,7 +351,7 @@ describe("offline visual Desktop dry-run lifecycle", () => {
       ).result,
     ).toBe("BLOCK")
   })
-  it("requires fresh human confirmation and an unchanged screenshot before dispatch", async () => {
+  it("requires fresh human confirmation and fails closed on screenshot decode failure", async () => {
     const h = harness([decision({ type: "click", targetText: "Billing" })])
     h.deps.confirm.mockResolvedValue(false)
     expect((await runDesktopDryRun(env, h.deps)).stopReason).toBe(
@@ -357,6 +369,71 @@ describe("offline visual Desktop dry-run lifecycle", () => {
     )
     expect(changed.vm.mouse.click).not.toHaveBeenCalled()
   })
+  it.each(["Page_Down", "Page_Up", "Escape"])(
+    "%s permits tiny drift after confirmation and preserves the audit hash",
+    async (key) => {
+      const h = harness([
+        decision({ type: "key", targetText: null, keys: [key] }),
+        decision(),
+      ])
+      h.vm.screenshot
+        .mockResolvedValueOnce(png())
+        .mockResolvedValueOnce(await drift())
+      const result = await runDesktopDryRun(env, h.deps)
+      expect(result.state).toBe("AWAITING_APPROVAL")
+      expect(h.vm.keyboard.press).toHaveBeenCalledExactlyOnceWith([key])
+      expect(h.vm.mouse.click).not.toHaveBeenCalled()
+      expect(h.deps.confirm.mock.invocationCallOrder[0]).toBeLessThan(
+        h.vm.screenshot.mock.invocationCallOrder[1],
+      )
+      const hash = createHash("sha256").update(png()).digest("hex")
+      expect(result.steps[0].screenshotHash).toBe(hash)
+      expect(h.deps.confirm).toHaveBeenCalledWith(
+        1,
+        result.steps[0].decision,
+        hash.slice(0, 12),
+      )
+      expect(result.steps[0].screenStability).toMatchObject({
+        stable: true,
+        changedPixelRatio: 40 / (1280 * 720),
+        threshold: 0.005,
+        targetPadding: null,
+      })
+      expect(h.evidence.job).toHaveBeenLastCalledWith(result)
+      // Existing planning images only: the fresh comparison image is not saved.
+      expect(h.evidence.screenshot).toHaveBeenCalledTimes(2)
+      expect(JSON.stringify(result)).not.toContain(png().toString("base64"))
+      expect(result.destructiveClicksExecuted).toBe(0)
+    },
+  )
+  it.each([false, true])(
+    "click drift near target=%s is guarded without retries",
+    async (nearTarget) => {
+      const h = harness([
+        decision({ type: "click", targetText: "Billing" }),
+        decision(),
+      ])
+      h.vm.screenshot
+        .mockResolvedValueOnce(png())
+        .mockResolvedValueOnce(
+          await drift(nearTarget ? 200 : 10, nearTarget ? 300 : 10),
+        )
+      const result = await runDesktopDryRun(env, h.deps)
+      expect(h.vm.mouse.click).toHaveBeenCalledTimes(nearTarget ? 0 : 1)
+      expect(h.deps.confirm).toHaveBeenCalledOnce()
+      expect(result.stopReason).toBe(
+        nearTarget ? "SCREEN_CHANGED" : "FINAL_ACTION_BOUNDARY",
+      )
+      expect(result.steps[0].screenStability).toMatchObject({
+        stable: !nearTarget,
+        targetChanged: nearTarget,
+      })
+      expect(result.destructiveClicksExecuted).toBe(0)
+      expect(result.unsafeActionsExecuted).toBe(0)
+      expect(h.vm.pause).toHaveBeenCalledOnce()
+      expect(h.vm.close).toHaveBeenCalledOnce()
+    },
+  )
   it("does not retry an input whose outcome is unknown", async () => {
     const h = harness([decision({ type: "click", targetText: "Billing" })])
     h.vm.mouse.click.mockRejectedValue(new Error("private-cookie"))

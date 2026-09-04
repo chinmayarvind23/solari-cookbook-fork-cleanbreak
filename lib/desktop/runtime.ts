@@ -11,6 +11,7 @@ import {
 import { createDesktopPlanner } from "./planner"
 import { desktopEvidence } from "./evidence"
 import { startDesktopViewer } from "./viewer"
+import { screenStability, type ScreenStability } from "./screen-stability"
 
 export type DesktopHandle = Pick<
   Desktop,
@@ -35,6 +36,8 @@ export type DesktopRun = {
   steps: Array<{
     step: number
     screenshotPath: string
+    screenshotHash: string
+    screenStability: ScreenStability | null
     width: number
     height: number
     decision: ReturnType<typeof safeDesktopDecision> | null
@@ -199,6 +202,8 @@ export async function runDesktopDryRun(
       const entry: DesktopRun["steps"][number] = {
         step,
         screenshotPath,
+        screenshotHash: digest(screenshot),
+        screenStability: null,
         width,
         height,
         decision: null,
@@ -253,18 +258,25 @@ export async function runDesktopDryRun(
         !(await supplied.confirm?.(
           step,
           entry.decision,
-          digest(screenshot).slice(0, 12),
+          entry.screenshotHash.slice(0, 12),
         ))
       ) {
         run.stopReason = phase
         break
       }
       signal.throwIfAborted()
-      // Prevent dispatch against a different screen after human review. Pixel
-      // changes fail closed; no automatic retry of a coordinate action.
-      if (
-        digest(await vm.screenshot({ format: "png" })) !== digest(screenshot)
-      ) {
+      // Fresh visual check after human review. Tiny drift is allowed only away
+      // from click targets; no automatic retry of any coordinate action.
+      phase = "SCREENSHOT_FAILED"
+      entry.screenStability = await screenStability(
+        screenshot,
+        await vm.screenshot({ format: "png" }),
+        decision.type === "click"
+          ? { x: decision.x!, y: decision.y! }
+          : undefined,
+      )
+      evidence.job(run)
+      if (!entry.screenStability.stable) {
         run.stopReason = "SCREEN_CHANGED"
         break
       }

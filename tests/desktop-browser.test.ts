@@ -297,10 +297,9 @@ describe("safe shared browser diagnostics", () => {
         stderr: h.env.SOLARI_API_KEY,
       }))
       expect(
-        await (mode === "diagnose" ? runDesktopBrowserDiagnose : runDesktopOpen)(
-          h.env,
-          h.deps,
-        ),
+        await (
+          mode === "diagnose" ? runDesktopBrowserDiagnose : runDesktopOpen
+        )(h.env, h.deps),
       ).toBe(0)
       expect(h.vm.open).toHaveBeenLastCalledWith("/usr/bin/google-chrome", [
         "--no-sandbox",
@@ -314,7 +313,9 @@ describe("safe shared browser diagnostics", () => {
       expect(h.vm.process.list).toHaveBeenCalledTimes(2)
       expect(h.vm.screenshot).toHaveBeenCalledOnce()
       if (mode === "diagnose") {
-        expect(h.deps.saveScreenshot).toHaveBeenCalledExactlyOnceWith(renderImage)
+        expect(h.deps.saveScreenshot).toHaveBeenCalledExactlyOnceWith(
+          renderImage,
+        )
         expect(h.deps.output).toHaveBeenCalledWith(
           "renderArtifact: .cleanbreak/browser-render-test.png",
         )
