@@ -126,6 +126,27 @@ async function setup() {
   return desktopCancellationDriver(config, `offline-${randomUUID()}`)
 }
 describe("Desktop product adapter isolation", () => {
+  it.each([
+    ["TOKEN_BUDGET", "DESKTOP_NAVIGATION_TOKEN_BUDGET"],
+    ["NAVIGATION_NO_PROGRESS", "DESKTOP_NAVIGATION_NO_PROGRESS"],
+    ["MAX_STEPS", "DESKTOP_NAVIGATION_MAX_STEPS"],
+    ["private-unknown-error", "FINAL_BOUNDARY_NOT_ESTABLISHED"],
+  ])(
+    "preserves safe navigation failure %s without adding final authority",
+    async (stopReason, code) => {
+      const driver = await setup()
+      vi.mocked(runDesktopDryRun).mockResolvedValueOnce({
+        state: "FAILED",
+        stopReason,
+        finalBoundaryEstablished: false,
+        steps: [{ adapterRule: "ENTRY", execution: "NAVIGATION_RETURNED" }],
+      } as Awaited<ReturnType<typeof runDesktopDryRun>>)
+      await driver.connect()
+      await expect(driver.navigate(vi.fn())).rejects.toThrow(code)
+      expect(shared.vm.mouse.click).not.toHaveBeenCalled()
+      await driver.close()
+    },
+  )
   it("preserves the observed navigation stop before any final dispatch", async () => {
     const driver = await setup()
     vi.mocked(runDesktopDryRun).mockResolvedValueOnce({

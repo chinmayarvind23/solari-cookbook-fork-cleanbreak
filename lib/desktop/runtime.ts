@@ -18,6 +18,11 @@ import { startDesktopViewer } from "./viewer"
 import { screenStability, type ScreenStability } from "./screen-stability"
 import { stabilizeDesktopPage, type TransitionStability } from "./stabilize"
 import { isMiroProvider, type MiroRule, type MiroScope } from "./miro"
+import {
+  navigationProgress,
+  pageNavigationKey,
+  type NavigationProgress,
+} from "./navigation-progress"
 
 export type DesktopHandle = Pick<
   Desktop,
@@ -49,6 +54,7 @@ export type DesktopRun = {
     screenshotHash: string
     screenStability: ScreenStability | null
     transitionStability: TransitionStability | null
+    navigationProgress?: NavigationProgress | null
     flowStage: DesktopDecision["flowStage"] | null
     providerAdapter: "miro" | null
     adapterRule: MiroRule | null
@@ -189,6 +195,8 @@ export async function runDesktopDryRun(
   let tokens = 0
   let loadingObservations = 0
   let loadingDeadline = 0
+  let stalledPageImage: Uint8Array | undefined
+  let noProgressReplans = 0
   let phase = "DESKTOP_CONNECT_FAILED"
   try {
     signal.throwIfAborted()
@@ -233,6 +241,13 @@ export async function runDesktopDryRun(
       const screenshot =
         settledScreenshot ?? (await vm.screenshot({ format: "png" }))
       settledScreenshot = undefined
+      if (stalledPageImage) {
+        phase = "NAVIGATION_OBSERVATION_FAILED"
+        if (
+          (await navigationProgress(stalledPageImage, screenshot)).screenChanged
+        )
+          stalledPageImage = undefined
+      }
       const { width, height } = screenshotDimensions(screenshot)
       const display = await vm.display.size()
       if (width !== display.w || height !== display.h) {
@@ -246,6 +261,7 @@ export async function runDesktopDryRun(
         screenshotHash: digest(screenshot),
         screenStability: null,
         transitionStability: null,
+        navigationProgress: null,
         flowStage: null,
         providerAdapter: run.providerAdapter,
         adapterRule: null,
@@ -281,6 +297,7 @@ export async function runDesktopDryRun(
         height,
         allowedOrigin: new URL(config.provider.startUrl).origin,
         history: history.slice(-6),
+        pageNavigationStalled: Boolean(stalledPageImage),
         remainingTokens: config.maxTokens - tokens,
         signal,
         providerAdapter: run.providerAdapter,
@@ -383,6 +400,25 @@ export async function runDesktopDryRun(
             : null
         break
       }
+      if (stalledPageImage && pageNavigationKey(decision)) {
+        // Read-only replan, not an automatic key/click retry. A stale focused
+        // background must not consume the run by repeating Page_Down/Page_Up.
+        entry.policy = "NAVIGATION_NO_PROGRESS"
+        entry.policyResult = "BLOCK"
+        entry.execution = "NOT_EXECUTED"
+        history.push(
+          `step ${step}: page navigation blocked; no visible progress. Use safe Tab/Shift+Tab to reveal dialog controls, or stop.`,
+        )
+        evidence.job(run)
+        supplied.progress?.(
+          `step ${step}: page navigation -> BLOCK -> no visible progress`,
+        )
+        if (++noProgressReplans > 1) {
+          run.stopReason = "NAVIGATION_NO_PROGRESS"
+          break
+        }
+        continue
+      }
       phase = "NAVIGATION_NOT_CONFIRMED"
       if (
         !auto &&
@@ -445,6 +481,27 @@ export async function runDesktopDryRun(
       const settled = await stabilizeDesktopPage(vm, sleep, signal)
       entry.transitionStability = settled.metrics
       settledScreenshot = settled.screenshot
+      if (pageNavigationKey(decision)) {
+        phase = "NAVIGATION_OBSERVATION_FAILED"
+        entry.navigationProgress = await navigationProgress(
+          screenshot,
+          settled.screenshot,
+        )
+        if (!entry.navigationProgress.screenChanged) {
+          stalledPageImage = settled.screenshot
+          history.push(
+            `step ${step}: ${pageNavigationKey(decision)} produced NO_VISIBLE_PROGRESS; do not repeat page keys. Use safe Tab/Shift+Tab for clipped dialog controls or stop.`,
+          )
+          supplied.progress?.(
+            `step ${step}: page navigation -> no visible progress; fresh navigation plan required`,
+          )
+        } else {
+          stalledPageImage = undefined
+          history.push(
+            `step ${step}: page navigation changed the screen; inspect fresh screenshot, not assumed success`,
+          )
+        }
+      }
       evidence.job(run)
     }
   } catch (error) {

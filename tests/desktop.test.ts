@@ -638,6 +638,110 @@ function harness(decisions = [decision()]) {
   return { vm, client, planner, evidence, viewer, deps }
 }
 
+describe("ineffective page-navigation recovery", () => {
+  const pageDown = () =>
+    decision({
+      type: "key",
+      keys: ["Page_Down"],
+      x: null,
+      y: null,
+      targetText: null,
+    })
+  const tab = () =>
+    decision({ type: "key", keys: ["Tab"], x: null, y: null, targetText: null })
+  it("allows another page key when the prior one actually changed the screen", async () => {
+    const h = harness([pageDown(), pageDown(), decision()])
+    const moved = await sharp({
+      create: { width: 1280, height: 720, channels: 4, background: "black" },
+    })
+      .png()
+      .toBuffer()
+    let current = png()
+    h.vm.screenshot.mockImplementation(async () => current)
+    h.vm.keyboard.press.mockImplementation(async () => {
+      current = current === moved ? png() : moved
+    })
+    const run = await runDesktopDryRun(env, { ...h.deps, auto: true })
+    expect(h.vm.keyboard.press).toHaveBeenCalledTimes(2)
+    expect(run.steps[0].navigationProgress?.screenChanged).toBe(true)
+    expect(h.planner.mock.calls[1][0].pageNavigationStalled).toBe(false)
+    expect(run.stopReason).toBe("FINAL_ACTION_BOUNDARY")
+  })
+  it("a recovery Tab still stops on a fresh material screen change", async () => {
+    const h = harness([pageDown(), tab()])
+    const changed = await sharp({
+      create: { width: 1280, height: 720, channels: 4, background: "black" },
+    })
+      .png()
+      .toBuffer()
+    let confirmations = 0
+    h.deps.confirm.mockImplementation(async () => {
+      if (++confirmations === 2) h.vm.screenshot.mockResolvedValue(changed)
+      return true
+    })
+    const run = await runDesktopDryRun(env, h.deps)
+    expect(run.stopReason).toBe("SCREEN_CHANGED")
+    expect(h.vm.keyboard.press).toHaveBeenCalledOnce()
+  })
+  it("reports no progress to the next plan and uses a reviewed Tab without retrying Page Down", async () => {
+    const h = harness([pageDown(), pageDown(), tab(), decision()])
+    const run = await runDesktopDryRun(env, { ...h.deps, auto: true })
+    expect(h.vm.keyboard.press.mock.calls).toEqual([[["Page_Down"]], [["Tab"]]])
+    expect(run.steps[0].navigationProgress).toMatchObject({
+      screenChanged: false,
+      changedPixelRatio: 0,
+    })
+    expect(h.planner.mock.calls[1][0]).toMatchObject({
+      pageNavigationStalled: true,
+    })
+    expect(h.planner.mock.calls[1][0].history.join(" ")).toContain(
+      "NO_VISIBLE_PROGRESS",
+    )
+    expect(run.steps[1]).toMatchObject({
+      policy: "NAVIGATION_NO_PROGRESS",
+      execution: "NOT_EXECUTED",
+    })
+    expect(run.stopReason).toBe("FINAL_ACTION_BOUNDARY")
+    expect(h.vm.mouse.click).not.toHaveBeenCalled()
+    expect(run.automaticDestructiveRetries).toBe(0)
+    expect(run.destructiveClicksExecuted).toBe(0)
+  })
+  it("stops a planner that keeps asking for ineffective page keys after one read-only replan", async () => {
+    const h = harness([pageDown()])
+    const run = await runDesktopDryRun(env, { ...h.deps, auto: true })
+    expect(run.stopReason).toBe("NAVIGATION_NO_PROGRESS")
+    expect(h.planner).toHaveBeenCalledTimes(3)
+    expect(h.vm.keyboard.press).toHaveBeenCalledOnce()
+    expect(h.vm.close).toHaveBeenCalled()
+    expect(h.vm.pause).not.toHaveBeenCalled()
+    expect(h.vm.mouse.click).not.toHaveBeenCalled()
+  })
+  it("still requires human NAVIGATE review and fresh stability for a recovery Tab", async () => {
+    const h = harness([pageDown(), tab(), decision()])
+    h.deps.confirm.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
+    const run = await runDesktopDryRun(env, h.deps)
+    expect(run.stopReason).toBe("NAVIGATION_NOT_CONFIRMED")
+    expect(h.vm.keyboard.press.mock.calls).toEqual([[["Page_Down"]]])
+  })
+  it("never retries a key whose dispatch outcome is unknown", async () => {
+    const h = harness([pageDown(), tab()])
+    h.vm.keyboard.press.mockRejectedValueOnce(new Error("private-sdk-error"))
+    const run = await runDesktopDryRun(env, { ...h.deps, auto: true })
+    expect(run.stopReason).toBe("ACTION_FAILED_OUTCOME_UNKNOWN_NO_RETRY")
+    expect(h.vm.keyboard.press).toHaveBeenCalledOnce()
+    expect(h.planner).toHaveBeenCalledOnce()
+  })
+  it("keeps Enter blocked even when a prior page key made no progress", async () => {
+    const h = harness([
+      pageDown(),
+      decision({ type: "key", keys: ["Enter"], targetText: null }),
+    ])
+    const run = await runDesktopDryRun(env, { ...h.deps, auto: true })
+    expect(run.stopReason).toBe("KEY_NOT_ALLOWED")
+    expect(h.vm.keyboard.press).toHaveBeenCalledOnce()
+  })
+})
+
 describe("Desktop config and strict planner", () => {
   it.each([
     "SOLARI_DESKTOP_SESSION_ID",
@@ -804,7 +908,7 @@ describe("offline visual Desktop dry-run lifecycle", () => {
   )
   it("bounds steps and preserves only bounded tool history", async () => {
     const h = harness([
-      decision({ type: "key", targetText: null, keys: ["Page_Down"] }),
+      decision({ type: "key", targetText: null, keys: ["Tab"] }),
     ])
     const result = await runDesktopDryRun(
       { ...env, CLEANBREAK_AGENT_MAX_STEPS: "8" },

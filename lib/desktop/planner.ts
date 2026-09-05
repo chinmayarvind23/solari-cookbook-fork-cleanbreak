@@ -15,6 +15,7 @@ export type VisualObservation = {
   height: number
   allowedOrigin: string
   history: string[]
+  pageNavigationStalled?: boolean
   remainingTokens?: number
   signal?: AbortSignal
   providerAdapter?: "miro" | null
@@ -136,7 +137,17 @@ function keys, or arbitrary text keys. Enter/Space can activate controls and are
 To activate a visible button/control, propose a coordinate click (or the applicable
 cancellation decision type) subject to target policy and the selected review mode, never
 keyboard activation. Final cancellation still must be final_cancel_candidate, not clicked.
-Scroll delta is unsupported by this SDK; use Page_Down/Up if appropriate.
+Scroll delta is unsupported by this SDK. Page_Down/Up act on the currently focused
+scroll container, which can be the dimmed background rather than the active dialog.
+When a cancellation dialog's bottom controls are clipped, prefer one Tab or Shift+Tab
+to focus a visible/in-dialog control and bring it into view. Then inspect the NEW
+screenshot; do not infer a control's label, coordinates or consequences while clipped.
+Tab/Shift+Tab changes focus only; NEVER activate a focused control with Enter/Space.
+Never click blank dialog text merely to focus it, or accept a retention offer.
+When pageNavigationStalled is true or history reports NO_VISIBLE_PROGRESS, do NOT
+repeat Page_Down/Page_Up. Propose a different allowed focus-navigation key based on
+the current screenshot, or needs_human if no safe alternative is identifiable.
+An input returning successfully is not evidence the page moved or a step completed.
 Use null for unused fields. Do not transcribe personal data in reasoning or visibleText.`,
           },
           {
@@ -150,6 +161,8 @@ Use null for unused fields. Do not transcribe personal data in reasoning or visi
                   width: observation.width,
                   height: observation.height,
                   history: observation.history.slice(-6),
+                  pageNavigationStalled:
+                    observation.pageNavigationStalled ?? false,
                   providerAdapter: observation.providerAdapter ?? null,
                   miroCancellationEntered:
                     observation.miroCancellationEntered ?? false,

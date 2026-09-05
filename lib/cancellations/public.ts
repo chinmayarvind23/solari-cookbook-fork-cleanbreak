@@ -16,10 +16,20 @@ export const progressText: Record<State, string> = {
     "Cancellation was not completed. No additional destructive action was attempted.",
 }
 export function publicJob(job: Job) {
+  const navigationMessages: Record<string, string> = {
+    DESKTOP_NAVIGATION_NO_PROGRESS:
+      "Desktop navigation stopped because page scrolling made no visible progress. The cancellation was not completed.",
+    DESKTOP_NAVIGATION_TOKEN_BUDGET:
+      "Desktop navigation reached its planner token limit before establishing the final cancellation control.",
+    DESKTOP_NAVIGATION_MAX_STEPS:
+      "Desktop navigation reached its step limit before establishing the final cancellation control.",
+  }
+  const navigationMessage =
+    job.state === "FAILED" ? navigationMessages[job.reason ?? ""] : undefined
   return {
     id: job.id,
     state: job.state,
-    message: progressText[job.state],
+    message: navigationMessage ?? progressText[job.state],
     reason: job.reason,
     provider: job.authorization.provider,
     planName: job.authorization.planName,

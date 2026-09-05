@@ -53,6 +53,19 @@ function planning() {
 afterEach(() => vi.useRealTimers())
 
 describe("read-only screenshot planner retries", () => {
+  it("teaches focus-only dialog navigation and includes safe no-progress feedback", async () => {
+    const h = planning()
+    await h.planner({ ...observation, pageNavigationStalled: true })
+    const request = h.parse.mock.calls[0] as unknown as [
+      { input: Array<{ content: unknown }> },
+    ]
+    const copy = JSON.stringify(request[0].input)
+    expect(copy).toContain("prefer one Tab or Shift+Tab")
+    expect(copy).toContain("do NOT")
+    expect(copy).toContain("repeat Page_Down/Page_Up")
+    expect(copy).toContain("NEVER activate a focused control with Enter/Space")
+    expect(copy).toContain('pageNavigationStalled\\\":true')
+  })
   it.each([408, 409, 429, 500, 503])(
     "retries transient status %s at most twice",
     async (status) => {

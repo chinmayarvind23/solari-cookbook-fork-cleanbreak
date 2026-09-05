@@ -124,6 +124,27 @@ function setup() {
   }
 }
 describe("durable one-click authorization", () => {
+  it.each([
+    ["DESKTOP_NAVIGATION_TOKEN_BUDGET", "planner token limit"],
+    ["DESKTOP_NAVIGATION_NO_PROGRESS", "no visible progress"],
+    ["DESKTOP_NAVIGATION_MAX_STEPS", "step limit"],
+  ] as const)(
+    "persists %s and exposes an actionable safe message without consuming authorization",
+    async (code, message) => {
+      const h = setup()
+      h.driver.navigate.mockRejectedValueOnce(new CancellationFailure(code))
+      const result = await h.run()
+      expect(result).toMatchObject({
+        state: "FAILED",
+        reason: code,
+        authorizationUses: 0,
+        destructiveClicksAttempted: 0,
+        destructiveClicksExecuted: 0,
+      })
+      expect(publicJob(result!).message).toContain(message)
+      expect(h.driver.clickFinal).not.toHaveBeenCalled()
+    },
+  )
   it("reports typed navigation failure without consuming authority or dispatching", async () => {
     const h = setup()
     h.driver.navigate.mockRejectedValueOnce(

@@ -12,7 +12,7 @@ import { liveEnabled, type ProductConfig } from "./config"
 import type { CancellationDriver } from "./service"
 import type { Observation } from "./state"
 import { consumeFinalDispatch } from "./dispatch"
-import { CancellationFailure } from "./failure"
+import { CancellationFailure, navigationFailure } from "./failure"
 
 export function desktopCancellationDriver(
   config: ProductConfig,
@@ -119,13 +119,7 @@ export function desktopCancellationDriver(
             s.adapterRule === "ENTRY" && s.execution === "NAVIGATION_RETURNED",
         )
       )
-        throw new CancellationFailure(
-          run.stopReason === "MODEL_STOPPED"
-            ? "DESKTOP_NAVIGATION_MODEL_STOPPED"
-            : run.stopReason === "PROVIDER_LOADING_TIMEOUT"
-              ? "PROVIDER_LOADING_TIMEOUT"
-              : "FINAL_BOUNDARY_NOT_ESTABLISHED",
-        )
+        throw navigationFailure(run.stopReason)
       await connect()
       const final = await capture("FINAL")
       if (
