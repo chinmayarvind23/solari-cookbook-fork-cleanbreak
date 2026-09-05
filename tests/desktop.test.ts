@@ -23,7 +23,10 @@ import {
   type DesktopDecision,
 } from "@/lib/desktop/decision"
 import type { MiroScope } from "@/lib/desktop/miro"
-import { createDesktopPlanner } from "@/lib/desktop/planner"
+import {
+  createDesktopPlanner,
+  DesktopPlanningFailure,
+} from "@/lib/desktop/planner"
 import {
   runDesktopDryRun,
   executeNavigation,
@@ -64,6 +67,7 @@ function decision(patch: Partial<DesktopDecision> = {}): DesktopDecision {
     text: null,
     keys: null,
     deltaY: null,
+    scrollbar: null,
     targetText: "Confirm cancellation",
     visibleText: "No fee",
     observedOrigin: "https://provider.example",
@@ -578,7 +582,15 @@ function harness(decisions = [decision()]) {
     health: vi.fn(async () => ({ ready: true })),
     screenshot: vi.fn(async () => png()),
     display: { size: vi.fn(async () => ({ w: 1280, h: 720 })) },
-    mouse: { click: vi.fn(async () => undefined) },
+    mouse: {
+      click: vi.fn(async () => undefined),
+      drag: vi.fn(
+        async (
+          _from: { x: number; y: number },
+          _to: { x: number; y: number },
+        ) => undefined,
+      ),
+    },
     keyboard: {
       type: vi.fn(async () => undefined),
       press: vi.fn(async () => undefined),
@@ -638,6 +650,128 @@ function harness(decisions = [decision()]) {
   return { vm, client, planner, evidence, viewer, deps }
 }
 
+function scrollbarDecision(patch: Partial<DesktopDecision> = {}) {
+  return decision({
+    type: "scroll",
+    x: 1052,
+    y: 300,
+    deltaY: 120,
+    targetText: "vertical scrollbar",
+    visibleText: null,
+    scrollbar: {
+      left: 1046,
+      top: 180,
+      width: 12,
+      height: 520,
+      thumbTop: 190,
+      thumbHeight: 300,
+    },
+    ...patch,
+  })
+}
+
+describe("visible scrollbar-only navigation", () => {
+  const grant = (d: DesktopDecision) =>
+    authorizeDesktopNavigation(d, "https://provider.example", 1280, 720, 0.9)
+  it("dispatches only an immutable one-use scrollbar grant with exact SDK drag arguments", async () => {
+    const h = harness()
+    const raw = scrollbarDecision()
+    expect(await executeNavigation(h.vm as unknown as DesktopHandle, raw)).toBe(
+      "ACTION_NOT_DISPATCHED",
+    )
+    const allowed = grant(raw)!
+    expect(Object.isFrozen(allowed.scrollbar)).toBe(true)
+    raw.scrollbar!.left = 1
+    expect(allowed.scrollbar!.left).toBe(1046)
+    expect(
+      await executeNavigation(h.vm as unknown as DesktopHandle, allowed),
+    ).toBe("NAVIGATION_RETURNED")
+    expect(
+      await executeNavigation(h.vm as unknown as DesktopHandle, allowed),
+    ).toBe("ACTION_NOT_DISPATCHED")
+    expect(h.vm.mouse.drag).toHaveBeenCalledExactlyOnceWith(
+      { x: 1052, y: 300 },
+      { x: 1052, y: 420 },
+    )
+    expect(h.vm.mouse.click).not.toHaveBeenCalled()
+    expect(h.vm.keyboard.press).not.toHaveBeenCalled()
+  })
+  it.each([
+    { scrollbar: null },
+    { targetText: "slider" },
+    { targetText: "Confirm cancellation" },
+    { confidence: 0.94 },
+    { deltaY: 0 },
+    { deltaY: 161 },
+    { deltaY: -120 }, // thumb would move outside the track
+    { x: 1020 },
+    { y: 600 }, // in track, not in the thumb
+    { text: "arbitrary" },
+    { keys: ["Enter"] },
+    { pageStatus: "unknown" },
+    { observedOrigin: "https://other.example" },
+    { destinationOrigin: "https://provider.example" },
+  ] as Partial<DesktopDecision>[])(
+    "refuses unestablished/arbitrary drag %#",
+    (patch) => {
+      expect(grant(scrollbarDecision(patch))).toBeNull()
+    },
+  )
+  it.each([
+    { width: 40 },
+    { top: 50 },
+    { height: 40 },
+    { left: 1280 },
+    { thumbHeight: 4 },
+    { thumbTop: 170 },
+    { height: 1000 },
+    { thumbHeight: 520 },
+  ])("refuses invalid or browser-chrome geometry %j", (patch) => {
+    const d = scrollbarDecision()
+    d.scrollbar = { ...d.scrollbar!, ...patch }
+    expect(grant(d)).toBeNull()
+  })
+  it.each([300, 360, 420])(
+    "guards the entire drag corridor at y=%s before dispatch",
+    async (top) => {
+      const h = harness([scrollbarDecision()])
+      h.vm.screenshot
+        .mockResolvedValueOnce(png())
+        .mockResolvedValue(await drift(1052, top))
+      const run = await runDesktopDryRun(env, h.deps)
+      expect(run.stopReason).toBe("SCREEN_CHANGED")
+      expect(run.steps[0].screenStability?.targetChanged).toBe(true)
+      expect(h.vm.mouse.drag).not.toHaveBeenCalled()
+    },
+  )
+  it("still requires NAVIGATE in supervised mode", async () => {
+    const h = harness([scrollbarDecision()])
+    h.deps.confirm.mockResolvedValue(false)
+    const run = await runDesktopDryRun(env, h.deps)
+    expect(run.stopReason).toBe("NAVIGATION_NOT_CONFIRMED")
+    expect(h.vm.mouse.drag).not.toHaveBeenCalled()
+  })
+  it("stops rather than retrying a drag with unknown outcome", async () => {
+    const h = harness([scrollbarDecision()])
+    h.vm.mouse.drag.mockRejectedValue(new Error("private-sdk-body"))
+    const run = await runDesktopDryRun(env, { ...h.deps, auto: true })
+    expect(run.stopReason).toBe("ACTION_FAILED_OUTCOME_UNKNOWN_NO_RETRY")
+    expect(h.vm.mouse.drag).toHaveBeenCalledOnce()
+    expect(h.planner).toHaveBeenCalledOnce()
+    expect(run.automaticDestructiveRetries).toBe(0)
+    expect(JSON.stringify(run)).not.toContain("private-sdk-body")
+  })
+  it("keeps final candidates intercepted even with scrollbar geometry", async () => {
+    const h = harness([scrollbarDecision({ type: "final_cancel_candidate" })])
+    const run = await runDesktopDryRun(env, { ...h.deps, auto: true })
+    expect(run.stopReason).toBe("FINAL_ACTION_BOUNDARY")
+    expect(h.vm.mouse.drag).not.toHaveBeenCalled()
+    expect(h.vm.mouse.click).not.toHaveBeenCalled()
+    expect(run.destructiveClicksExecuted).toBe(0)
+    expect(run.unsafeActionsExecuted).toBe(0)
+  })
+})
+
 describe("ineffective page-navigation recovery", () => {
   const pageDown = () =>
     decision({
@@ -649,6 +783,39 @@ describe("ineffective page-navigation recovery", () => {
     })
   const tab = () =>
     decision({ type: "key", keys: ["Tab"], x: null, y: null, targetText: null })
+  it("can drag the observed scrollbar after an ineffective Page Down", async () => {
+    const h = harness([pageDown(), scrollbarDecision(), decision()])
+    const changed = await sharp(png()).negate().png().toBuffer()
+    h.vm.mouse.drag.mockImplementation(async () => {
+      h.vm.screenshot.mockResolvedValue(changed)
+    })
+    const run = await runDesktopDryRun(env, { ...h.deps, auto: true })
+    expect(run.stopReason).toBe("FINAL_ACTION_BOUNDARY")
+    expect(h.vm.keyboard.press.mock.calls).toEqual([[["Page_Down"]]])
+    expect(h.vm.mouse.drag).toHaveBeenCalledOnce()
+    expect(run.steps[1].navigationProgress?.screenChanged).toBe(true)
+    expect(h.planner.mock.calls[2][0].pageNavigationStalled).toBe(false)
+  })
+  it("does not repeat an ineffective scrollbar drag", async () => {
+    const h = harness([scrollbarDecision()])
+    const run = await runDesktopDryRun(env, { ...h.deps, auto: true })
+    expect(run.stopReason).toBe("NAVIGATION_NO_PROGRESS")
+    expect(h.vm.mouse.drag).toHaveBeenCalledOnce()
+    expect(h.planner).toHaveBeenCalledTimes(3)
+    expect(h.vm.close).toHaveBeenCalledOnce()
+  })
+  it("bounds focus recovery instead of spending the budget on endless Tabs", async () => {
+    const h = harness([pageDown(), tab()])
+    const run = await runDesktopDryRun(env, { ...h.deps, auto: true })
+    expect(run.stopReason).toBe("NAVIGATION_NO_PROGRESS")
+    expect(h.vm.keyboard.press.mock.calls).toEqual([
+      [["Page_Down"]],
+      [["Tab"]],
+      [["Tab"]],
+    ])
+    expect(h.planner).toHaveBeenCalledTimes(5)
+    expect(h.vm.mouse.click).not.toHaveBeenCalled()
+  })
   it("allows another page key when the prior one actually changed the screen", async () => {
     const h = harness([pageDown(), pageDown(), decision()])
     const moved = await sharp({
@@ -886,7 +1053,7 @@ describe("offline visual Desktop dry-run lifecycle", () => {
     [{ type: "key", targetText: null, keys: ["Return"] }, "KEY_NOT_ALLOWED"],
     [
       { type: "scroll", targetText: null, deltaY: 100 },
-      "SCROLL_DELTA_UNSUPPORTED",
+      "SCROLLBAR_NOT_ESTABLISHED",
     ],
     [
       { type: "type", targetText: "Password", text: "private-password" },
@@ -921,10 +1088,76 @@ describe("offline visual Desktop dry-run lifecycle", () => {
   it("bounds total model tokens before dispatch", async () => {
     const h = harness()
     h.planner.mockResolvedValue({ decision: decision(), tokens: 20_001 })
-    expect((await runDesktopDryRun(env, h.deps)).stopReason).toBe(
-      "TOKEN_BUDGET",
-    )
+    expect(
+      (
+        await runDesktopDryRun(
+          { ...env, CLEANBREAK_DESKTOP_MAX_TOKENS: "20000" },
+          h.deps,
+        )
+      ).stopReason,
+    ).toBe("TOKEN_BUDGET")
     expect(h.vm.mouse.click).not.toHaveBeenCalled()
+  })
+  it("budgets a full screenshot workflow rather than only its first five frames", async () => {
+    const h = harness([
+      ...Array.from({ length: 7 }, () =>
+        decision({ type: "key", keys: ["Tab"], targetText: null }),
+      ),
+      decision(),
+    ])
+    const sequence = h.planner.getMockImplementation()!
+    h.planner.mockImplementation(async (input) => ({
+      ...(await sequence(input)),
+      tokens: 4200,
+    }))
+    const run = await runDesktopDryRun(env, { ...h.deps, auto: true })
+    expect(run.stopReason).toBe("FINAL_ACTION_BOUNDARY")
+    expect(run.planningBudget).toMatchObject({
+      maxTokens: 100000,
+      usedTokens: 33600,
+      remainingTokens: 66400,
+    })
+    expect(run.steps[5].planning).toMatchObject({
+      totalTokens: 4200,
+      cumulativeTokens: 25200,
+      limit: 100000,
+    })
+    expect(h.vm.keyboard.press).toHaveBeenCalledTimes(7)
+    expect(h.vm.mouse.click).not.toHaveBeenCalled()
+  })
+  it("records safe usage on the failed planner step without any input", async () => {
+    const h = harness()
+    h.planner.mockRejectedValue(
+      new DesktopPlanningFailure("TOKEN_BUDGET", {
+        inputTokens: 19500,
+        outputTokens: 600,
+        totalTokens: 20100,
+      }),
+    )
+    const progress = vi.fn()
+    const run = await runDesktopDryRun(
+      { ...env, CLEANBREAK_DESKTOP_MAX_TOKENS: "20000" },
+      { ...h.deps, auto: true, progress },
+    )
+    expect(run.stopReason).toBe("TOKEN_BUDGET")
+    expect(run.steps[0]).toMatchObject({
+      policy: "TOKEN_BUDGET",
+      policyResult: "BLOCK",
+      execution: "NOT_EXECUTED",
+      planning: {
+        inputTokens: 19500,
+        outputTokens: 600,
+        totalTokens: 20100,
+        cumulativeTokens: 20100,
+        limit: 20000,
+      },
+    })
+    expect(run.planningBudget?.remainingTokens).toBe(0)
+    expect(progress).toHaveBeenCalledWith("step 1: planning tokens 20100/20000")
+    expect(h.vm.mouse.click).not.toHaveBeenCalled()
+    expect(h.vm.mouse.drag).not.toHaveBeenCalled()
+    expect(h.vm.keyboard.press).not.toHaveBeenCalled()
+    expect(h.vm.close).toHaveBeenCalledOnce()
   })
   it("limits typing to the fixed neutral cancellation reason", () => {
     expect(

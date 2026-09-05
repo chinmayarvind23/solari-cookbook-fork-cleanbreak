@@ -1,5 +1,6 @@
 import { readAgentConfig } from "@/lib/agent/config"
 import { readRealProviderConfig } from "@/lib/real-provider/config"
+import { readDesktopTokenBudget } from "./budget"
 import { readDesktopSessionState, resolveDesktopSessionId } from "./session"
 
 type Environment = Readonly<Record<string, string | undefined>>
@@ -59,11 +60,12 @@ export function readDesktopConfig(env: Environment = process.env) {
       "CLEANBREAK_DRY_RUN=true is explicitly required for Desktop validation.",
     )
   const provider = readRealProviderConfig(env)
+  const agent = readAgentConfig(env as NodeJS.ProcessEnv)
   return {
     ...readDesktopConnection(env),
     provider,
-    agent: readAgentConfig(env as NodeJS.ProcessEnv),
-    maxTokens: 20_000,
+    agent,
+    maxTokens: readDesktopTokenBudget(env, agent.maxSteps),
     healthAttempts: 30,
   }
 }

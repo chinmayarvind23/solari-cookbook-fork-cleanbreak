@@ -25,6 +25,17 @@ export const desktopDecisionSchema = z
     text: z.string().max(300).nullable(),
     keys: z.array(z.string().max(24)).max(3).nullable(),
     deltaY: z.number().int().nullable(),
+    scrollbar: z
+      .object({
+        left: z.number().int(),
+        top: z.number().int(),
+        width: z.number().int(),
+        height: z.number().int(),
+        thumbTop: z.number().int(),
+        thumbHeight: z.number().int(),
+      })
+      .strict()
+      .nullable(),
     targetText: z.string().max(160).nullable(),
     visibleText: z.string().max(600).nullable(),
     observedOrigin: z.string().max(200).nullable(),
@@ -63,6 +74,7 @@ export function isLoadingObservation(d: DesktopDecision, origin: string) {
     d.text === null &&
     d.keys === null &&
     d.deltaY === null &&
+    d.scrollbar === null &&
     d.targetText === null
   )
 }
@@ -145,10 +157,19 @@ export function authorizeDesktopNavigation(
   )
   if (assessment.policy.result !== "ALLOW") return null
   d = assessment.decision
-  if (!["click", "cancel_flow_navigation", "type", "key"].includes(d.type))
+  if (
+    !["click", "cancel_flow_navigation", "type", "key", "scroll"].includes(
+      d.type,
+    )
+  )
     return null
-  const grant = { ...d, keys: d.keys ? [...d.keys] : null }
+  const grant = {
+    ...d,
+    keys: d.keys ? [...d.keys] : null,
+    scrollbar: d.scrollbar ? { ...d.scrollbar } : null,
+  }
   if (grant.keys) Object.freeze(grant.keys)
+  if (grant.scrollbar) Object.freeze(grant.scrollbar)
   Object.freeze(grant)
   dispatchGrants.add(grant)
   return grant
@@ -277,7 +298,45 @@ export function desktopPolicy(
     !clearlyHasAnotherStep(context)
   )
     return intercept()
-  if (d.type === "scroll") return block("SCROLL_DELTA_UNSUPPORTED")
+  if (d.type === "scroll") {
+    // The SDK has no documented wheel direction/amount. This is ONLY a short
+    // vertical drag of an observed scrollbar thumb, not arbitrary mouse drag.
+    const s = d.scrollbar
+    if (
+      !s ||
+      label !== "vertical scrollbar" ||
+      d.confidence < Math.max(minConfidence, 0.95) ||
+      d.text !== null ||
+      d.keys !== null ||
+      d.destinationOrigin !== null ||
+      !Number.isSafeInteger(d.deltaY) ||
+      d.deltaY === null ||
+      Math.abs(d.deltaY) < 10 ||
+      Math.abs(d.deltaY) > 160 ||
+      !Object.values(s).every(Number.isSafeInteger) ||
+      s.left < 0 ||
+      s.top < 80 ||
+      s.width < 3 ||
+      s.width > 20 ||
+      s.height < 80 ||
+      s.left + s.width > width ||
+      s.top + s.height > height ||
+      s.thumbHeight < 8 ||
+      s.thumbHeight >= s.height ||
+      s.thumbTop < s.top ||
+      s.thumbTop + s.thumbHeight > s.top + s.height ||
+      s.thumbTop + d.deltaY < s.top ||
+      s.thumbTop + s.thumbHeight + d.deltaY > s.top + s.height ||
+      d.x! < s.left + 1 ||
+      d.x! >= s.left + s.width - 1 ||
+      d.y! < s.thumbTop + 2 ||
+      d.y! >= s.thumbTop + s.thumbHeight - 2 ||
+      d.y! + d.deltaY < s.top + 2 ||
+      d.y! + d.deltaY >= s.top + s.height - 2
+    )
+      return block("SCROLLBAR_NOT_ESTABLISHED")
+    return { result: "ALLOW", code: "VISIBLE_SCROLLBAR_NAVIGATION" }
+  }
   if (
     d.type === "click" &&
     d.flowStage === "REASON" &&
@@ -323,6 +382,7 @@ export function safeDesktopDecision(d: DesktopDecision) {
       : null,
     flowStage: d.flowStage,
     deltaY: d.deltaY,
+    scrollbar: d.scrollbar,
     keys: desktopNavigationKeys(d.keys),
     text: d.text === NEUTRAL_REASON ? NEUTRAL_REASON : null,
     targetText: "[withheld; inspect private screenshot]",

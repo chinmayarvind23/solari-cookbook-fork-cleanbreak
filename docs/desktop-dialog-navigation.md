@@ -1,77 +1,101 @@
-# Dialog navigation regression and trust boundary
+# Desktop scrolling, planner budget and trust boundary
 
-The observed Miro run opened a cancellation dialog with clipped bottom controls,
-sent Page Down three times without moving it, then exhausted the planner budget.
-The wrapper incorrectly flattened TOKEN_BUDGET into FINAL_BOUNDARY_NOT_ESTABLISHED.
+Two saved regressions exposed different focus problems: Page Down did not move
+a cancellation dialog, and a later Billing-page run made no visible movement
+before four Tabs traversed billing links. The latter stopped at the old 20,000
+token ceiling on its sixth screenshot. No final click was attempted.
 
 ## Narrow correction
 
-The installed Desktop SDK's `ScrollOptions` has button/humanize, not a distance
-or direction. No invented wheel arguments, shell, blind focus clicks or new
-dispatcher are added. The planner prefers existing safe Tab/Shift+Tab navigation
-to reveal clipped dialog controls, then must inspect a fresh screenshot before
-identifying their labels, coordinates and consequences. Enter/Space stay blocked.
+The [installed Desktop SDK](https://docs.getsolari.com/sdk/typescript/vms)
+documents absolute-coordinate `mouse.drag(from, to, button?)`. Its scroll API
+does not expose a documented wheel distance or direction. The planner therefore
+may propose **only a short vertical drag of a visible scrollbar thumb**, not
+arbitrary dragging, wheel arguments, blank focus clicks or shell commands.
 
-After an acknowledged Page_Down/Page_Up, decoded-pixel comparison of the original
-and settled frames reports only ratio/threshold/boolean. RGB channel threshold is
-16, changed-pixel threshold is 0.5%. At or below 0.5% is **no visible progress**;
-decode/dimension failures stop. Material movement clears the page-key block but
-is not semantic evidence of cancellation progress. Original screenshot hashes,
-independent pre-dispatch stability and padded click-target checks are unchanged.
+The strict `scroll` decision requires the exact label `vertical scrollbar`,
+authenticated configured origin, confidence at least 0.95, observed track and
+thumb geometry, and a 10–160 pixel vertical displacement. The track must be
+3–20 pixels wide, at least 80 pixels tall, and below the top 80 desktop pixels.
+The pointer starts inset inside the thumb; the entire displaced thumb stays in
+the track. Text, keyboard chords and destination navigation are forbidden for
+this action. Every drag gets an immutable, one-use policy grant. These numeric
+checks constrain a visually identified scrollbar; they do not independently
+prove semantic identity. A custom page control disguised as a scrollbar remains
+a residual screenshot-agent risk.
 
-The strict Responses observation includes fixed no-progress feedback. Repeated
-page keys on that unchanged screen receive no grant/input. One read-only replan
-is allowed per run; a second blocked proposal stops NAVIGATION_NO_PROGRESS.
-Final interception remains the primary stop; guard failures, interruption,
-unknown input outcome, 20 default steps (configured 1–30), and 20,000 reported
-tokens remain safety belts. The agent-loop skill's general 200-turn suggestion
-is not applied to this narrow financial workflow. Existing message/schema,
-typed tool registry and redacted traces are reused, not a new architecture.
-There is no OTel runtime or persistent planner memory to extend.
+Pre-dispatch comparison protects the entire drag corridor with the same
+32-pixel padding used for click targets. Original screenshot hashes remain
+audit evidence. No drag occurs after a changed corridor, changed dimensions,
+decode failure, or material global drift. No failed/uncertain input is retried.
+
+After an acknowledged page key or scrollbar drag, decoded-pixel comparison of
+the original and settled frames reports only ratio/threshold/boolean. RGB
+channel threshold is 16 and changed-pixel threshold is 0.5%. At or below 0.5%
+is **no visible progress**, not evidence the page moved. A stalled page key can
+be followed by a separately planned scrollbar drag. A stalled drag cannot be
+repeated on that unchanged screen. At most two focus-only Tab/Shift+Tab moves
+are allowed while stalled; Enter/Space remain blocked. One read-only replan
+after a blocked no-progress proposal is allowed **per run**; the next stops
+`NAVIGATION_NO_PROGRESS`. Material movement clears stalled input flags, but
+does not establish cancellation success or restore that replan allowance.
+
+## Bounded planning and safe accounting
+
+The default total budget is 5,000 tokens × configured max steps (20 steps means
+100,000 tokens), capped at 200,000. `CLEANBREAK_DESKTOP_MAX_TOKENS` can explicitly
+set a 5,000–200,000 ceiling, including the former 20,000 limit. Invalid values
+fail before connecting. This increases the possible model cost; it is not an
+unlimited retry mechanism. The max-step bound remains 1–30, default 20.
+
+All reported input **and** output usage, including schema retries, counts.
+Per-step and run evidence stores numeric usage/budget only. Known usage is
+retained on sanitized planner failures; API errors without returned usage
+cannot be measured here. A response can cross the remaining budget because
+input cost is known only after the response; its action is then blocked before
+dispatch. No credentials, raw responses or additional screenshots are added to
+logs or evidence. Model, output ceiling and final authorization are unchanged.
 
 Worked synthetic trace:
 
-| Observation                            | Proposed action | Result                                                  |
-| -------------------------------------- | --------------- | ------------------------------------------------------- |
-| Clipped dialog; background focused     | Page_Down       | Acknowledged, NO_VISIBLE_PROGRESS                       |
-| Same screen; fixed feedback            | Page_Down       | BLOCK; no input; read-only replan                       |
-| Same dialog; no activation permitted   | Tab             | Existing policy, review and stability gates; focus only |
-| Fresh screenshot reveals final control | Final candidate | INTERCEPT; no navigation dispatcher                     |
-
-The product now preserves token/step/no-progress failures as fixed public codes
-and actionable messages. Existing failed jobs, idempotency keys, profiles,
-session handling, budgets and final-click authorization are not modified.
+| Observation                                  | Proposed action        | Result                                              |
+| -------------------------------------------- | ---------------------- | --------------------------------------------------- |
+| Clipped Billing/dialog; wrong keyboard focus | Page Down              | Acknowledged, NO_VISIBLE_PROGRESS                   |
+| Same screen; visible scrollbar thumb         | Bounded scrollbar drag | Policy/review/corridor checks, one dispatch         |
+| Fresh screen reveals clipped controls        | Reversible control     | Existing target and provider policy                 |
+| Final cancellation boundary                  | Final candidate        | Intercept for existing scoped one-shot product gate |
 
 ## Trust-boundary memo
 
-The complete read/write tables, defense stack and five-attack checklist in
+The full read/write tables and five-attack defense checklist in
 [Desktop auto trust boundary](desktop-auto-trust-boundary.md) still apply.
 
-| Read surface                                                         | Trust                                            |
-| -------------------------------------------------------------------- | ------------------------------------------------ |
-| Configured Miro origin, screenshots, URLs, labels, planner proposals | Out-of-trust, never permission                   |
-| Existing Solari/OpenAI transports and private local evidence         | Authorized infrastructure; capabilities withheld |
+| Read surface                                                      | Trust                                                  |
+| ----------------------------------------------------------------- | ------------------------------------------------------ |
+| Provider screenshots, labels, scrollbar geometry, model proposals | Untrusted observations, never authorization            |
+| Solari/OpenAI transport and private evidence                      | Scoped authorized infrastructure; credentials withheld |
 
-| Write surface                           | Blast radius                                | Reversible?                                                |
-| --------------------------------------- | ------------------------------------------- | ---------------------------------------------------------- |
-| Existing safe focus keys                | Dedicated Desktop focus/scroll position     | Intended yes; custom provider handlers are a residual risk |
-| Existing evidence plus numeric progress | Ignored per-run artifacts                   | Deletable; no additional images or private text            |
-| Final cancellation                      | Existing scoped one-shot authorization only | No new authorization or dispatcher                         |
+| Write surface                                         | Blast radius                       | Reversible?                                         |
+| ----------------------------------------------------- | ---------------------------------- | --------------------------------------------------- |
+| Visible scrollbar thumb and existing focus keys       | Dedicated Desktop scroll/focus     | Intended yes; custom event handlers remain a risk   |
+| Existing private evidence plus numeric progress/usage | Ignored per-run artifacts          | No new private text or image persistence            |
+| Final cancellation                                    | Existing exact one-shot scope only | Irreversible; unchanged execution/verification gate |
 
-Supervised mode retains NAVIGATE review. The user's explicit autonomous mode
-and one-shot product requirements remain the scoped exceptions in the
-[product boundary](one-click-product.md), not broader write authority. Fresh
-stability, exact keys/target policy, immutable one-use grants, dedicated session,
-safe evidence and zero unknown-outcome/destructive retries remain mandatory.
-The skill review did not add permission from provider content or persist private
-reasoning. No persistent planner memory means memory-canary changes are not
-applicable; adding such memory requires a separate review.
+Supervised mode retains NAVIGATE. The explicitly requested autonomous product
+mode remains the scoped exception described in [product boundary](one-click-product.md).
+Provider content cannot extend permissions. No session, profile, Miro-specific
+entry rule, financial scope or final-click authorization was changed. The agent
+loop skill's general turn guidance is not substituted for this financial
+workflow's stricter limits. No persistent planner memory or new tool framework
+was introduced.
 
-Deployment verdict: **research-only**, not live Miro reliability. A real local
-Chromium test with synthetic dialog markup proves Tab reveals the clipped control
-without activating it after ineffective Page Down. Offline runtime tests cover
-feedback, blocked repeats, bounded replanning, genuine movement, review/stability,
-final interception and no retries. No provider was contacted by these tests.
+Deployment verdict: **research-only, not proof of live Miro reliability**.
+An offline native Chromium scrollbar test demonstrates actual page movement,
+revealed controls and no button/keyboard activation. Runtime tests cover policy,
+stable corridors, no-progress limits, failed usage accounting and unchanged
+final interception. No live provider or Solari Desktop is exercised by them.
 
-What to read next: the agent-loop skill's Lesson 27 (prompt injection) and the
-linked trust boundaries before expanding tools or scope.
+Before another live attempt, the configured amount and billing interval must
+match the provider. The inspected screenshot indicated yearly billing while
+the existing authorization UI said monthly. This patch does not silently
+correct or reuse authorization with different financial terms.

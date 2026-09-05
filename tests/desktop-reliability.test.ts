@@ -1,6 +1,9 @@
 import sharp from "sharp"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { createDesktopPlanner } from "@/lib/desktop/planner"
+import {
+  createDesktopPlanner,
+  DesktopPlanningFailure,
+} from "@/lib/desktop/planner"
 import { stabilizeDesktopPage } from "@/lib/desktop/stabilize"
 import { renderImage } from "./helpers/render-image"
 
@@ -11,6 +14,7 @@ const decision = {
   text: null,
   keys: ["Tab"],
   deltaY: null,
+  scrollbar: null,
   targetText: null,
   visibleText: null,
   observedOrigin: "https://provider.example",
@@ -53,14 +57,20 @@ function planning() {
 afterEach(() => vi.useRealTimers())
 
 describe("read-only screenshot planner retries", () => {
-  it("teaches focus-only dialog navigation and includes safe no-progress feedback", async () => {
+  it("teaches bounded scrollbar navigation before limited focus alternatives", async () => {
     const h = planning()
     await h.planner({ ...observation, pageNavigationStalled: true })
     const request = h.parse.mock.calls[0] as unknown as [
       { input: Array<{ content: unknown }> },
     ]
     const copy = JSON.stringify(request[0].input)
-    expect(copy).toContain("prefer one Tab or Shift+Tab")
+    expect(copy).toContain('targetText exactly \\"vertical scrollbar\\"')
+    expect(copy).toContain("{left, top, width, height, thumbTop, thumbHeight}")
+    expect(copy).toContain("inside the visible thumb")
+    expect(copy).toContain("10 through 160 pixels")
+    expect(copy).toContain("NOT a wheel")
+    expect(copy).toContain("Never invent geometry")
+    expect(copy).toContain("before a limited Tab/Shift+Tab focus alternative")
     expect(copy).toContain("do NOT")
     expect(copy).toContain("repeat Page_Down/Page_Up")
     expect(copy).toContain("NEVER activate a focused control with Enter/Space")
@@ -80,6 +90,7 @@ describe("read-only screenshot planner retries", () => {
       expect(await h.planner(observation)).toMatchObject({
         decision,
         tokens: 120,
+        usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
       })
       expect(h.parse).toHaveBeenCalledTimes(3)
       expect(h.sleep.mock.calls).toEqual([[250], [500]])
@@ -104,7 +115,10 @@ describe("read-only screenshot planner retries", () => {
       output_parsed: { ...decision, type: "invalid" },
       usage: { input_tokens: 100, output_tokens: 20 },
     })
-    expect(await h.planner(observation)).toMatchObject({ tokens: 240 })
+    expect(await h.planner(observation)).toMatchObject({
+      tokens: 240,
+      usage: { inputTokens: 200, outputTokens: 40, totalTokens: 240 },
+    })
     expect(h.parse).toHaveBeenCalledTimes(2)
   })
   it("does not hide earlier parse-failure tokens from the budget", async () => {
@@ -115,9 +129,74 @@ describe("read-only screenshot planner retries", () => {
     })
     await expect(
       h.planner({ ...observation, remainingTokens: 200 }),
-    ).rejects.toThrow("TOKEN_BUDGET")
+    ).rejects.toMatchObject({
+      code: "TOKEN_BUDGET",
+      usage: { inputTokens: 200, outputTokens: 40, totalTokens: 240 },
+    })
     expect(h.parse).toHaveBeenCalledTimes(2)
   })
+  it("preserves cumulative reported usage when all structured-output attempts fail", async () => {
+    const h = planning()
+    h.parse.mockResolvedValue({
+      output_parsed: { ...decision, type: "private-invalid-decision" },
+      usage: { input_tokens: 100, output_tokens: 20 },
+    })
+    const failure = await h
+      .planner(observation)
+      .catch((error: unknown) => error)
+    expect(failure).toBeInstanceOf(DesktopPlanningFailure)
+    expect(failure).toMatchObject({
+      message: "PLANNER_FAILED",
+      usage: { inputTokens: 300, outputTokens: 60, totalTokens: 360 },
+    })
+    expect(JSON.stringify(failure)).not.toContain("private-invalid-decision")
+    expect(h.parse).toHaveBeenCalledTimes(3)
+  })
+  it("retains earlier usage when the next request fails without reporting usage", async () => {
+    const h = planning()
+    h.parse
+      .mockResolvedValueOnce({
+        output_parsed: { ...decision, type: "invalid" },
+        usage: { input_tokens: 100, output_tokens: 20 },
+      })
+      .mockRejectedValueOnce(
+        Object.assign(new Error("private-error-body"), { status: 401 }),
+      )
+    const failure = await h
+      .planner(observation)
+      .catch((error: unknown) => error)
+    expect(failure).toMatchObject({
+      message: "PLANNER_FAILED",
+      usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
+    })
+    expect(JSON.stringify(failure)).not.toContain("private-error-body")
+    expect(h.parse).toHaveBeenCalledTimes(2)
+  })
+  it.each([
+    { input_tokens: -1, output_tokens: 20 },
+    { input_tokens: 100, output_tokens: -20 },
+    { input_tokens: 100.5, output_tokens: 20 },
+    { input_tokens: 100, output_tokens: 20.5 },
+    { input_tokens: NaN, output_tokens: 20 },
+    { input_tokens: 100, output_tokens: Infinity },
+    { input_tokens: Number.MAX_SAFE_INTEGER, output_tokens: 1 },
+  ])(
+    "rejects malformed reported usage %j with safe earlier counters",
+    async (usage) => {
+      const h = planning()
+      h.parse
+        .mockResolvedValueOnce({
+          output_parsed: { ...decision, type: "invalid" },
+          usage: { input_tokens: 100, output_tokens: 20 },
+        })
+        .mockResolvedValueOnce({ ...h.response, usage })
+      await expect(h.planner(observation)).rejects.toMatchObject({
+        code: "TOKEN_BUDGET",
+        usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
+      })
+      expect(h.parse).toHaveBeenCalledTimes(2)
+    },
+  )
   it.each([400, 401, 403])(
     "does not retry permanent status %s",
     async (status) => {
@@ -135,7 +214,10 @@ describe("read-only screenshot planner retries", () => {
       ...h.response,
       output: [{ content: [{ type: "refusal" }] }],
     } as typeof h.response)
-    await expect(h.planner(observation)).rejects.toThrow("PLANNER_REFUSED")
+    await expect(h.planner(observation)).rejects.toMatchObject({
+      code: "PLANNER_REFUSED",
+      usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
+    })
     expect(h.parse).toHaveBeenCalledOnce()
   })
   it("stops before a retry if interrupted", async () => {
@@ -156,6 +238,21 @@ describe("read-only screenshot planner retries", () => {
       h.planner({ ...observation, remainingTokens: 0 }),
     ).rejects.toThrow("TOKEN_BUDGET")
     expect(h.parse).not.toHaveBeenCalled()
+  })
+  it("preserves usage if interrupted after the response arrives", async () => {
+    const h = planning()
+    const abort = new AbortController()
+    h.parse.mockImplementation(async () => {
+      abort.abort(new Error("private-abort-reason"))
+      return h.response
+    })
+    await expect(
+      h.planner({ ...observation, signal: abort.signal }),
+    ).rejects.toMatchObject({
+      message: "PLANNER_FAILED",
+      usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120 },
+    })
+    expect(h.parse).toHaveBeenCalledOnce()
   })
 })
 

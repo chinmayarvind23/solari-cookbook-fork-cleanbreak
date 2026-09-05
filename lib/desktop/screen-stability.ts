@@ -44,7 +44,7 @@ async function decode(bytes: Uint8Array) {
 export async function screenStability(
   original: Uint8Array,
   fresh: Uint8Array,
-  clickTarget?: { x: number; y: number },
+  clickTarget?: { x: number; y: number; endY?: number },
 ): Promise<ScreenStability> {
   const result: ScreenStability = {
     changedPixelRatio: null,
@@ -80,8 +80,12 @@ export async function screenStability(
         if (
           clickTarget &&
           Math.abs((pixel % width) - clickTarget.x) <= CLICK_TARGET_PADDING &&
-          Math.abs(Math.floor(pixel / width) - clickTarget.y) <=
-            CLICK_TARGET_PADDING
+          Math.floor(pixel / width) >=
+            Math.min(clickTarget.y, clickTarget.endY ?? clickTarget.y) -
+              CLICK_TARGET_PADDING &&
+          Math.floor(pixel / width) <=
+            Math.max(clickTarget.y, clickTarget.endY ?? clickTarget.y) +
+              CLICK_TARGET_PADDING
         )
           result.targetChanged = true
       }

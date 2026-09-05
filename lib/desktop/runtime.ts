@@ -48,6 +48,12 @@ export type DesktopRun = {
   automaticDestructiveRetries: 0
   state: "FAILED" | "AWAITING_APPROVAL"
   stopReason: string
+  planningBudget?: {
+    maxTokens: number
+    usedTokens: number
+    remainingTokens: number
+    maxSteps: number
+  }
   steps: Array<{
     step: number
     screenshotPath: string
@@ -55,6 +61,13 @@ export type DesktopRun = {
     screenStability: ScreenStability | null
     transitionStability: TransitionStability | null
     navigationProgress?: NavigationProgress | null
+    planning?: {
+      inputTokens: number | null
+      outputTokens: number | null
+      totalTokens: number
+      cumulativeTokens: number
+      limit: number
+    }
     flowStage: DesktopDecision["flowStage"] | null
     providerAdapter: "miro" | null
     adapterRule: MiroRule | null
@@ -135,6 +148,11 @@ export async function executeNavigation(
       const keys = desktopNavigationKeys(d.keys)
       if (keys === null) return "ACTION_NOT_DISPATCHED"
       await vm.keyboard.press(keys)
+    } else if (d.type === "scroll") {
+      await vm.mouse.drag(
+        { x: d.x!, y: d.y! },
+        { x: d.x!, y: d.y! + d.deltaY! },
+      )
     } else return "ACTION_NOT_DISPATCHED"
     return "NAVIGATION_RETURNED"
   } catch {
@@ -178,6 +196,12 @@ export async function runDesktopDryRun(
     automaticDestructiveRetries: 0,
     state: "FAILED",
     stopReason: "DESKTOP_NOT_CONNECTED",
+    planningBudget: {
+      maxTokens: config.maxTokens,
+      usedTokens: 0,
+      remainingTokens: config.maxTokens,
+      maxSteps: config.agent.maxSteps,
+    },
     steps: [],
     proposedAction: null,
     liveViewReference: null,
@@ -196,6 +220,8 @@ export async function runDesktopDryRun(
   let loadingObservations = 0
   let loadingDeadline = 0
   let stalledPageImage: Uint8Array | undefined
+  let stalledScrollbar = false
+  let stalledFocusMoves = 0
   let noProgressReplans = 0
   let phase = "DESKTOP_CONNECT_FAILED"
   try {
@@ -245,8 +271,11 @@ export async function runDesktopDryRun(
         phase = "NAVIGATION_OBSERVATION_FAILED"
         if (
           (await navigationProgress(stalledPageImage, screenshot)).screenChanged
-        )
+        ) {
           stalledPageImage = undefined
+          stalledScrollbar = false
+          stalledFocusMoves = 0
+        }
       }
       const { width, height } = screenshotDimensions(screenshot)
       const display = await vm.display.size()
@@ -291,19 +320,53 @@ export async function runDesktopDryRun(
               ),
             }
           : undefined
-      const planned = await planner({
-        screenshot,
-        width,
-        height,
-        allowedOrigin: new URL(config.provider.startUrl).origin,
-        history: history.slice(-6),
-        pageNavigationStalled: Boolean(stalledPageImage),
-        remainingTokens: config.maxTokens - tokens,
-        signal,
-        providerAdapter: run.providerAdapter,
-        miroCancellationEntered:
-          (miroScope?.completedCancellationSteps ?? 0) > 0,
-      })
+      const recordUsage = (
+        total: number,
+        usage?: { inputTokens: number; outputTokens: number },
+      ) => {
+        if (!Number.isSafeInteger(total) || total < 0)
+          throw new DesktopPlanningFailure("TOKEN_BUDGET")
+        tokens += total
+        entry.planning = {
+          inputTokens: usage?.inputTokens ?? null,
+          outputTokens: usage?.outputTokens ?? null,
+          totalTokens: total,
+          cumulativeTokens: tokens,
+          limit: config.maxTokens,
+        }
+        run.planningBudget!.usedTokens = tokens
+        run.planningBudget!.remainingTokens = Math.max(
+          0,
+          config.maxTokens - tokens,
+        )
+        supplied.progress?.(
+          `step ${step}: planning tokens ${tokens}/${config.maxTokens}`,
+        )
+      }
+      let planned: Awaited<ReturnType<typeof planner>>
+      try {
+        planned = await planner({
+          screenshot,
+          width,
+          height,
+          allowedOrigin: new URL(config.provider.startUrl).origin,
+          history: history.slice(-6),
+          pageNavigationStalled: Boolean(stalledPageImage),
+          remainingTokens: config.maxTokens - tokens,
+          signal,
+          providerAdapter: run.providerAdapter,
+          miroCancellationEntered:
+            (miroScope?.completedCancellationSteps ?? 0) > 0,
+        })
+      } catch (error) {
+        if (error instanceof DesktopPlanningFailure) {
+          recordUsage(error.usage.totalTokens, error.usage)
+          entry.policy = error.code
+          entry.policyResult = "BLOCK"
+        }
+        throw error
+      }
+      recordUsage(planned.tokens, planned.usage)
       signal.throwIfAborted()
       const rawDecision = desktopDecisionSchema.parse(planned.decision)
       const assessment = evaluateDesktopDecision(
@@ -319,10 +382,10 @@ export async function runDesktopDryRun(
       entry.adapterDiagnostic = assessment.diagnostic
       entry.decision = safeDesktopDecision(decision)
       entry.flowStage = decision.flowStage
-      tokens += planned.tokens
       if (!Number.isFinite(tokens) || tokens > config.maxTokens) {
         run.stopReason = "TOKEN_BUDGET"
         entry.policy = run.stopReason
+        entry.policyResult = "BLOCK"
         break
       }
       if (decision.type === "wait") {
@@ -400,18 +463,28 @@ export async function runDesktopDryRun(
             : null
         break
       }
-      if (stalledPageImage && pageNavigationKey(decision)) {
+      const focusMove =
+        decision.type === "key" &&
+        ["Tab", "Shift+Tab"].includes(
+          desktopNavigationKeys(decision.keys)?.join("+") ?? "",
+        )
+      if (
+        stalledPageImage &&
+        (pageNavigationKey(decision) ||
+          (stalledScrollbar && decision.type === "scroll") ||
+          (focusMove && stalledFocusMoves >= 2))
+      ) {
         // Read-only replan, not an automatic key/click retry. A stale focused
         // background must not consume the run by repeating Page_Down/Page_Up.
         entry.policy = "NAVIGATION_NO_PROGRESS"
         entry.policyResult = "BLOCK"
         entry.execution = "NOT_EXECUTED"
         history.push(
-          `step ${step}: page navigation blocked; no visible progress. Use safe Tab/Shift+Tab to reveal dialog controls, or stop.`,
+          `step ${step}: navigation blocked; NO_VISIBLE_PROGRESS. Do not repeat page keys or stalled scrollbar drags. A visible scrollbar thumb is required for scroll; at most two focus-only Tab moves are permitted while stalled. Otherwise stop.`,
         )
         evidence.job(run)
         supplied.progress?.(
-          `step ${step}: page navigation -> BLOCK -> no visible progress`,
+          `step ${step}: navigation -> BLOCK -> no visible progress`,
         )
         if (++noProgressReplans > 1) {
           run.stopReason = "NAVIGATION_NO_PROGRESS"
@@ -440,7 +513,13 @@ export async function runDesktopDryRun(
         await vm.screenshot({ format: "png" }),
         decision.type === "click" || decision.type === "cancel_flow_navigation"
           ? { x: decision.x!, y: decision.y! }
-          : undefined,
+          : decision.type === "scroll"
+            ? {
+                x: decision.x!,
+                y: decision.y!,
+                endY: decision.y! + decision.deltaY!,
+              }
+            : undefined,
       )
       evidence.job(run)
       if (!entry.screenStability.stable) {
@@ -464,6 +543,7 @@ export async function runDesktopDryRun(
       entry.execution = "DISPATCH_PENDING"
       evidence.job(run)
       entry.execution = await executeNavigation(vm, authorized)
+      if (stalledPageImage && focusMove) stalledFocusMoves++
       summarize(
         entry.execution === "NAVIGATION_RETURNED"
           ? "dispatched"
@@ -481,7 +561,7 @@ export async function runDesktopDryRun(
       const settled = await stabilizeDesktopPage(vm, sleep, signal)
       entry.transitionStability = settled.metrics
       settledScreenshot = settled.screenshot
-      if (pageNavigationKey(decision)) {
+      if (pageNavigationKey(decision) || decision.type === "scroll") {
         phase = "NAVIGATION_OBSERVATION_FAILED"
         entry.navigationProgress = await navigationProgress(
           screenshot,
@@ -489,14 +569,17 @@ export async function runDesktopDryRun(
         )
         if (!entry.navigationProgress.screenChanged) {
           stalledPageImage = settled.screenshot
+          stalledScrollbar = decision.type === "scroll"
           history.push(
-            `step ${step}: ${pageNavigationKey(decision)} produced NO_VISIBLE_PROGRESS; do not repeat page keys. Use safe Tab/Shift+Tab for clipped dialog controls or stop.`,
+            `step ${step}: ${decision.type === "scroll" ? "scrollbar drag" : pageNavigationKey(decision)} produced NO_VISIBLE_PROGRESS; do not repeat this input. Prefer a different visible scrollbar target if not already stalled; only two focus-only Tab moves are allowed before stopping.`,
           )
           supplied.progress?.(
             `step ${step}: page navigation -> no visible progress; fresh navigation plan required`,
           )
         } else {
           stalledPageImage = undefined
+          stalledScrollbar = false
+          stalledFocusMoves = 0
           history.push(
             `step ${step}: page navigation changed the screen; inspect fresh screenshot, not assumed success`,
           )
