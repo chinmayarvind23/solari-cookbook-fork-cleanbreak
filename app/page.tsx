@@ -3,6 +3,8 @@ import Link from "next/link"
 import { resetDemoAction } from "@/app/actions"
 import { Brand } from "@/components/brand"
 import { SubscriptionCard } from "@/components/subscription-card"
+import { CancellationCard } from "@/components/cancellation-card"
+import { miroProductSummary } from "@/lib/cancellations/config"
 import { getDemoState, listSubscriptions } from "@/lib/db"
 import { createAgentRepository } from "@/lib/agent/repository"
 import { createReceiptRepository } from "@/lib/receipts/repository"
@@ -15,6 +17,7 @@ import {
 export const dynamic = "force-dynamic"
 
 export default function DashboardPage() {
+  const miro = miroProductSummary()
   const subscriptions = listSubscriptions()
   const demoState = getDemoState()
   const activeSubscriptions = subscriptions.filter(
@@ -137,17 +140,28 @@ export default function DashboardPage() {
         ) : null}
 
         <div className="subscription-grid">
-          {subscriptions.map((subscription) => (
-            <SubscriptionCard
-              key={subscription.id}
-              subscription={subscription}
-              receiptId={
-                subscription.id === streamMax.id
-                  ? latestStreamMaxReceipt?.receiptId
-                  : undefined
-              }
-            />
-          ))}
+          {miro && <CancellationCard provider="miro" {...miro} />}
+          <CancellationCard
+            provider="streammax"
+            planName="Premium"
+            amountCents={2999}
+            currency="USD"
+            interval="MONTHLY"
+            enabled
+          />
+          {subscriptions
+            .filter((subscription) => subscription.slug !== "streammax")
+            .map((subscription) => (
+              <SubscriptionCard
+                key={subscription.id}
+                subscription={subscription}
+                receiptId={
+                  subscription.id === streamMax.id
+                    ? latestStreamMaxReceipt?.receiptId
+                    : undefined
+                }
+              />
+            ))}
         </div>
 
         <footer className="dashboard-footer">

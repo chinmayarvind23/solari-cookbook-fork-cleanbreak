@@ -4,9 +4,24 @@ import { extname, join, resolve } from "node:path"
 import { readDesktopSessionState } from "../lib/desktop/session"
 
 const repositoryRoot = resolve(process.cwd())
+const privateBuildCopies = [
+  ".env",
+  ".env.production",
+  ".env.local",
+  ".cleanbreak",
+  "artifacts",
+  "data",
+].filter((name) =>
+  existsSync(resolve(repositoryRoot, ".next", "standalone", name)),
+)
+if (privateBuildCopies.length)
+  throw new Error(
+    "Secret audit failed: private files remain in the generated standalone bundle. Run npm run build to sanitize it.",
+  )
 const credentials = [
   process.env.SOLARI_API_KEY,
   process.env.OPENAI_API_KEY,
+  process.env.CLEANBREAK_OPERATOR_PASSWORD,
   process.env.SOLARI_DESKTOP_ID,
   process.env.SOLARI_DESKTOP_SESSION_ID,
   readDesktopSessionState()?.sessionId,

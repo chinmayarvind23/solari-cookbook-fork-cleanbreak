@@ -75,6 +75,7 @@ export type DesktopRun = {
   unsafeActionsExecuted: 0
 }
 type Dependencies = {
+  privateWorker: boolean
   auto: boolean
   progress(message: string): void
   client: Pick<DesktopClient, "connect" | "pause">
@@ -201,14 +202,16 @@ export async function runDesktopDryRun(
     }
     if (!ready) throw new Error("not ready")
     phase = "DESKTOP_VIEW_FAILED"
-    const stream = await vm.stream.start()
-    viewer = await (supplied.viewer ?? startDesktopViewer)(
-      stream.streamUrl,
-      true,
-    )
-    run.liveViewReference = `desktop-live:${id}`
+    if (!supplied.privateWorker) {
+      const stream = await vm.stream.start()
+      viewer = await (supplied.viewer ?? startDesktopViewer)(
+        stream.streamUrl,
+        true,
+      )
+      run.liveViewReference = `desktop-live:${id}`
+    }
     phase = "PREPARATION_NOT_CONFIRMED"
-    if (!auto && !(await supplied.prepare?.(viewer.url)))
+    if (!auto && !(viewer && (await supplied.prepare?.(viewer.url))))
       throw new Error("not confirmed")
     signal.throwIfAborted()
     // Manual authentication occurs before this command. No recording of login.

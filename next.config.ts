@@ -10,9 +10,19 @@ if (existsSync(rootEnvironment)) loadEnvFile(rootEnvironment)
 const nextConfig: NextConfig = {
   agentRules: false,
   output: "standalone",
+  outputFileTracingExcludes: {
+    "/*": [
+      "./.env",
+      "./.env.*",
+      "./.cleanbreak/**/*",
+      "./artifacts/**/*",
+      "./data/**/*",
+    ],
+  },
   serverExternalPackages: [
     "node:sqlite",
     "@solarisdk/browser",
+    "@solarisdk/desktop",
     "patchright-core",
     "chromium-bidi",
   ],

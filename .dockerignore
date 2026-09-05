@@ -6,4 +6,7 @@ data
 artifacts/agent
 artifacts/solari
 artifacts/receipts
+artifacts/desktop
+artifacts/cancellations
+.cleanbreak
 *.log

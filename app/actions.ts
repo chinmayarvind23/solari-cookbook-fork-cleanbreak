@@ -9,6 +9,7 @@ import { runCancellationAgent } from "@/lib/agent/runtime"
 import { abortCancellation, approveCancellation } from "@/lib/agent/commit"
 import { runLiveSolariSmoke } from "@/lib/solari/runtime"
 import { runIndependentVerification } from "@/lib/verification/runtime"
+import { cancellationRepository } from "@/lib/cancellations/repository"
 
 function safeReturnPath(value: FormDataEntryValue | null): string {
   return typeof value === "string" && value.startsWith("/")
@@ -24,6 +25,7 @@ export async function resetDemoAction(formData: FormData): Promise<void> {
   }
 
   resetDemo(scenario)
+  cancellationRepository().resetFixtureLocks()
   revalidatePath("/")
   revalidatePath("/demo", "layout")
   redirect(safeReturnPath(formData.get("returnTo")))

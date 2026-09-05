@@ -4,8 +4,11 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "cancellation:worker": "node --conditions react-server --env-file=.env --import tsx scripts/cancellation-worker.ts",
+    "test:one-click": "node --conditions react-server --import tsx scripts/one-click-smoke.ts",
+    "real-provider:desktop-live": "node --conditions react-server --env-file=.env --import tsx scripts/real-provider-desktop-live.ts",
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node --import tsx scripts/sanitize-standalone.ts",
     "start": "next start",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

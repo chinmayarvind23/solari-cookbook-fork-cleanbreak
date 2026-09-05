@@ -7,6 +7,17 @@
 **Tagline:** Make this the last charge.
 **One-line pitch:** CleanBreak is an AI browser agent that cancels subscriptions for you and independently verifies that future billing has actually stopped.
 
+## One-click product amendment
+
+The primary dashboard now treats the initial Cancel action as a short-lived,
+immutable, provider/subscription-scoped one-shot authorization. It does not ask
+for a second approval. A separate durable commit gate revalidates original scope
+and material terms, consumes the one permitted dispatch, never retries an unknown
+outcome, and requires fresh independent verification before a receipt. Live Miro
+remains explicitly opt-in and offline-tested only. The two-stage approval flow
+described below remains the Browser/StreamMax regression/demo path, not the new
+primary UX. See `docs/one-click-product.md` for current state/schema and operations.
+
 ---
 
 # 1. Product Thesis

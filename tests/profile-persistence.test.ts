@@ -381,7 +381,7 @@ describe("profile persistence trust boundary (offline)", () => {
     ).toBe("PROVIDER_NOT_REACHED")
   })
 
-  it("migrates existing v4 jobs without losing history and can reopen v5", async () => {
+  it("migrates existing v4 jobs without losing history and can reopen current schema", async () => {
     await run()
     // Build an isolated v4 database with a historical job, never the user's DB.
     database.exec(
@@ -392,7 +392,7 @@ describe("profile persistence trust boundary (offline)", () => {
     let migrated = db.createDatabase(migrationPath)
     try {
       expect(migrated.prepare("PRAGMA user_version").get()?.user_version).toBe(
-        5,
+        6,
       )
       const job = createAgentRepository(migrated).getJob("offline-profile-job")
       expect(job?.profileStateSaved).toBe(true)

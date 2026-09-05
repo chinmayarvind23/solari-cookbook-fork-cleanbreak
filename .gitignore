@@ -14,3 +14,4 @@ artifacts/agent/**/*.png
 artifacts/receipts/*.png
 artifacts/desktop/
 .cleanbreak/
+artifacts/cancellations/

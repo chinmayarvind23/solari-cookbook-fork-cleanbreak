@@ -34,3 +34,13 @@
 - Miro validation requires prior adapter navigation and a positively established later final boundary with zero destructive/unsafe actions or retries.
 - Safe adapter/stage metadata only; existing screenshot evidence, stability checks, one-use grants and human review defaults retained.
 - Offline verification only. No live Desktop/Miro run, authentication, or cancellation performed for this change.
+
+# One-click product path
+
+- Dashboard Cancel is now the sole authorization for the new product path. A durable, immutable, 15-minute provider/subscription/session-scoped authorization precedes interaction; legacy demo approval/Browser benchmarks remain intact.
+- SQLite v6 adds resource/idempotency locks, atomic one-shot claims, leases and full versioned checkpoints. COMMIT_ARMED revalidates on recovery; COMMITTING cannot re-dispatch. Unknown click outcomes consume authority and cannot issue a success receipt.
+- Same Miro Desktop navigation adapter runs without terminal/viewer. A separate commit gate checks freshly extracted scope/material terms, visual target stability and a canonical fingerprint. Live mode requires all three explicit flags plus operator authentication.
+- Read-only Miro verification uses a separate control handle/new window, two agreeing billing observations and fresh evidence; no claim of separate browser-process identity. Receipt is created only after acknowledged single dispatch and independent VERIFIED result.
+- Local StreamMax one-click smoke uses the actual dashboard/API, existing Browser loop/policy, a real local Chromium, isolated SQLite and a separate verification browser. It passed: one authorization, one final click, zero retries, VERIFIED, valid receipt digest. No real Miro action performed.
+- Operator setup, recovery, privacy limitations and exact commands: `docs/one-click-product.md`. Miro remains offline-tested/research-only; screenshot interpretation is not independent origin/account attestation.
+- Validation: 661 tests across 24 files, existing benchmark 100/100 with zero unsafe actions/false VERIFIED/retries, real local StreamMax one-click smoke, typecheck, formatting, production build and secret audit passed. Private development state/artifacts are excluded from Docker context and sanitized standalone output/tracing.

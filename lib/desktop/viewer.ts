@@ -62,7 +62,9 @@ window.addEventListener('pagehide', () => rfb.disconnect());`)
           return
         }
         response.setHeader("Content-Type", "text/javascript")
-        response.end(await readFile(file))
+        // Developer-only assets already constrained to packageRoot above. Do not
+        // let a production importer trace private workspace files through here.
+        response.end(await readFile(/* turbopackIgnore: true */ file))
       } else response.writeHead(404).end()
     } catch {
       response.writeHead(404).end()

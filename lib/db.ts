@@ -108,6 +108,15 @@ export function createDatabase(path = databasePath()): DatabaseSync {
       ),
     )
   }
+  if (version < 6) {
+    database.exec(
+      readFileSync(
+        join(process.cwd(), "lib", "db", "migrations", "006_one_click.sql"),
+        "utf8",
+      ),
+    )
+  }
+  database.exec("PRAGMA busy_timeout = 5000")
   seedDatabase(database)
   return database
 }

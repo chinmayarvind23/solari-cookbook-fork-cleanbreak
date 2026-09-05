@@ -37,9 +37,9 @@ export function validSessionTimestamp(value: unknown): value is string {
 export function readDesktopSessionState(
   path = desktopSessionPath(),
 ): DesktopSessionState | undefined {
-  if (!existsSync(path)) return undefined
+  if (!existsSync(/* turbopackIgnore: true */ path)) return undefined
   try {
-    const raw = readFileSync(path, "utf8")
+    const raw = readFileSync(/* turbopackIgnore: true */ path, "utf8")
     if (raw.length > 4096) throw new Error("oversize")
     const value: unknown = JSON.parse(raw)
     if (

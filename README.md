@@ -6,6 +6,20 @@ approval, independent verification, and tamper-evident receipts. The repository
 also includes StreamMax, a deterministic fictional provider used to exercise the
 entire workflow without touching a real account.
 
+## One-click product path
+
+The primary dashboard now creates a scoped, 15-minute one-shot authorization from
+the initial Cancel button. It navigates autonomously, revalidates material terms,
+atomically claims at most one final click, independently verifies future billing,
+and issues a receipt only for VERIFIED. No second approval is required on this
+path; legacy Browser/StreamMax approval regressions remain in the demo lab.
+
+Start with `npm run test:one-click` for the isolated local StreamMax dashboard
+test. Real Miro execution is disabled by default and has not been live-validated.
+See [one-click operation, authorization and recovery](docs/one-click-product.md)
+for the exact explicit live flags, operator authentication, trust limits, safe
+dry-run and receipt evidence commands.
+
 ## The problem
 
 Canceling a subscription is often a multi-screen workflow with retention offers,
@@ -131,8 +145,8 @@ Timing is synthetic/local wall-clock process timing with deterministic adapters.
 | Verification / VERIFIED receipt coverage |         100.0% / 100.0% |
 
 The separately recorded live validation used gpt-5.6
-on the dark-pattern scenario and returned
-VERIFIED; it is not counted as a
+on the real-provider-dry-run scenario and returned
+no result; it is not counted as a
 deterministic benchmark run.
 <!-- BENCHMARK_RESULTS_END -->
 
