@@ -1,5 +1,10 @@
 import type { DesktopDecision } from "./decision"
-import { screenStability } from "./screen-stability"
+import {
+  screenStability,
+  screenStabilityOutsideAnimation,
+  type AnimationRegion,
+  type ProtectedTarget,
+} from "./screen-stability"
 
 export function pageNavigationKey(d: DesktopDecision) {
   return d.type === "key" &&
@@ -14,15 +19,25 @@ export function pageNavigationKey(d: DesktopDecision) {
 export async function navigationProgress(
   before: Uint8Array,
   after: Uint8Array,
+  animation?: { region: AnimationRegion; target: ProtectedTarget },
 ) {
-  const comparison = await screenStability(before, after)
+  const comparison = animation
+    ? await screenStabilityOutsideAnimation(
+        before,
+        after,
+        animation.target,
+        animation.region,
+      )
+    : await screenStability(before, after)
   if (
     comparison.reason === "DECODE_FAILED" ||
     comparison.reason === "DIMENSIONS_CHANGED"
   )
     throw new Error("NAVIGATION_OBSERVATION_FAILED")
   return {
-    changedPixelRatio: comparison.changedPixelRatio!,
+    changedPixelRatio:
+      comparison.animation?.outsideChangedPixelRatio ??
+      comparison.changedPixelRatio!,
     threshold: comparison.threshold,
     screenChanged: !comparison.stable,
   }

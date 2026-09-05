@@ -17,12 +17,23 @@ export const miroObservationSchema = z
       "UNKNOWN",
     ]),
     targetRole: z.enum(["BUTTON", "OPTION", "RADIO", "CHECKBOX", "UNKNOWN"]),
+    // Visible non-interactive illustration only; never terms or controls.
+    marketingAnimation: z
+      .object({
+        x: z.number().int().nonnegative(),
+        y: z.number().int().nonnegative(),
+        width: z.number().int().positive(),
+        height: z.number().int().positive(),
+      })
+      .strict()
+      .nullable(),
   })
   .strict()
 export type MiroRule =
   | "ENTRY"
   | "CONTINUE_DIALOG"
   | "CONTINUE_REASON"
+  | "DECLINE_OFFER"
   | "CANCEL_CHOICE"
   | "NEXT_REVIEW"
   | "NEUTRAL_TOOL_CHOICE"
@@ -33,6 +44,8 @@ export type MiroScope = {
   startUrl: string
   completedCancellationSteps: number
   completedRules: readonly MiroRule[]
+  // Derived only from this run's immediately preceding returned offer scroll.
+  extensionOfferPreviouslyObserved?: boolean
 }
 export type MiroAssessment = {
   diagnostic: string
@@ -69,6 +82,59 @@ const nextReview =
   /\b(?:opens?|shows?) (?:the |a |another |next )?(?:cancellation )?(?:review|reason) (?:step|screen)\b|\b(?:next|another) (?:review|reason) step (?:follows|is required)\b/i
 const financialChange =
   /\b(?:downgrade|upgrade|pause|purchase|payment|password|security|accept.*offer|agree.*terms|unpaid invoice|invoicing)\b/i
+
+// This is an observed offer, not permission derived from marketing instructions.
+export function isMiroExtensionOffer(d: DesktopDecision, scope: MiroScope) {
+  const observation = d.miroObservation
+  try {
+    const expected = new URL(scope.startUrl)
+    const actual = new URL(observation?.pageUrl ?? "")
+    const context =
+      `${d.visibleText ?? ""} ${observation?.targetContext ?? ""}`.replace(
+        /\s+/g,
+        " ",
+      )
+    const heading = /\bget an extra 14 days on the business plan trial\b/i.test(
+      context,
+    )
+    const description = /\bkeep exploring advanced features for free\b/i.test(
+      context,
+    )
+    // A returned scroll can clip the heading. Carry only a boolean, never old
+    // screen text, and still require visible offer copy on this same dialog.
+    const visibleOffer =
+      (heading && description) ||
+      (scope.extensionOfferPreviouslyObserved === true &&
+        (heading ||
+          description ||
+          /\byou can still cancel anytime\b/i.test(context)))
+    return (
+      isMiroProvider(scope.providerName, scope.startUrl) &&
+      actual.origin === expected.origin &&
+      actual.pathname.replace(/\/$/, "") ===
+        expected.pathname.replace(/\/$/, "") &&
+      !actual.username &&
+      !actual.password &&
+      !actual.search &&
+      !actual.hash &&
+      d.observedOrigin === expected.origin &&
+      d.destinationOrigin === null &&
+      d.pageStatus === "authenticated_provider" &&
+      d.confidence >= 0.95 &&
+      d.flowStage === "RETENTION" &&
+      observation?.surface === "CANCELLATION_DIALOG" &&
+      scope.completedCancellationSteps === 2 &&
+      scope.completedRules.length === 2 &&
+      scope.completedRules[0] === "ENTRY" &&
+      scope.completedRules[1] === "CONTINUE_DIALOG" &&
+      visibleOffer &&
+      !consequence.test(context) &&
+      !financialChange.test(context)
+    )
+  } catch {
+    return false
+  }
+}
 
 // Documented free-to-Business trial step 4: Continue precedes the choice and
 // reason screens. Scrolling its benefits list can clip every occurrence of
@@ -108,7 +174,9 @@ export function assessMiroDecision(
   const cancellationTarget =
     /cancel|end.*(?:trial|subscription)|(?:turn off|stop).*renew/.test(label)
   const relevant =
-    cancellationTarget || /^(continue|prefer not to say)$/.test(label)
+    cancellationTarget ||
+    /^(continue|prefer not to say)$/.test(label) ||
+    (/^(no thanks|not now)$/.test(label) && isMiroExtensionOffer(d, scope))
   const intercept = (
     established = false,
     diagnostic = "MIRO_AMBIGUOUS_STEP",
@@ -197,6 +265,12 @@ export function assessMiroDecision(
   // Once entered, billing-background wording never re-enables the first exception.
   if (observation?.surface === "BILLING_PAGE")
     return intercept(false, "MIRO_ENTRY_ALREADY_TRAVERSED")
+  if (
+    /^(no thanks|not now)$/.test(label) &&
+    observation?.targetRole === "BUTTON" &&
+    isMiroExtensionOffer(d, scope)
+  )
+    return allow("DECLINE_OFFER", "RETENTION")
   if (
     label === "continue" &&
     observation?.surface === "CANCELLATION_DIALOG" &&

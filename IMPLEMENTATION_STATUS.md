@@ -46,6 +46,9 @@
 
 # One-click product path
 
+- Miro extension-offer animation fix: a narrowly scoped illustration exclusion now permits policy-approved offer scrollbar navigation and explicit No thanks / Not now rejection. Two fresh observations preserve the surrounding page, full scrollbar track and padded target; global/final 0.5% checks and one-shot commit safeguards are unchanged. Original screenshot hashes and safe aggregate diagnostics remain. A current-run offer-scroll marker handles clipped headings without replaying private screen text. See `docs/miro-offer-animation.md` for the trust-boundary review and limits.
+- Offline validation of this fix: 875 tests across 33 files passed, including real local Chromium animated-offer scrolling/rejection and mocked Miro navigation to a positively established final boundary. Typecheck, format check, production build and secret audit passed. This does not establish live Miro cancellation; no live provider input was executed during implementation.
+
 - Dashboard Cancel is now the sole authorization for the new product path. A durable, immutable, 15-minute provider/subscription/session-scoped authorization precedes interaction; legacy demo approval/Browser benchmarks remain intact.
 - SQLite v6 adds resource/idempotency locks, atomic one-shot claims, leases and full versioned checkpoints. COMMIT_ARMED revalidates on recovery; COMMITTING cannot re-dispatch. Unknown click outcomes consume authority and cannot issue a success receipt.
 - Same Miro Desktop navigation adapter runs without terminal/viewer. A separate commit gate checks freshly extracted scope/material terms, visual target stability and a canonical fingerprint. Live mode requires all three explicit flags plus operator authentication.

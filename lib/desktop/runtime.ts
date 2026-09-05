@@ -15,9 +15,15 @@ import {
 import { createDesktopPlanner, DesktopPlanningFailure } from "./planner"
 import { desktopEvidence } from "./evidence"
 import { startDesktopViewer } from "./viewer"
-import { screenStability, type ScreenStability } from "./screen-stability"
+import { type ScreenStability } from "./screen-stability"
+import { navigationScreenStability } from "./navigation-stability"
 import { stabilizeDesktopPage, type TransitionStability } from "./stabilize"
-import { isMiroProvider, type MiroRule, type MiroScope } from "./miro"
+import {
+  isMiroProvider,
+  isMiroExtensionOffer,
+  type MiroRule,
+  type MiroScope,
+} from "./miro"
 import {
   navigationProgress,
   pageNavigationKey,
@@ -59,6 +65,7 @@ export type DesktopRun = {
     screenshotPath: string
     screenshotHash: string
     screenStability: ScreenStability | null
+    miroExtensionOffer?: boolean
     transitionStability: TransitionStability | null
     navigationProgress?: NavigationProgress | null
     planning?: {
@@ -312,6 +319,9 @@ export async function runDesktopDryRun(
           ? {
               providerName: config.provider.providerName,
               startUrl: config.provider.startUrl,
+              extensionOfferPreviouslyObserved:
+                completedSteps.at(-1)?.decision?.type === "scroll" &&
+                completedSteps.at(-1)?.miroExtensionOffer === true,
               completedCancellationSteps: completedSteps.filter(
                 (s) => s.decision?.type === "cancel_flow_navigation",
               ).length,
@@ -508,19 +518,17 @@ export async function runDesktopDryRun(
       // Fresh visual check after human review. Tiny drift is allowed only away
       // from click targets; no automatic retry of any coordinate action.
       phase = "SCREENSHOT_FAILED"
-      entry.screenStability = await screenStability(
-        screenshot,
-        await vm.screenshot({ format: "png" }),
-        decision.type === "click" || decision.type === "cancel_flow_navigation"
-          ? { x: decision.x!, y: decision.y! }
-          : decision.type === "scroll"
-            ? {
-                x: decision.x!,
-                y: decision.y!,
-                endY: decision.y! + decision.deltaY!,
-              }
-            : undefined,
-      )
+      entry.miroExtensionOffer =
+        !!miroScope && isMiroExtensionOffer(decision, miroScope)
+      entry.screenStability = await navigationScreenStability({
+        original: screenshot,
+        fresh: await vm.screenshot({ format: "png" }),
+        decision,
+        scope: miroScope,
+        screenshot: () => vm!.screenshot({ format: "png" }),
+        sleep,
+        signal,
+      })
       evidence.job(run)
       if (!entry.screenStability.stable) {
         run.stopReason = "SCREEN_CHANGED"
@@ -566,6 +574,16 @@ export async function runDesktopDryRun(
         entry.navigationProgress = await navigationProgress(
           screenshot,
           settled.screenshot,
+          entry.screenStability.animation && decision.type === "scroll"
+            ? {
+                region: entry.screenStability.animation.region,
+                target: {
+                  x: decision.x!,
+                  y: decision.scrollbar!.top,
+                  endY: decision.scrollbar!.top + decision.scrollbar!.height,
+                },
+              }
+            : undefined,
         )
         if (!entry.navigationProgress.screenChanged) {
           stalledPageImage = settled.screenshot

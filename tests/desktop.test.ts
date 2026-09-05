@@ -121,6 +121,7 @@ describe("narrow Miro cancellation adapter", () => {
       visibleText: context,
       observedOrigin: "https://miro.com",
       miroObservation: {
+        marketingAnimation: null,
         pageUrl: url,
         surface,
         targetRole: role,
@@ -215,6 +216,100 @@ describe("narrow Miro cancellation adapter", () => {
     d.flowStage = "RETENTION"
     return d
   }
+  it("traverses animated extension offer, rejects it, reaches final boundary without dispatching final", async () => {
+    const copy =
+      "Get an extra 14 days on the Business Plan trial. Keep exploring advanced features for free. You can still cancel anytime."
+    const offer = miro("vertical scrollbar", "CANCELLATION_DIALOG", copy)
+    Object.assign(offer, {
+      type: "scroll",
+      x: 974,
+      y: 400,
+      deltaY: 100,
+      flowStage: "RETENTION",
+      scrollbar: {
+        left: 971,
+        top: 158,
+        width: 7,
+        height: 491,
+        thumbTop: 158,
+        thumbHeight: 387,
+      },
+    })
+    const preview = { x: 399, y: 395, width: 500, height: 270 }
+    offer.miroObservation!.marketingAnimation = preview
+    const decline = miro(
+      "No thanks",
+      "CANCELLATION_DIALOG",
+      "Keep exploring advanced features for free. No thanks",
+    )
+    Object.assign(decline, {
+      type: "click",
+      x: 850,
+      y: 300,
+      flowStage: "RETENTION",
+    })
+    decline.miroObservation!.marketingAnimation = preview
+    const reason = miro(
+      "Continue to cancel",
+      "REASON",
+      "Cancellation reason. Continue to cancel",
+    )
+    reason.flowStage = "REASON"
+    const final = miro(
+      "Confirm cancellation",
+      "FINAL_CONFIRMATION",
+      "Confirm cancellation. Your subscription will be canceled.",
+    )
+    final.flowStage = "FINAL_CONFIRMATION"
+    const h = harness([
+      billingTrial(),
+      trialBenefits(),
+      offer,
+      decline,
+      reason,
+      final,
+    ])
+    const frames = await Promise.all(
+      [0, 100, 200].map(async (value) => {
+        const pixels = Buffer.alloc(1280 * 720 * 4, 255)
+        for (let y = 395; y < 665; y++)
+          for (let x = 399; x < 899; x++) pixels[(y * 1280 + x) * 4] = value
+        return sharp(pixels, { raw: { width: 1280, height: 720, channels: 4 } })
+          .png()
+          .toBuffer()
+      }),
+    )
+    let frameIndex = 0
+    h.vm.screenshot.mockImplementation(async () =>
+      h.vm.mouse.click.mock.calls.length === 2
+        ? frames[frameIndex++ % frames.length]
+        : png(),
+    )
+    const run = await runDesktopDryRun(miroEnv, { ...h.deps, auto: true })
+    expect(run.steps[2]).toMatchObject({
+      execution: "NAVIGATION_RETURNED",
+      miroExtensionOffer: true,
+      screenStability: {
+        stable: true,
+        animation: { outsideChangedPixelRatio: 0 },
+      },
+    })
+    expect(run.steps[3]).toMatchObject({
+      adapterRule: "DECLINE_OFFER",
+      execution: "NAVIGATION_RETURNED",
+    })
+    expect(run).toMatchObject({
+      state: "AWAITING_APPROVAL",
+      stopReason: "FINAL_ACTION_BOUNDARY",
+      finalBoundaryEstablished: true,
+      destructiveClicksExecuted: 0,
+      unsafeActionsExecuted: 0,
+      automaticDestructiveRetries: 0,
+    })
+    expect(h.vm.mouse.drag).toHaveBeenCalledOnce()
+    expect(h.vm.mouse.click).toHaveBeenCalledTimes(4)
+    expect(run.steps.at(-1)?.execution).toBe("NOT_EXECUTED")
+  })
   it("recognizes the observed scrolled trial-benefits Continue without a visible cancel heading", () => {
     expect(trialBenefitsCopy.toLowerCase()).not.toContain("cancel")
     const assessment = assess(trialBenefits(), entered)

@@ -107,6 +107,17 @@ pageUrl is the full URL readable in the browser address bar (null if truncated/u
 surface identifies standalone BILLING_PAGE versus CANCELLATION_DIALOG, CANCELLATION_CHOICE,
 REASON, TOOL_SWITCH, FINAL_CONFIRMATION or UNKNOWN. A dialog over Billing is NOT BILLING_PAGE.
 targetRole distinguishes BUTTON from a non-committing OPTION/RADIO/CHECKBOX; never guess.
+marketingAnimation is null except for Miro's extra-14-days Business trial offer.
+On that offer only, report the tight visible rectangle {x,y,width,height} of its
+non-interactive animated diagram/illustration. Exclude ALL buttons, labels, offer
+terms, inputs, scrollbars, links and browser chrome. Never mark the whole dialog
+or moving controls as animation. If its boundaries are unclear, use null.
+Report offer text faithfully, including the extra 14 days and advanced-features
+copy only when visible. Scroll using the visible scrollbar to reveal clipped
+choices. A scroll may clip the offer heading; report only the remaining visible
+offer copy, never reconstruct hidden text. The runtime tracks its own prior scroll.
+Reject only an explicit visible No thanks or Not now BUTTON; never
+accept the extension or infer that a cancel-labelled button is non-committing.
 targetContext must contain the exact target label and its immediate non-personal
 consequence/next-step text. For a dialog include the entire active dialog's
 non-personal terms, warnings and choices. For standalone Billing entry include
