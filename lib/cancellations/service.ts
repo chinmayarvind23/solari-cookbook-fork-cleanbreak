@@ -17,6 +17,7 @@ import {
   type State,
 } from "./state"
 import type { CancellationRepository } from "./repository"
+import { CancellationFailure } from "./failure"
 
 export interface CancellationDriver {
   scope: Scope
@@ -191,14 +192,16 @@ export async function runCancellation(
     job = repository.load(id)!
     if (!terminal(job.state)) {
       const fixed =
-        error instanceof Error &&
-        [
-          "AUTHORIZATION_MISMATCH",
-          "AUTHORIZATION_EXPIRED",
-          "NAVIGATION_INTERRUPTED_NO_RETRY",
-        ].includes(error.message)
-          ? error.message
-          : "WORKFLOW_FAILED_CLOSED"
+        error instanceof CancellationFailure
+          ? error.code
+          : error instanceof Error &&
+              [
+                "AUTHORIZATION_MISMATCH",
+                "AUTHORIZATION_EXPIRED",
+                "NAVIGATION_INTERRUPTED_NO_RETRY",
+              ].includes(error.message)
+            ? error.message
+            : "WORKFLOW_FAILED_CLOSED"
       const state = job.authorizationUses === 1 ? "INCONCLUSIVE" : "FAILED"
       update(state, {
         reason: fixed,

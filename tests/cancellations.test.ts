@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { createDatabase } from "@/lib/db"
+import { CancellationFailure } from "@/lib/cancellations/failure"
 import { cancellationRepository } from "@/lib/cancellations/repository"
 import {
   runCancellation,
@@ -123,6 +124,30 @@ function setup() {
   }
 }
 describe("durable one-click authorization", () => {
+  it("reports typed navigation failure without consuming authority or dispatching", async () => {
+    const h = setup()
+    h.driver.navigate.mockRejectedValueOnce(
+      new CancellationFailure("PROVIDER_LOADING_TIMEOUT"),
+    )
+    const result = await h.run()
+    expect(result).toMatchObject({
+      state: "FAILED",
+      reason: "PROVIDER_LOADING_TIMEOUT",
+      authorizationUses: 0,
+      destructiveClicksAttempted: 0,
+      destructiveClicksExecuted: 0,
+    })
+    expect(h.driver.clickFinal).not.toHaveBeenCalled()
+  })
+  it("does not expose raw provider failures", async () => {
+    const h = setup()
+    h.driver.navigate.mockRejectedValueOnce(
+      new Error("private-provider-sentinel"),
+    )
+    const result = await h.run()
+    expect(result?.reason).toBe("WORKFLOW_FAILED_CLOSED")
+    expect(JSON.stringify(result)).not.toContain("private-provider-sentinel")
+  })
   it("persists immutable scoped one-shot authorization before any provider interaction", () => {
     const h = setup()
     expect(h.job.authorization).toMatchObject({

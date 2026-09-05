@@ -9,6 +9,7 @@ import {
   desktopNavigationKeys,
   evaluateDesktopDecision,
   safeDesktopDecision,
+  isLoadingObservation,
   type DesktopDecision,
 } from "./decision"
 import { createDesktopPlanner, DesktopPlanningFailure } from "./planner"
@@ -186,6 +187,8 @@ export async function runDesktopDryRun(
   let viewer: Awaited<ReturnType<typeof startDesktopViewer>> | undefined
   let recordingAttempted = false
   let tokens = 0
+  let loadingObservations = 0
+  let loadingDeadline = 0
   let phase = "DESKTOP_CONNECT_FAILED"
   try {
     signal.throwIfAborted()
@@ -305,6 +308,36 @@ export async function runDesktopDryRun(
         entry.policy = run.stopReason
         break
       }
+      if (decision.type === "wait") {
+        entry.policy = "OBSERVATION_ONLY_NO_INPUT"
+        // Only a bounded post-navigation observation, never an action retry.
+        if (
+          !isLoadingObservation(
+            decision,
+            new URL(config.provider.startUrl).origin,
+          ) ||
+          completedSteps.length === 0
+        ) {
+          run.stopReason = "INVALID_LOADING_OBSERVATION"
+          break
+        }
+        if (!loadingDeadline) loadingDeadline = Date.now() + 30_000
+        if (++loadingObservations > 5 || Date.now() >= loadingDeadline) {
+          run.stopReason = "PROVIDER_LOADING_TIMEOUT"
+          break
+        }
+        entry.execution = "OBSERVATION_ONLY"
+        evidence.job(run)
+        supplied.progress?.(
+          `step ${step}: provider loading -> observation only`,
+        )
+        phase = "PAGE_STABILIZATION_FAILED"
+        await sleep(2000)
+        signal.throwIfAborted()
+        history.push(`step ${step}: loading observed; no input dispatched`)
+        continue
+      }
+      loadingDeadline = 0
       const policy = assessment.policy
       entry.policy = policy.code
       entry.policyResult = policy.result

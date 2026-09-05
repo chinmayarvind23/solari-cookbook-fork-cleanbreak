@@ -126,6 +126,21 @@ async function setup() {
   return desktopCancellationDriver(config, `offline-${randomUUID()}`)
 }
 describe("Desktop product adapter isolation", () => {
+  it("preserves the observed navigation stop before any final dispatch", async () => {
+    const driver = await setup()
+    vi.mocked(runDesktopDryRun).mockResolvedValueOnce({
+      state: "FAILED",
+      stopReason: "MODEL_STOPPED",
+      finalBoundaryEstablished: false,
+      steps: [{ adapterRule: "ENTRY", execution: "NAVIGATION_RETURNED" }],
+    } as Awaited<ReturnType<typeof runDesktopDryRun>>)
+    await driver.connect()
+    await expect(driver.navigate(vi.fn())).rejects.toThrow(
+      "DESKTOP_NAVIGATION_MODEL_STOPPED",
+    )
+    expect(shared.vm.mouse.click).not.toHaveBeenCalled()
+    await driver.close()
+  })
   it("uses the existing autonomous dry-run navigator with no viewer or terminal", async () => {
     const driver = await setup()
     await driver.connect()

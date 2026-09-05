@@ -1,5 +1,34 @@
 # Miro Desktop entry regression
 
+## Loading overlay regression
+
+The later live job successfully traversed the Billing cancellation entry but its
+next saved frame was a loading overlay. It stopped with `MODEL_STOPPED` before
+final-boundary discovery, not during destructive dispatch. No final screenshot
+or authorization claim was produced.
+
+Pixel stability is not semantic readiness: a small spinner can satisfy the global
+pixel threshold. The planner now has an explicit `wait` / `loading` observation
+for a visible loading overlay. After a returned navigation action, same-origin
+waits with no input fields sleep two seconds and take a new screenshot. There
+are at most five waits per run and a 30-second consecutive-loading deadline,
+alongside existing step/token/request budgets. Waits never get dispatch grants;
+they cannot repeat a prior click or establish completed cancellation history.
+Login, challenge, unknown-origin and input-bearing wait decisions fail closed.
+Normal ready-screen actions still require fresh target-aware stability checks.
+
+The web-app/CLI commit service now preserves fixed typed diagnostics such as
+`DESKTOP_NAVIGATION_MODEL_STOPPED`, `PROVIDER_LOADING_TIMEOUT`,
+`FINAL_BOUNDARY_NOT_ESTABLISHED`, `FINAL_TARGET_CHANGED` and
+`BILLING_OBSERVATION_UNAVAILABLE`. Raw SDK messages remain withheld. Historical
+failed jobs are not rewritten or automatically restarted.
+
+This changes observation handling, not authorization: initial web-app Cancel
+still creates one short-lived scoped grant; final execution remains behind its
+separate atomic claim and fresh checks, and receipt still requires independent
+verification. The trust memo below applies unchanged. No additional write surface
+or live provider execution is introduced by the loading regression tests.
+
 The adapter compares the configured and observed billing account path with one
 optional trailing slash normalized. It still rejects different accounts, origins,
 credentials, query strings, fragments and missing/truncated URLs.

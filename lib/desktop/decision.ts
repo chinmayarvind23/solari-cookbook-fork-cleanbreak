@@ -15,6 +15,7 @@ export const desktopDecisionSchema = z
       "type",
       "key",
       "scroll",
+      "wait",
       "final_cancel_candidate",
       "needs_human",
       "failure",
@@ -34,6 +35,7 @@ export const desktopDecisionSchema = z
       "login",
       "challenge",
       "unknown",
+      "loading",
     ]),
     flowStage: z.enum([
       "BILLING",
@@ -49,6 +51,21 @@ export const desktopDecisionSchema = z
   })
   .strict()
 export type DesktopDecision = z.infer<typeof desktopDecisionSchema>
+// Wait observations never receive an input grant, even if misrouted to policy.
+export function isLoadingObservation(d: DesktopDecision, origin: string) {
+  return (
+    d.type === "wait" &&
+    d.pageStatus === "loading" &&
+    d.observedOrigin === origin &&
+    d.destinationOrigin === null &&
+    d.x === null &&
+    d.y === null &&
+    d.text === null &&
+    d.keys === null &&
+    d.deltaY === null &&
+    d.targetText === null
+  )
+}
 export const NEUTRAL_REASON = "I no longer need this subscription."
 export const SAFE_DESKTOP_NAVIGATION_KEYS = [
   "Escape",
@@ -178,6 +195,7 @@ export function desktopPolicy(
     code: "FINAL_ACTION_BOUNDARY",
   })
   // Terminal decision: never reaches any input dispatcher, even with missing context.
+  if (d.type === "wait") return block("OBSERVATION_ONLY_NO_INPUT")
   if (d.type === "final_cancel_candidate") return intercept()
   if (d.confidence < minConfidence) return block("LOW_CONFIDENCE")
   if (d.pageStatus === "challenge") return block("ANTI_BOT_CHALLENGE")

@@ -126,6 +126,74 @@ describe("narrow Miro cancellation adapter", () => {
   }
   const assess = (d: DesktopDecision, s = scope) =>
     evaluateDesktopDecision(d, "https://miro.com", 1280, 720, 0.9, s)
+  const loading = () =>
+    decision({
+      type: "wait",
+      pageStatus: "loading",
+      observedOrigin: "https://miro.com",
+      x: null,
+      y: null,
+      targetText: null,
+      visibleText: "Loading spinner",
+      flowStage: "CANCELLATION_ENTRY",
+    })
+  it("waits through the observed Miro loading overlay without repeating entry, then reaches the final boundary", async () => {
+    const h = harness([
+      miro(),
+      loading(),
+      loading(),
+      miro("Continue", "CANCELLATION_DIALOG", "Cancel subscription"),
+      miro(
+        "Cancel trial",
+        "FINAL_CONFIRMATION",
+        "Cancellation will be scheduled",
+      ),
+    ])
+    const run = await runDesktopDryRun(miroEnv, { ...h.deps, auto: true })
+    expect(
+      run.steps.filter((s) => s.execution === "OBSERVATION_ONLY"),
+    ).toHaveLength(2)
+    expect(h.vm.mouse.click).toHaveBeenCalledTimes(2)
+    expect(h.vm.keyboard.type).not.toHaveBeenCalled()
+    expect(run.finalBoundaryEstablished).toBe(true)
+    expect(successfulDesktopValidation(run)).toBe(true)
+    expect(run.destructiveClicksExecuted).toBe(0)
+    expect(run.automaticDestructiveRetries).toBe(0)
+    expect(h.vm.pause).not.toHaveBeenCalled()
+  })
+  it("times out endless loading without repeating the click", async () => {
+    const h = harness([miro(), ...Array.from({ length: 6 }, loading)])
+    const run = await runDesktopDryRun(miroEnv, { ...h.deps, auto: true })
+    expect(run.stopReason).toBe("PROVIDER_LOADING_TIMEOUT")
+    expect(h.vm.mouse.click).toHaveBeenCalledTimes(1)
+    expect(h.vm.close).toHaveBeenCalled()
+    expect(successfulDesktopValidation(run)).toBe(false)
+  })
+  it.each([
+    { pageStatus: "challenge" },
+    { pageStatus: "login" },
+    { observedOrigin: "https://other.example" },
+    { x: 200 },
+    { text: "arbitrary" },
+  ] satisfies Partial<DesktopDecision>[])(
+    "rejects unsafe wait %j without dispatch",
+    async (patch) => {
+      const h = harness([miro(), { ...loading(), ...patch }])
+      const run = await runDesktopDryRun(miroEnv, { ...h.deps, auto: true })
+      expect(run.stopReason).toBe("INVALID_LOADING_OBSERVATION")
+      expect(h.vm.mouse.click).toHaveBeenCalledTimes(1)
+      expect(
+        authorizeDesktopNavigation(
+          loading(),
+          "https://miro.com",
+          1280,
+          720,
+          0.9,
+          entered,
+        ),
+      ).toBeNull()
+    },
+  )
   function billingTrial() {
     const d = miro(
       "Cancel trial",

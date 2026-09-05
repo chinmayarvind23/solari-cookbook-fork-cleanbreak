@@ -12,6 +12,7 @@ import { liveEnabled, type ProductConfig } from "./config"
 import type { CancellationDriver } from "./service"
 import type { Observation } from "./state"
 import { consumeFinalDispatch } from "./dispatch"
+import { CancellationFailure } from "./failure"
 
 export function desktopCancellationDriver(
   config: ProductConfig,
@@ -47,7 +48,12 @@ export function desktopCancellationDriver(
     const image = await vm.screenshot({ format: "png" })
     const name = `${mode.toLowerCase()}-${++shot}-${randomUUID()}.png`
     writeFileSync(resolve(directory, name), image, { mode: 0o600 })
-    const observation = await extract(image, contextId, name, mode)
+    let observation: Observation
+    try {
+      observation = await extract(image, contextId, name, mode)
+    } catch {
+      throw new CancellationFailure("BILLING_OBSERVATION_UNAVAILABLE")
+    }
     const display = await vm.display.size()
     if (display.w !== observation.width || display.h !== observation.height)
       throw new Error("DISPLAY_MISMATCH")
@@ -113,14 +119,20 @@ export function desktopCancellationDriver(
             s.adapterRule === "ENTRY" && s.execution === "NAVIGATION_RETURNED",
         )
       )
-        throw new Error("FINAL_BOUNDARY_NOT_ESTABLISHED")
+        throw new CancellationFailure(
+          run.stopReason === "MODEL_STOPPED"
+            ? "DESKTOP_NAVIGATION_MODEL_STOPPED"
+            : run.stopReason === "PROVIDER_LOADING_TIMEOUT"
+              ? "PROVIDER_LOADING_TIMEOUT"
+              : "FINAL_BOUNDARY_NOT_ESTABLISHED",
+        )
       await connect()
       const final = await capture("FINAL")
       if (
         final.x !== run.proposedAction?.x ||
         final.y !== run.proposedAction?.y
       )
-        throw new Error("FINAL_TARGET_CHANGED")
+        throw new CancellationFailure("FINAL_TARGET_CHANGED")
       return final
     },
     async revalidate(previous) {
