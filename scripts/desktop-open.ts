@@ -77,9 +77,9 @@ export async function runDesktopOpen(
     if (!ready) throw new Error("not ready")
     output("Desktop connected.")
     failureMessage = "Desktop browser launch failed."
-    output("Launching provider in Firefox...")
+    output("Launching provider in Chrome...")
     await launchDesktopBrowser(vm, providerUrl, signals.signal, {
-      fallback: true,
+      browser: "chrome",
       allowNoSandbox:
         environment.CLEANBREAK_DESKTOP_ALLOW_NO_SANDBOX === "true",
       wait: dependencies.wait,

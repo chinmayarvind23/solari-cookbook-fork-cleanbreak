@@ -1,5 +1,31 @@
 # Desktop autonomous dry-run trust boundary
 
+## Chrome-only manual setup
+
+`desktop:open`, `desktop:browser-test`, and `desktop:browser-diagnose` now
+positively probe `/usr/bin/google-chrome` and launch it directly. They do not
+attempt Firefox, substitute another executable, install software, or retry an
+uncertain launch. The existing VM-only profile directory and fixed GUI flags
+are preserved. Success still requires a live Chrome process and valid screenshot;
+an operator must inspect the screen to establish the actual visible page.
+The live office guest reports process fields `comm`, `cmdline`, and `state`,
+while the installed SDK declares `name` and `cmd`. Process verification accepts
+the executable name from `name` or `comm` and excludes zombie/dead states. It
+never reads or logs `cmdline`. A private screenshot confirmed Chrome was visible
+on Miro's unauthenticated sign-in/sign-up page when the old name-only checker
+incorrectly reported `CHROME_PROCESS_EXITED`; this does not prove cancellation.
+
+The user-authorized setup reads the configured provider page (untrusted) and
+the existing Solari session (scoped infrastructure). Its only remote write is
+opening a browser window at the configured HTTPS URL in that dedicated VM;
+no form submission, credential entry, or cancellation is part of setup. Local
+diagnostic screenshots remain under ignored `.cleanbreak/`. Manual auth is
+not recorded. Closing the local handle does not pause or destroy the VM.
+The attack checklist below applies; this setup has no planner, persistent
+instruction memory, or provider-content-driven dispatcher. Login/challenge
+pages require manual handling, never bypass. A fresh authenticated session and
+fresh scoped product authorization are required before cancellation execution.
+
 Deployment verdict: **research-only**, opt-in, dedicated authenticated Desktop.
 No live Miro execution was performed when implementing this mode. Offline tests
 exercise the control boundaries; they do not establish live provider reliability

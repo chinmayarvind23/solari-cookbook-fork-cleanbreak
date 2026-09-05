@@ -63,15 +63,15 @@ async function runBrowserCommand(
     vm = await client.connect(config.desktopId)
     signals.signal.throwIfAborted()
     await vm.connect()
+    ready = (await vm.health()).ready === true
+    if (!ready) throw new Error("not ready")
     if (diagnose) {
       signals.signal.throwIfAborted()
-      ready = (await vm.health()).ready === true
-      if (!ready) throw new Error("not ready")
       output("ready: true")
       await diagnoseDesktopBrowsers(vm, signals.signal, output)
     }
     await launchDesktopBrowser(vm, "https://example.com", signals.signal, {
-      fallback: true,
+      browser: "chrome",
       allowNoSandbox:
         environment.CLEANBREAK_DESKTOP_ALLOW_NO_SANDBOX === "true",
       wait: dependencies.wait,

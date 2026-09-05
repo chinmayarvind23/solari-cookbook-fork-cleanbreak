@@ -10,6 +10,8 @@ export const BROWSER_RENDER_WAIT_MS = 1500
 export const BROWSER_RENDER_TIMEOUT_MS = 10_000
 
 type LaunchStage =
+  | "chrome_probe"
+  | "chrome_open"
   | "firefox_open"
   | "firefox_probe"
   | "chromium_probe"
@@ -108,6 +110,7 @@ export async function launchDesktopBrowser(
   url: string,
   signal: AbortSignal,
   options: {
+    browser?: "chrome"
     fallback?: boolean
     allowNoSandbox?: boolean // Legacy option; detected Google Chrome uses fixed VM flags.
     wait?: (ms: number) => Promise<void>
@@ -121,61 +124,82 @@ export async function launchDesktopBrowser(
     signal.throwIfAborted()
     let pid: number
     let executable = "firefox"
-    try {
-      pid = await vm.open("firefox", [url])
-    } catch {
-      if (!options.fallback) throw new BrowserLaunchFailure(stage, reason)
-      signal.throwIfAborted()
-      stage = "firefox_probe"
+    if (options.browser === "chrome") {
+      stage = "chrome_probe"
       reason = "PROBE_FAILED"
-      // A failed open is not proof of absence. Detect PATH and the known Firefox
-      // path before allowing fallback; do not blindly retry a possibly running app.
-      for (const [path, usePath] of [
-        ["firefox", true],
-        ["/usr/bin/firefox", false],
-      ] as const) {
-        signal.throwIfAborted()
-        const exitCode = await executableProbe(vm, path, usePath)
-        if (exitCode === 0)
-          throw new BrowserLaunchFailure(
-            "firefox_open",
-            "FIREFOX_PRESENT_BUT_OPEN_FAILED",
-          )
-        if (exitCode !== 1) throw new BrowserLaunchFailure(stage, reason)
-      }
-      stage = "chromium_probe"
-      let detectedExecutable: string | undefined
-      for (const path of CHROMIUM_PATHS) {
-        signal.throwIfAborted()
-        const exitCode = await executableProbe(vm, path)
-        if (exitCode === 0) {
-          detectedExecutable = path
-          break
-        }
-        if (exitCode !== 1) throw new BrowserLaunchFailure(stage, reason)
-      }
-      if (!detectedExecutable)
-        throw new BrowserLaunchFailure(stage, "NO_SUPPORTED_BROWSER")
-      executable = detectedExecutable
-      stage = "fallback_open"
-      reason =
-        executable === "/usr/bin/google-chrome"
-          ? "CHROME_OPEN_FAILED"
-          : "FALLBACK_OPEN_FAILED"
+      const detected = await executableProbe(vm, "/usr/bin/google-chrome")
+      if (detected !== 0)
+        throw new BrowserLaunchFailure(
+          stage,
+          detected === 1 ? "NO_SUPPORTED_BROWSER" : reason,
+        )
+      executable = "/usr/bin/google-chrome"
+      stage = "chrome_open"
+      reason = "CHROME_OPEN_FAILED"
       signal.throwIfAborted()
-      pid = await vm.open(
-        executable,
-        executable === "/usr/bin/google-chrome"
-          ? [
-              "--no-sandbox",
-              "--disable-dev-shm-usage",
-              "--user-data-dir=/tmp/cleanbreak-chrome",
-              "--new-window",
-              url,
-            ]
-          : [url],
-      )
-    }
+      pid = await vm.open(executable, [
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--user-data-dir=/tmp/cleanbreak-chrome",
+        "--new-window",
+        url,
+      ])
+    } else
+      try {
+        pid = await vm.open("firefox", [url])
+      } catch {
+        if (!options.fallback) throw new BrowserLaunchFailure(stage, reason)
+        signal.throwIfAborted()
+        stage = "firefox_probe"
+        reason = "PROBE_FAILED"
+        // A failed open is not proof of absence. Detect PATH and the known Firefox
+        // path before allowing fallback; do not blindly retry a possibly running app.
+        for (const [path, usePath] of [
+          ["firefox", true],
+          ["/usr/bin/firefox", false],
+        ] as const) {
+          signal.throwIfAborted()
+          const exitCode = await executableProbe(vm, path, usePath)
+          if (exitCode === 0)
+            throw new BrowserLaunchFailure(
+              "firefox_open",
+              "FIREFOX_PRESENT_BUT_OPEN_FAILED",
+            )
+          if (exitCode !== 1) throw new BrowserLaunchFailure(stage, reason)
+        }
+        stage = "chromium_probe"
+        let detectedExecutable: string | undefined
+        for (const path of CHROMIUM_PATHS) {
+          signal.throwIfAborted()
+          const exitCode = await executableProbe(vm, path)
+          if (exitCode === 0) {
+            detectedExecutable = path
+            break
+          }
+          if (exitCode !== 1) throw new BrowserLaunchFailure(stage, reason)
+        }
+        if (!detectedExecutable)
+          throw new BrowserLaunchFailure(stage, "NO_SUPPORTED_BROWSER")
+        executable = detectedExecutable
+        stage = "fallback_open"
+        reason =
+          executable === "/usr/bin/google-chrome"
+            ? "CHROME_OPEN_FAILED"
+            : "FALLBACK_OPEN_FAILED"
+        signal.throwIfAborted()
+        pid = await vm.open(
+          executable,
+          executable === "/usr/bin/google-chrome"
+            ? [
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--user-data-dir=/tmp/cleanbreak-chrome",
+                "--new-window",
+                url,
+              ]
+            : [url],
+        )
+      }
     if (!Number.isSafeInteger(pid) || pid <= 0)
       throw new BrowserLaunchFailure(
         stage,
@@ -214,13 +238,25 @@ export async function launchDesktopBrowser(
           ? /^(?:chrome|chromium|chromium-browser|google-chrome)$/
           : /^firefox(?:-bin)?$/
         ).test(name)
+      // The live office guest returns comm/cmdline/state, despite the installed
+      // SDK declaring name/cmd. Read only the executable name, never cmdline.
+      const processName = (process: { name?: unknown; comm?: unknown }) =>
+        typeof process.name === "string"
+          ? process.name
+          : typeof process.comm === "string"
+            ? process.comm
+            : ""
+      const running = (process: { state?: unknown }) =>
+        typeof process.state !== "string" ||
+        !/^[ZX]/i.test(process.state.trim())
       const matches = (
         process: Awaited<ReturnType<Desktop["process"]["list"]>>[number],
       ) =>
         Number.isSafeInteger(process.pid) &&
         process.pid > 0 &&
         (google || process.pid === pid) &&
-        browserName(process.name)
+        browserName(processName(process)) &&
+        running(process as { state?: unknown })
       stage = "render_wait"
       reason = "RENDER_WAIT_FAILED"
       await bounded(() => wait(BROWSER_RENDER_WAIT_MS))
@@ -241,7 +277,9 @@ export async function launchDesktopBrowser(
           options.output?.(
             `${chrome ? "chromeProcessDetected" : "browserProcessDetected"}: false`,
           )
-          if (processes.some((p) => p.pid === pid || browserName(p.name)))
+          if (
+            processes.some((p) => p.pid === pid || browserName(processName(p)))
+          )
             throw new BrowserLaunchFailure(stage, "CHROME_PROCESS_EXITED")
           exited = true
           break
@@ -259,7 +297,11 @@ export async function launchDesktopBrowser(
           reason = "DESKTOP_NOT_READY"
           const afterCapture = await bounded(() => vm.process.list())
           if (!afterCapture.some(matches)) {
-            if (afterCapture.some((p) => p.pid === pid || browserName(p.name)))
+            if (
+              afterCapture.some(
+                (p) => p.pid === pid || browserName(processName(p)),
+              )
+            )
               throw new BrowserLaunchFailure(stage, "CHROME_PROCESS_EXITED")
             exited = true
             break

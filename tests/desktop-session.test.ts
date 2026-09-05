@@ -41,8 +41,9 @@ function harness() {
     health: vi.fn(async () => ({ ready: true, display: true, vnc: true })),
     close: vi.fn(),
     open: vi.fn(async () => 123),
+    exec: vi.fn(async () => ({ exitCode: 0, stdout: "", stderr: "" })),
     screenshot: vi.fn(async () => renderImage),
-    process: { list: vi.fn(async () => [{ pid: 123, name: "firefox" }]) },
+    process: { list: vi.fn(async () => [{ pid: 123, name: "chrome" }]) },
     destroy: vi.fn(),
     keyboard: { type: vi.fn(async (_text: string) => undefined) },
     stream: {
