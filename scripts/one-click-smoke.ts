@@ -25,7 +25,8 @@ const server = spawn(
   process.execPath,
   [
     resolve("node_modules/next/dist/bin/next"),
-    "dev",
+    // Reuse an existing build to avoid taking the user's running dev-server lock.
+    process.argv.includes("--production") ? "start" : "dev",
     "--hostname",
     "127.0.0.1",
     "--port",
@@ -42,6 +43,7 @@ const server = spawn(
       CLEANBREAK_REAL_PROVIDER_AUTHORIZED: "false",
       CLEANBREAK_ALLOW_DESTRUCTIVE_CANCEL: "false",
       CLEANBREAK_OPERATOR_PASSWORD: "",
+      CLEANBREAK_CANCELLATION_WORKER: "false",
       NEXT_TELEMETRY_DISABLED: "1",
     },
   },

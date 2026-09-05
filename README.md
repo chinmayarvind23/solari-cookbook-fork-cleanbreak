@@ -26,6 +26,21 @@ See [one-click operation, authorization and recovery](docs/one-click-product.md)
 for the exact explicit live flags, operator authentication, trust limits, safe
 dry-run and receipt evidence commands.
 
+For the local web app controlling an existing, authenticated Miro Desktop, stop
+the previous dev server, then run `npm run dev:live`. This explicit live-mode
+launcher reads `.env`, prompts for a hidden 24+ character operator password if
+needed, validates configuration locally, and passes all live flags to the actual
+Next server process. It does not connect to Solari or submit a cancellation.
+Open the **exact** loopback address it prints, sign in as `cleanbreak`, and use
+the Miro card marked **Live cancellation**. `localhost` and `127.0.0.1` are not
+interchangeable for the origin protection. The launcher disables background
+startup recovery; existing job requests can still resume their persisted work.
+It never writes the password to a file or puts it in command-line arguments.
+`npm run dev` retains the existing safe defaults. A disabled card now says
+**Live setup required**, and rejected requests display fixed, actionable errors
+without exposing server/provider details. No real-provider success is implied
+by starting the web server or passing local tests.
+
 ## The problem
 
 Canceling a subscription is often a multi-screen workflow with retention offers,

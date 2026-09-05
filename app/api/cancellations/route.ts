@@ -8,9 +8,14 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 export async function POST(request: Request) {
   const headers = { "Cache-Control": "no-store" }
-  if (!operatorAllowed(request.headers) || !sameOriginPost(request.headers))
+  if (!operatorAllowed(request.headers))
     return Response.json(
-      { error: "REQUEST_NOT_AUTHORIZED" },
+      { error: "OPERATOR_AUTH_REQUIRED" },
+      { status: 403, headers },
+    )
+  if (!sameOriginPost(request.headers))
+    return Response.json(
+      { error: "APP_ORIGIN_MISMATCH" },
       { status: 403, headers },
     )
   try {

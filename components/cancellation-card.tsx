@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { PublicCancellation } from "@/lib/cancellations/public"
 import { terminal, type Provider } from "@/lib/cancellations/state"
+import { cancellationStartError } from "@/lib/cancellations/start-feedback"
 export function CancellationCard({
   provider,
   planName,
@@ -55,7 +56,7 @@ export function CancellationCard({
     }
   }, [storageKey, busy])
   async function cancel() {
-    if (sending.current) return
+    if (sending.current || !enabled) return
     sending.current = true
     setBusy(true)
     setError("")
@@ -67,16 +68,23 @@ export function CancellationCard({
       localStorage.setItem(storageKey, JSON.stringify({ key }))
       const response = await fetch("/api/cancellations", {
         method: "POST",
+        signal: AbortSignal.timeout(15_000),
         headers: { "Content-Type": "application/json", "Idempotency-Key": key },
         body: JSON.stringify({ provider }),
       })
-      if (!response.ok) throw new Error()
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as {
+          error?: string
+        } | null
+        setError(cancellationStartError(response.status, body?.error))
+        return
+      }
       const value = (await response.json()) as PublicCancellation
       localStorage.setItem(storageKey, JSON.stringify({ key, id: value.id }))
       setJob(value)
     } catch {
       setError(
-        "Cancellation could not be started. Check configuration or retry with the same request key.",
+        "Cancellation request was not confirmed. Check that browser storage is enabled, then refresh to reconnect with the same request key. Do not submit a new cancellation.",
       )
     } finally {
       sending.current = false
@@ -132,17 +140,32 @@ export function CancellationCard({
             disabled={!enabled || busy}
             onClick={cancel}
           >
-            {busy ? "Authorizing..." : "Cancel subscription"}
+            {!enabled
+              ? "Live setup required"
+              : busy
+                ? "Authorizing..."
+                : "Cancel subscription"}
           </button>
         )}
         {!enabled && (
           <p>
             Live cancellation is disabled. The developer dry-run never submits
             cancellation. Enable the three explicit live-mode flags and operator
-            authentication on the server to use this one-click product flow.
+            authentication on the server to use this one-click product flow.{" "}
+            Stop the existing web server and run <code>npm run dev:live</code>,
+            then open the exact address printed in that terminal.
           </p>
         )}
-        {error && <p role="alert">{error}</p>}
+        {busy && (
+          <p role="status">
+            Submitting authorization. Please wait; do not click again.
+          </p>
+        )}
+        {error && (
+          <p className="cancellation-notice" role="alert">
+            {error}
+          </p>
+        )}
       </div>
     </article>
   )

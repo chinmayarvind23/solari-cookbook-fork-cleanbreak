@@ -84,6 +84,8 @@ describe("one-click server routes", () => {
     )
     expect(markup).toContain("dry-run never submits")
     expect(markup).toContain("disabled=")
+    expect(markup).toContain("Live setup required")
+    expect(markup).toContain("npm run dev:live")
   })
   it("initial POST persists authorization and returns immediately before worker runs", async () => {
     const response = await POST(request())
@@ -124,6 +126,11 @@ describe("one-click server routes", () => {
     ).toBe(404)
   })
   it("rejects CSRF, unsupported providers, and caller-supplied authorization scope", async () => {
+    const mismatched = await POST(
+      request(undefined, undefined, "http://127.0.0.1:3000"),
+    )
+    expect(mismatched.status).toBe(403)
+    expect(await mismatched.json()).toEqual({ error: "APP_ORIGIN_MISMATCH" })
     expect(
       (await POST(request(undefined, undefined, "https://attacker.example")))
         .status,
