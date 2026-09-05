@@ -36,6 +36,15 @@ cannot tolerate this residual risk. Use a separately scoped identity/session.
 
 ## Defense stack
 
+The Miro adapter is scoped to the configured HTTPS Miro Billing origin/path,
+authenticated standalone billing surface, exact first-entry labels and completed
+flow history. The observed URL remains in memory; evidence stores only adapter,
+rule and surface/role enums. Reused labels need visible next-step/choice evidence;
+consequences and ambiguity intercept. No financial authorization is added.
+URL, surface and role remain untrusted screenshot interpretations, not independent
+attestation. Unknown or truncated address bars fail closed. The research-only
+deployment limit and wrong-write blast radius above still apply.
+
 - The user explicitly requested invocation-level consent for reversible actions
   in `--auto`. This overrides the trust-boundary skill's usual fresh-HITL-per-write
   requirement **only for the allowlisted navigation/reason actions**. Default mode

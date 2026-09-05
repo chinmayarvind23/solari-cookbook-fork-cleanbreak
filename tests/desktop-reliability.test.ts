@@ -14,6 +14,7 @@ const decision = {
   targetText: null,
   visibleText: null,
   observedOrigin: "https://provider.example",
+  miroObservation: null,
   destinationOrigin: null,
   pageStatus: "authenticated_provider",
   flowStage: "BILLING",

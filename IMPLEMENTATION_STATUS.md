@@ -26,3 +26,11 @@
 - Profile-protection validation: all 206 tests across 12 files pass, including blocked-page/cleanup regressions, explicitly confirmed refresh, unchanged fixture behavior, external commit write isolation, and migration of historical v4 jobs. Typecheck, format check, production build, secret audit (137 repository files and 13 client-bundle files; zero configured credential matches), and diff whitespace checks pass. All provider/browser tests use offline doubles.
 - Real blockers: Canva remains blocked before authenticated provider UI; optional real cancellation was not explicitly authorized; public deployment still requires a persistence-capable hosting account/token or connection.
 - Next exact task: after offline verification of profile protection, manually restore the dedicated Canva profile through `profile:login`. Any external-provider retry requires separate authorization; retain dry-run mode and disable automatic profile persistence.
+
+# Miro Desktop adapter update
+
+- Narrow documented Billing cancellation entry adapter; generic policy unchanged.
+- Completed navigation history distinguishes reused labels; consequences and ambiguity stop, including in auto mode.
+- Miro validation requires prior adapter navigation and a positively established later final boundary with zero destructive/unsafe actions or retries.
+- Safe adapter/stage metadata only; existing screenshot evidence, stability checks, one-use grants and human review defaults retained.
+- Offline verification only. No live Desktop/Miro run, authentication, or cancellation performed for this change.

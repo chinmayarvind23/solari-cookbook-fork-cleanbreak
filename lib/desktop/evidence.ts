@@ -11,6 +11,18 @@ export function successfulDesktopValidation(run: DesktopRun): boolean {
     run.unsafeActionsExecuted === 0 &&
     run.automaticDestructiveRetries === 0 &&
     (run.mode !== "auto" || run.finalBoundaryEstablished) &&
+    (run.providerAdapter !== "miro" ||
+      (run.finalBoundaryEstablished &&
+        run.steps
+          .slice(0, -1)
+          .some(
+            (s) =>
+              s.providerAdapter === "miro" &&
+              s.adapterRule !== null &&
+              s.decision?.type === "cancel_flow_navigation" &&
+              s.execution === "NAVIGATION_RETURNED" &&
+              s.screenStability?.stable === true,
+          ))) &&
     run.proposedAction !== null &&
     run.paused &&
     run.controlClosed &&
@@ -59,6 +71,7 @@ export function desktopEvidence(
             schemaVersion: 1,
             executor: "desktop",
             mode: run.mode,
+            providerAdapter: run.providerAdapter,
             finalBoundaryEstablished: run.finalBoundaryEstablished,
             automaticDestructiveRetries: run.automaticDestructiveRetries,
             runId,

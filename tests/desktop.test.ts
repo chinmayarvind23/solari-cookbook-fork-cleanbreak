@@ -19,8 +19,10 @@ import {
   SAFE_DESKTOP_NAVIGATION_KEYS,
   safeDesktopDecision,
   authorizeDesktopNavigation,
+  evaluateDesktopDecision,
   type DesktopDecision,
 } from "@/lib/desktop/decision"
+import type { MiroScope } from "@/lib/desktop/miro"
 import { createDesktopPlanner } from "@/lib/desktop/planner"
 import {
   runDesktopDryRun,
@@ -65,6 +67,7 @@ function decision(patch: Partial<DesktopDecision> = {}): DesktopDecision {
     targetText: "Confirm cancellation",
     visibleText: "No fee",
     observedOrigin: "https://provider.example",
+    miroObservation: null,
     destinationOrigin: null,
     pageStatus: "authenticated_provider",
     flowStage: "BILLING",
@@ -80,6 +83,339 @@ const baseScreenshot = await sharp({
   .png()
   .toBuffer()
 const png = () => Buffer.from(baseScreenshot)
+
+describe("narrow Miro cancellation adapter", () => {
+  const url = "https://miro.com/app/settings/company/test-company/billing"
+  const scope: MiroScope = {
+    providerName: "Miro",
+    startUrl: url,
+    completedCancellationSteps: 0,
+    completedRules: [],
+  }
+  const entered: MiroScope = {
+    ...scope,
+    completedCancellationSteps: 1,
+    completedRules: ["ENTRY"],
+  }
+  const miroEnv = {
+    ...env,
+    CLEANBREAK_REAL_PROVIDER_NAME: "Miro",
+    CLEANBREAK_REAL_PROVIDER_URL: url,
+  }
+  function miro(
+    label = "Cancel subscription",
+    surface: NonNullable<
+      DesktopDecision["miroObservation"]
+    >["surface"] = "BILLING_PAGE",
+    context = "Billing actions",
+    role: NonNullable<
+      DesktopDecision["miroObservation"]
+    >["targetRole"] = "BUTTON",
+  ) {
+    return decision({
+      targetText: label,
+      visibleText: context,
+      observedOrigin: "https://miro.com",
+      miroObservation: { pageUrl: url, surface, targetRole: role },
+    })
+  }
+  const assess = (d: DesktopDecision, s = scope) =>
+    evaluateDesktopDecision(d, "https://miro.com", 1280, 720, 0.9, s)
+  it.each(["Cancel subscription", "Cancel trial"])(
+    "allows first documented %s Billing entry",
+    (label) => {
+      expect(
+        assess(
+          miro(
+            label,
+            "BILLING_PAGE",
+            "Billing actions Licensing configuration Trial",
+          ),
+        ),
+      ).toMatchObject({
+        rule: "ENTRY",
+        policy: { result: "ALLOW" },
+        decision: {
+          type: "cancel_flow_navigation",
+          flowStage: "CANCELLATION_ENTRY",
+        },
+        finalBoundaryEstablished: false,
+      })
+    },
+  )
+  it("does not reuse the entry exception after completed navigation", () => {
+    expect(assess(miro(), entered).policy.result).toBe("INTERCEPT")
+    expect(
+      assess(
+        miro(
+          "Cancel subscription",
+          "CANCELLATION_CHOICE",
+          "Choose cancellation",
+        ),
+        entered,
+      ).policy.result,
+    ).toBe("INTERCEPT")
+  })
+  it.each([
+    "Confirm cancellation",
+    "Cancel now",
+    "End trial",
+    "Yes, cancel",
+    "Complete cancellation",
+    "Cancel subscription",
+    "Cancel trial",
+  ])("intercepts final %s", (label) => {
+    const d = miro(
+      label,
+      "FINAL_CONFIRMATION",
+      "Cancellation will be scheduled and effective at period end",
+    )
+    expect(assess(d, entered)).toMatchObject({
+      policy: { result: "INTERCEPT" },
+      finalBoundaryEstablished: true,
+    })
+    expect(
+      authorizeDesktopNavigation(
+        d,
+        "https://miro.com",
+        1280,
+        720,
+        0.9,
+        entered,
+      ),
+    ).toBeNull()
+  })
+  it.each([
+    "scheduled",
+    "cancels your subscription now",
+    "clicking cancels the subscription",
+    "immediately",
+    "effective",
+    "confirmed",
+    "will be canceled",
+    "will end",
+    "unpaid invoice",
+    "downgrade",
+    "upgrade",
+    "pause",
+    "payment",
+    "agree to terms",
+  ])("does not allow entry with %s consequences", (context) => {
+    expect(
+      assess(
+        miro(
+          "Cancel subscription",
+          "BILLING_PAGE",
+          `Billing actions ${context}`,
+        ),
+      ).policy.result,
+    ).toBe("INTERCEPT")
+  })
+  it.each([
+    { pageStatus: "login" },
+    { pageStatus: "challenge" },
+    { pageStatus: "unknown" },
+    { confidence: 0.1 },
+    { x: -1 },
+    { observedOrigin: "https://other.example" },
+    { destinationOrigin: "https://other.example" },
+    { miroObservation: null },
+  ] satisfies Partial<DesktopDecision>[])(
+    "fails closed on missing/unsafe observation %j",
+    (patch) => {
+      expect(assess({ ...miro(), ...patch }).policy.result).not.toBe("ALLOW")
+    },
+  )
+  it.each([
+    "https://miro.com/app/settings/company/other/billing",
+    "https://other.example/billing",
+    `${url}?private=value`,
+    "https://miro.com/.../billing",
+  ])("rejects mismatched/truncated URL %s", (pageUrl) => {
+    const d = miro()
+    d.miroObservation!.pageUrl = pageUrl
+    expect(assess(d).policy.result).toBe("INTERCEPT")
+  })
+  it("leaves the generic non-Miro ambiguous cancel policy intercepted", () => {
+    expect(
+      assess(miro(), { ...scope, providerName: "Other" }).policy.result,
+    ).toBe("INTERCEPT")
+    expect(
+      desktopPolicy(miro(), "https://miro.com", 1280, 720, 0.9).result,
+    ).toBe("INTERCEPT")
+  })
+  it("requires a standalone billing surface and trial context", () => {
+    expect(
+      assess(miro("Cancel subscription", "CANCELLATION_DIALOG")).policy.result,
+    ).toBe("INTERCEPT")
+    expect(assess(miro("Cancel trial")).policy.result).toBe("INTERCEPT")
+    expect(
+      assess(miro("Cancel subscription", "BILLING_PAGE", "Unknown page")).policy
+        .result,
+    ).toBe("INTERCEPT")
+  })
+  it("allows only a non-committing choice or explicit next-review button", () => {
+    const context = "Choose Cancel subscription before the Continue button"
+    expect(
+      assess(
+        miro("Cancel subscription", "CANCELLATION_CHOICE", context, "RADIO"),
+        entered,
+      ).rule,
+    ).toBe("CANCEL_CHOICE")
+    expect(
+      assess(
+        miro("Cancel subscription", "CANCELLATION_CHOICE", context),
+        entered,
+      ).policy.result,
+    ).toBe("INTERCEPT")
+    expect(
+      assess(
+        miro(
+          "Cancel subscription",
+          "CANCELLATION_CHOICE",
+          "Opens the cancellation reason screen",
+        ),
+        entered,
+      ).rule,
+    ).toBe("NEXT_REVIEW")
+  })
+  it.each(["Continue", "Continue to cancel"])(
+    "allows documented %s but not retention acceptance",
+    (label) => {
+      expect(
+        assess(
+          miro(label, "CANCELLATION_DIALOG", "Cancel subscription"),
+          entered,
+        ).rule,
+      ).toBe("CONTINUE_DIALOG")
+      expect(
+        assess(miro(label, "REASON", "Cancellation reason"), entered).rule,
+      ).toBe("CONTINUE_REASON")
+      expect(
+        assess(
+          miro(
+            label,
+            "CANCELLATION_DIALOG",
+            "Cancel subscription and downgrade",
+          ),
+          entered,
+        ).policy.result,
+      ).toBe("INTERCEPT")
+      expect(
+        assess(miro(label, "CANCELLATION_DIALOG", "Cancel subscription"), {
+          ...entered,
+          completedRules: ["ENTRY", "CONTINUE_DIALOG"],
+        }).policy.result,
+      ).toBe("INTERCEPT")
+    },
+  )
+  it("limits optional tool choice to neutral non-financial selection", () => {
+    expect(
+      assess(
+        miro(
+          "Prefer not to say",
+          "TOOL_SWITCH",
+          "Switching to another tool",
+          "OPTION",
+        ),
+        entered,
+      ).rule,
+    ).toBe("NEUTRAL_TOOL_CHOICE")
+    expect(
+      assess(miro("Upgrade", "TOOL_SWITCH", "Switch tool", "OPTION"), entered)
+        .policy.result,
+    ).not.toBe("ALLOW")
+  })
+  it("keeps URL and private context out of safe decision evidence", () => {
+    const safe = JSON.stringify(
+      safeDesktopDecision(
+        miro("Cancel subscription", "BILLING_PAGE", "private-screen-sentinel"),
+      ),
+    )
+    expect(safe).not.toContain(url)
+    expect(safe).not.toContain("private-screen-sentinel")
+  })
+  it("traverses documented reversible steps once and validates only the later final boundary", async () => {
+    const reason = miro("No longer needed", "REASON", "Cancellation reason")
+    reason.type = "click"
+    reason.flowStage = "REASON"
+    const h = harness([
+      miro(),
+      miro("Continue to cancel", "CANCELLATION_DIALOG", "Cancel subscription"),
+      miro(
+        "Cancel subscription",
+        "CANCELLATION_CHOICE",
+        "Choose Cancel subscription before the Continue button",
+        "RADIO",
+      ),
+      miro(
+        "Cancel subscription",
+        "CANCELLATION_CHOICE",
+        "Opens the cancellation reason screen",
+      ),
+      reason,
+      miro("Continue to cancel", "REASON", "Cancellation reason"),
+      miro(
+        "Cancel subscription",
+        "FINAL_CONFIRMATION",
+        "Cancellation will be scheduled",
+      ),
+    ])
+    const run = await runDesktopDryRun(miroEnv, { ...h.deps, auto: true })
+    expect(run).toMatchObject({
+      providerAdapter: "miro",
+      state: "AWAITING_APPROVAL",
+      finalBoundaryEstablished: true,
+      stopReason: "FINAL_ACTION_BOUNDARY",
+      destructiveClicksExecuted: 0,
+      unsafeActionsExecuted: 0,
+      automaticDestructiveRetries: 0,
+    })
+    expect(h.vm.mouse.click).toHaveBeenCalledTimes(6)
+    expect(run.steps[0]).toMatchObject({
+      adapterRule: "ENTRY",
+      flowStage: "CANCELLATION_ENTRY",
+      execution: "NAVIGATION_RETURNED",
+    })
+    expect(run.steps.at(-1)?.execution).toBe("NOT_EXECUTED")
+    expect(successfulDesktopValidation(run)).toBe(true)
+    expect(
+      successfulDesktopValidation({ ...run, finalBoundaryEstablished: false }),
+    ).toBe(false)
+    expect(
+      successfulDesktopValidation({ ...run, steps: run.steps.slice(-1) }),
+    ).toBe(false)
+    expect(JSON.stringify(run)).not.toContain(url)
+  })
+  it("auto stops on repeated ambiguous labels without validation or destructive retries", async () => {
+    const h = harness([miro(), miro()])
+    const run = await runDesktopDryRun(miroEnv, { ...h.deps, auto: true })
+    expect(h.vm.mouse.click).toHaveBeenCalledTimes(1)
+    expect(run.finalBoundaryEstablished).toBe(false)
+    expect(successfulDesktopValidation(run)).toBe(false)
+    expect(run.automaticDestructiveRetries).toBe(0)
+  })
+  it("retains human review, screenshot stability, and no retry on failed entry", async () => {
+    const denied = harness([miro()])
+    denied.deps.confirm.mockResolvedValue(false)
+    await runDesktopDryRun(miroEnv, denied.deps)
+    expect(denied.vm.mouse.click).not.toHaveBeenCalled()
+    const changed = harness([miro()])
+    changed.vm.screenshot
+      .mockResolvedValueOnce(png())
+      .mockResolvedValue(await drift(200, 300))
+    expect((await runDesktopDryRun(miroEnv, changed.deps)).stopReason).toBe(
+      "SCREEN_CHANGED",
+    )
+    expect(changed.vm.mouse.click).not.toHaveBeenCalled()
+    const failed = harness([miro()])
+    failed.vm.mouse.click.mockRejectedValue(new Error("failed"))
+    const run = await runDesktopDryRun(miroEnv, { ...failed.deps, auto: true })
+    expect(failed.vm.mouse.click).toHaveBeenCalledTimes(1)
+    expect(successfulDesktopValidation(run)).toBe(false)
+    expect(run.steps).toHaveLength(1)
+  })
+})
 
 async function drift(left = 10, top = 10) {
   const cursor = await sharp({

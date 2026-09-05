@@ -1,5 +1,10 @@
 import { z } from "zod"
 import { classifyTarget } from "@/lib/agent/policy"
+import {
+  assessMiroDecision,
+  miroObservationSchema,
+  type MiroScope,
+} from "./miro"
 
 // One strict object (no root anyOf); nullable unused fields are still required.
 export const desktopDecisionSchema = z
@@ -22,6 +27,7 @@ export const desktopDecisionSchema = z
     targetText: z.string().max(160).nullable(),
     visibleText: z.string().max(600).nullable(),
     observedOrigin: z.string().max(200).nullable(),
+    miroObservation: miroObservationSchema.nullable(),
     destinationOrigin: z.string().max(200).nullable(),
     pageStatus: z.enum([
       "authenticated_provider",
@@ -110,9 +116,18 @@ export function authorizeDesktopNavigation(
   width: number,
   height: number,
   minConfidence: number,
+  miroScope?: MiroScope,
 ): DesktopDecision | null {
-  if (desktopPolicy(d, origin, width, height, minConfidence).result !== "ALLOW")
-    return null
+  const assessment = evaluateDesktopDecision(
+    d,
+    origin,
+    width,
+    height,
+    minConfidence,
+    miroScope,
+  )
+  if (assessment.policy.result !== "ALLOW") return null
+  d = assessment.decision
   if (!["click", "cancel_flow_navigation", "type", "key"].includes(d.type))
     return null
   const grant = { ...d, keys: d.keys ? [...d.keys] : null }
@@ -128,6 +143,26 @@ export function consumeDesktopNavigationGrant(d: DesktopDecision): boolean {
 export type DesktopPolicy = {
   result: "ALLOW" | "BLOCK" | "INTERCEPT"
   code: string
+}
+export function evaluateDesktopDecision(
+  d: DesktopDecision,
+  origin: string,
+  width: number,
+  height: number,
+  minConfidence: number,
+  miroScope?: MiroScope,
+) {
+  const adapter = miroScope
+    ? assessMiroDecision(d, miroScope, origin, width, height, minConfidence)
+    : null
+  return (
+    adapter ?? {
+      decision: d,
+      policy: desktopPolicy(d, origin, width, height, minConfidence),
+      rule: null,
+      finalBoundaryEstablished: establishedFinalBoundary(d),
+    }
+  )
 }
 export function desktopPolicy(
   d: DesktopDecision,
@@ -261,6 +296,12 @@ export function safeDesktopDecision(d: DesktopDecision) {
     y: d.y,
     confidence: d.confidence,
     pageStatus: d.pageStatus,
+    miroObservation: d.miroObservation
+      ? {
+          surface: d.miroObservation.surface,
+          targetRole: d.miroObservation.targetRole,
+        }
+      : null,
     flowStage: d.flowStage,
     deltaY: d.deltaY,
     keys: desktopNavigationKeys(d.keys),

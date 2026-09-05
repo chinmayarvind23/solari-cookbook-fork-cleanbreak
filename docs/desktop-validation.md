@@ -575,3 +575,47 @@ is withheld; the policy result explains each dispatch/stop. Tool failure produce
 
 What to read next: Lesson 27 (prompt injection), before extending actions against
 untrusted provider content.
+
+# Miro-specific reversible cancellation adapter
+
+The Desktop executor recognizes `providerAdapter: "miro"` only for provider name
+`Miro` (case-insensitive) and an HTTPS `miro.com/app/settings/.../billing` URL
+(optionally `/subscription`). No other provider receives this exception.
+
+The first exact `Cancel subscription` or `Cancel trial` button is navigation only
+when the screenshot observation identifies an authenticated standalone Billing
+page at the exact configured origin/path, Billing/Billing actions/Licensing
+configuration context (and trial context for trial entry), valid coordinates and
+sufficient confidence. Credentials, query/fragment URLs, unknown/truncated page
+addresses, dialog overlays, consequences, invoice-risk and financial/security
+contexts fail closed. The full observed URL is used only in memory, not metadata.
+
+This narrow exception follows Miro's documented multi-step
+[subscription cancellation](https://help.miro.com/hc/en-us/articles/360011986179-Cancel-your-Miro-subscription)
+and [Free-plan Business trial cancellation](https://help.miro.com/hc/en-us/articles/15392587152786-Business-plan-14-day-free-trial).
+It does not authorize other trial variants that require downgrade or terms acceptance.
+
+Only completed navigation changes flow history. After entry, the same label is
+intercepted unless it is clearly an option/radio before a separate button, or a
+button with explicit visible evidence of another reason/review screen. Documented
+Continue/Continue to cancel dialog and reason steps are each allowed once;
+neutral reasons retain generic policy, and the optional tool choice is limited
+to a non-financial `Prefer not to say` option. Offers, pauses, plan/payment/account
+changes remain blocked. No label by itself grants authority.
+
+Final/destructive wording and scheduled/effective/confirmed consequences always
+intercept. Ambiguity stops even with `--auto`; it is not successful validation.
+Miro validation additionally requires completed adapter navigation, a subsequent
+positively established final consequence boundary, `AWAITING_APPROVAL`, zero
+destructive/unsafe actions and zero destructive retries. Safe evidence includes
+adapter/rule/stage enums, not private context. Existing human review (default),
+one-use dispatch grants and target-aware visual stability checks remain active.
+
+After manually authenticating the dedicated Desktop, rerun explicitly:
+
+```powershell
+npm run real-provider:desktop-dry-run -- --auto
+```
+
+This adapter is offline-tested, not live-verified; screenshot interpretation is
+not independent authentication or URL attestation. See the trust-boundary memo.

@@ -6,9 +6,8 @@ import {
   desktopDecisionSchema,
   authorizeDesktopNavigation,
   consumeDesktopNavigationGrant,
-  establishedFinalBoundary,
   desktopNavigationKeys,
-  desktopPolicy,
+  evaluateDesktopDecision,
   safeDesktopDecision,
   type DesktopDecision,
 } from "./decision"
@@ -17,6 +16,7 @@ import { desktopEvidence } from "./evidence"
 import { startDesktopViewer } from "./viewer"
 import { screenStability, type ScreenStability } from "./screen-stability"
 import { stabilizeDesktopPage, type TransitionStability } from "./stabilize"
+import { isMiroProvider, type MiroRule, type MiroScope } from "./miro"
 
 export type DesktopHandle = Pick<
   Desktop,
@@ -37,6 +37,7 @@ export type DesktopRun = {
   desktopId: string
   executor: "desktop"
   mode: "auto" | "supervised"
+  providerAdapter: "miro" | null
   finalBoundaryEstablished: boolean
   automaticDestructiveRetries: 0
   state: "FAILED" | "AWAITING_APPROVAL"
@@ -48,6 +49,8 @@ export type DesktopRun = {
     screenStability: ScreenStability | null
     transitionStability: TransitionStability | null
     flowStage: DesktopDecision["flowStage"] | null
+    providerAdapter: "miro" | null
+    adapterRule: MiroRule | null
     width: number
     height: number
     decision: ReturnType<typeof safeDesktopDecision> | null
@@ -156,6 +159,12 @@ export async function runDesktopDryRun(
     desktopId: config.desktopId,
     executor: "desktop",
     mode: auto ? "auto" : "supervised",
+    providerAdapter: isMiroProvider(
+      config.provider.providerName,
+      config.provider.startUrl,
+    )
+      ? "miro"
+      : null,
     finalBoundaryEstablished: false,
     automaticDestructiveRetries: 0,
     state: "FAILED",
@@ -231,6 +240,8 @@ export async function runDesktopDryRun(
         screenStability: null,
         transitionStability: null,
         flowStage: null,
+        providerAdapter: run.providerAdapter,
+        adapterRule: null,
         width,
         height,
         decision: null,
@@ -241,6 +252,22 @@ export async function runDesktopDryRun(
       run.steps.push(entry)
       evidence.job(run)
       phase = "PLANNER_FAILED"
+      const completedSteps = run.steps.filter(
+        (s) => s.execution === "NAVIGATION_RETURNED",
+      )
+      const miroScope: MiroScope | undefined =
+        run.providerAdapter === "miro"
+          ? {
+              providerName: config.provider.providerName,
+              startUrl: config.provider.startUrl,
+              completedCancellationSteps: completedSteps.filter(
+                (s) => s.decision?.type === "cancel_flow_navigation",
+              ).length,
+              completedRules: completedSteps.flatMap((s) =>
+                s.adapterRule ? [s.adapterRule] : [],
+              ),
+            }
+          : undefined
       const planned = await planner({
         screenshot,
         width,
@@ -249,9 +276,22 @@ export async function runDesktopDryRun(
         history: history.slice(-6),
         remainingTokens: config.maxTokens - tokens,
         signal,
+        providerAdapter: run.providerAdapter,
+        miroCancellationEntered:
+          (miroScope?.completedCancellationSteps ?? 0) > 0,
       })
       signal.throwIfAborted()
-      const decision = desktopDecisionSchema.parse(planned.decision)
+      const rawDecision = desktopDecisionSchema.parse(planned.decision)
+      const assessment = evaluateDesktopDecision(
+        rawDecision,
+        new URL(config.provider.startUrl).origin,
+        width,
+        height,
+        config.agent.minConfidence,
+        miroScope,
+      )
+      const decision = assessment.decision
+      entry.adapterRule = assessment.rule
       entry.decision = safeDesktopDecision(decision)
       entry.flowStage = decision.flowStage
       tokens += planned.tokens
@@ -260,13 +300,7 @@ export async function runDesktopDryRun(
         entry.policy = run.stopReason
         break
       }
-      const policy = desktopPolicy(
-        decision,
-        new URL(config.provider.startUrl).origin,
-        width,
-        height,
-        config.agent.minConfidence,
-      )
+      const policy = assessment.policy
       entry.policy = policy.code
       entry.policyResult = policy.result
       const summarize = (outcome?: string) => {
@@ -283,7 +317,7 @@ export async function runDesktopDryRun(
       if (policy.result === "INTERCEPT") {
         run.state = "AWAITING_APPROVAL"
         run.stopReason = "FINAL_ACTION_BOUNDARY"
-        run.finalBoundaryEstablished = establishedFinalBoundary(decision)
+        run.finalBoundaryEstablished = assessment.finalBoundaryEstablished
         summarize()
         run.proposedAction =
           decision.pageStatus === "authenticated_provider" &&
@@ -340,11 +374,12 @@ export async function runDesktopDryRun(
       }
       signal.throwIfAborted()
       const authorized = authorizeDesktopNavigation(
-        decision,
+        rawDecision,
         new URL(config.provider.startUrl).origin,
         width,
         height,
         config.agent.minConfidence,
+        miroScope,
       )
       if (!authorized) {
         run.stopReason = "ACTION_NOT_DISPATCHED"

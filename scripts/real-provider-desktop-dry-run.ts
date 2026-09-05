@@ -89,6 +89,7 @@ export async function desktopDryRunCommand(
         unsafeActionsExecuted: result.unsafeActionsExecuted,
         automaticDestructiveRetries: result.automaticDestructiveRetries,
         mode: result.mode,
+        providerAdapter: result.providerAdapter,
         finalBoundaryEstablished: result.finalBoundaryEstablished,
       }),
     )
