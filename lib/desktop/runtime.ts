@@ -4,14 +4,19 @@ import { DesktopClient, type Desktop } from "@solarisdk/desktop"
 import { readDesktopConfig } from "./config"
 import {
   desktopDecisionSchema,
+  authorizeDesktopNavigation,
+  consumeDesktopNavigationGrant,
+  establishedFinalBoundary,
+  desktopNavigationKeys,
   desktopPolicy,
   safeDesktopDecision,
   type DesktopDecision,
 } from "./decision"
-import { createDesktopPlanner } from "./planner"
+import { createDesktopPlanner, DesktopPlanningFailure } from "./planner"
 import { desktopEvidence } from "./evidence"
 import { startDesktopViewer } from "./viewer"
 import { screenStability, type ScreenStability } from "./screen-stability"
+import { stabilizeDesktopPage, type TransitionStability } from "./stabilize"
 
 export type DesktopHandle = Pick<
   Desktop,
@@ -31,6 +36,9 @@ export type DesktopRun = {
   id: string
   desktopId: string
   executor: "desktop"
+  mode: "auto" | "supervised"
+  finalBoundaryEstablished: boolean
+  automaticDestructiveRetries: 0
   state: "FAILED" | "AWAITING_APPROVAL"
   stopReason: string
   steps: Array<{
@@ -38,11 +46,13 @@ export type DesktopRun = {
     screenshotPath: string
     screenshotHash: string
     screenStability: ScreenStability | null
+    transitionStability: TransitionStability | null
     flowStage: DesktopDecision["flowStage"] | null
     width: number
     height: number
     decision: ReturnType<typeof safeDesktopDecision> | null
     policy: string
+    policyResult: "ALLOW" | "BLOCK" | "INTERCEPT" | null
     execution: string
   }>
   proposedAction: {
@@ -62,6 +72,8 @@ export type DesktopRun = {
   unsafeActionsExecuted: 0
 }
 type Dependencies = {
+  auto: boolean
+  progress(message: string): void
   client: Pick<DesktopClient, "connect" | "pause">
   planner: ReturnType<typeof createDesktopPlanner>
   evidence: ReturnType<typeof desktopEvidence>
@@ -102,12 +114,16 @@ export async function executeNavigation(
   vm: DesktopHandle,
   d: DesktopDecision,
 ): Promise<string> {
+  if (!consumeDesktopNavigationGrant(d)) return "ACTION_NOT_DISPATCHED"
   try {
     if (d.type === "click" || d.type === "cancel_flow_navigation")
       await vm.mouse.click(d.x!, d.y!)
     else if (d.type === "type") await vm.keyboard.type(d.text!)
-    else if (d.type === "key") await vm.keyboard.press(d.keys!)
-    else return "ACTION_NOT_DISPATCHED"
+    else if (d.type === "key") {
+      const keys = desktopNavigationKeys(d.keys)
+      if (keys === null) return "ACTION_NOT_DISPATCHED"
+      await vm.keyboard.press(keys)
+    } else return "ACTION_NOT_DISPATCHED"
     return "NAVIGATION_RETURNED"
   } catch {
     return "ACTION_FAILED_OUTCOME_UNKNOWN_NO_RETRY"
@@ -120,6 +136,7 @@ export async function runDesktopDryRun(
 ): Promise<DesktopRun> {
   // Read/validate before constructing a client or doing any external work.
   const config = readDesktopConfig(environment)
+  const auto = supplied.auto === true
   const id = supplied.id ?? randomUUID()
   const evidence = supplied.evidence ?? desktopEvidence(id)
   const client =
@@ -138,6 +155,9 @@ export async function runDesktopDryRun(
     id,
     desktopId: config.desktopId,
     executor: "desktop",
+    mode: auto ? "auto" : "supervised",
+    finalBoundaryEstablished: false,
+    automaticDestructiveRetries: 0,
     state: "FAILED",
     stopReason: "DESKTOP_NOT_CONNECTED",
     steps: [],
@@ -179,7 +199,7 @@ export async function runDesktopDryRun(
     )
     run.liveViewReference = `desktop-live:${id}`
     phase = "PREPARATION_NOT_CONFIRMED"
-    if (!(await supplied.prepare?.(viewer.url)))
+    if (!auto && !(await supplied.prepare?.(viewer.url)))
       throw new Error("not confirmed")
     signal.throwIfAborted()
     // Manual authentication occurs before this command. No recording of login.
@@ -189,11 +209,14 @@ export async function runDesktopDryRun(
     await vm.record.start({ fps: 10, format: "mp4", path: recordingPath })
     run.recordingGuestPath = recordingPath
     const history: string[] = []
+    let settledScreenshot: Uint8Array | undefined
     run.stopReason = "MAX_STEPS"
     for (let step = 1; step <= config.agent.maxSteps; step++) {
       signal.throwIfAborted()
       phase = "SCREENSHOT_FAILED"
-      const screenshot = await vm.screenshot({ format: "png" })
+      const screenshot =
+        settledScreenshot ?? (await vm.screenshot({ format: "png" }))
+      settledScreenshot = undefined
       const { width, height } = screenshotDimensions(screenshot)
       const display = await vm.display.size()
       if (width !== display.w || height !== display.h) {
@@ -206,11 +229,13 @@ export async function runDesktopDryRun(
         screenshotPath,
         screenshotHash: digest(screenshot),
         screenStability: null,
+        transitionStability: null,
         flowStage: null,
         width,
         height,
         decision: null,
         policy: "PENDING",
+        policyResult: null,
         execution: "NOT_EXECUTED",
       }
       run.steps.push(entry)
@@ -222,6 +247,8 @@ export async function runDesktopDryRun(
         height,
         allowedOrigin: new URL(config.provider.startUrl).origin,
         history: history.slice(-6),
+        remainingTokens: config.maxTokens - tokens,
+        signal,
       })
       signal.throwIfAborted()
       const decision = desktopDecisionSchema.parse(planned.decision)
@@ -241,13 +268,23 @@ export async function runDesktopDryRun(
         config.agent.minConfidence,
       )
       entry.policy = policy.code
+      entry.policyResult = policy.result
+      const summarize = (outcome?: string) => {
+        if (auto)
+          supplied.progress?.(
+            `step ${step}: ${decision.type === "key" ? entry.decision?.keys?.join("+") || "key" : decision.type} -> ${policy.result}${outcome ? ` -> ${outcome}` : ""}`,
+          )
+      }
       if (policy.result === "BLOCK") {
         run.stopReason = policy.code
+        summarize()
         break
       }
       if (policy.result === "INTERCEPT") {
         run.state = "AWAITING_APPROVAL"
         run.stopReason = "FINAL_ACTION_BOUNDARY"
+        run.finalBoundaryEstablished = establishedFinalBoundary(decision)
+        summarize()
         run.proposedAction =
           decision.pageStatus === "authenticated_provider" &&
           decision.observedOrigin ===
@@ -274,6 +311,7 @@ export async function runDesktopDryRun(
       }
       phase = "NAVIGATION_NOT_CONFIRMED"
       if (
+        !auto &&
         !(await supplied.confirm?.(
           step,
           entry.decision,
@@ -297,12 +335,29 @@ export async function runDesktopDryRun(
       evidence.job(run)
       if (!entry.screenStability.stable) {
         run.stopReason = "SCREEN_CHANGED"
+        summarize("SCREEN_CHANGED")
         break
       }
       signal.throwIfAborted()
+      const authorized = authorizeDesktopNavigation(
+        decision,
+        new URL(config.provider.startUrl).origin,
+        width,
+        height,
+        config.agent.minConfidence,
+      )
+      if (!authorized) {
+        run.stopReason = "ACTION_NOT_DISPATCHED"
+        break
+      }
       entry.execution = "DISPATCH_PENDING"
       evidence.job(run)
-      entry.execution = await executeNavigation(vm, decision)
+      entry.execution = await executeNavigation(vm, authorized)
+      summarize(
+        entry.execution === "NAVIGATION_RETURNED"
+          ? "dispatched"
+          : "failed_no_retry",
+      )
       history.push(
         `step ${step}: ${decision.flowStage} ${decision.type} -> ${entry.execution}`,
       )
@@ -311,11 +366,19 @@ export async function runDesktopDryRun(
         run.stopReason = entry.execution
         break
       }
-      await sleep(500)
+      phase = "PAGE_STABILIZATION_FAILED"
+      const settled = await stabilizeDesktopPage(vm, sleep, signal)
+      entry.transitionStability = settled.metrics
+      settledScreenshot = settled.screenshot
+      evidence.job(run)
     }
-  } catch {
+  } catch (error) {
     run.state = "FAILED"
-    run.stopReason = signal.aborted ? "INTERRUPTED" : phase
+    run.stopReason = signal.aborted
+      ? "INTERRUPTED"
+      : error instanceof DesktopPlanningFailure
+        ? error.code
+        : phase
   } finally {
     if (vm && recordingAttempted) {
       try {
@@ -354,7 +417,12 @@ export async function runDesktopDryRun(
     }
     // Pause first; optional local recording review must never keep compute alive.
     try {
-      if (!signal.aborted && viewer && run.recordingStatus === "AVAILABLE")
+      if (
+        !auto &&
+        !signal.aborted &&
+        viewer &&
+        run.recordingStatus === "AVAILABLE"
+      )
         await supplied.reviewRecording?.(viewer.url)
     } catch {
       /* Recording review is not browser action or success evidence. */

@@ -44,11 +44,37 @@ export const desktopDecisionSchema = z
   .strict()
 export type DesktopDecision = z.infer<typeof desktopDecisionSchema>
 export const NEUTRAL_REASON = "I no longer need this subscription."
+export const SAFE_DESKTOP_NAVIGATION_KEYS = [
+  "Escape",
+  "Page_Down",
+  "Page_Up",
+  "Tab",
+  "Shift+Tab",
+  "ArrowDown",
+  "ArrowUp",
+  "ArrowLeft",
+  "ArrowRight",
+] as const
+
+// Exact allowlist, not a general shortcut parser. The SDK represents chords as
+// arrays; Shift+Tab is the sole permitted modifier combination.
+export function desktopNavigationKeys(
+  keys: readonly string[] | null,
+): string[] | null {
+  if (keys?.length === 2 && keys[0] === "Shift" && keys[1] === "Tab")
+    return ["Shift", "Tab"]
+  if (
+    keys?.length !== 1 ||
+    !SAFE_DESKTOP_NAVIGATION_KEYS.some((key) => key === keys[0])
+  )
+    return null
+  return keys[0] === "Shift+Tab" ? ["Shift", "Tab"] : [keys[0]]
+}
 
 const cancellationLabel =
   /cancel|end.*(?:membership|subscription|trial)|(?:turn off|stop).*renew/i
 const flowNavigationLabel =
-  /^(?:start cancellation|continue cancellation|proceed (?:with|to) cancellation|review cancellation|manage cancellation)$/i
+  /^(?:start cancellation|continue cancellation|proceed (?:with|to) cancellation|review cancellation|manage cancellation|keep cancelling|keep canceling|no thanks|continue|next|proceed)$/i
 const finalConsequence =
   /\b(?:confirm\w*|complete\w*|finish\w*|final\w*|yes\b.*\bcancel|cancel now|end now|end (?:my |your |the )?(?:trial|subscription|membership)|effective immediately|turn off (?:auto[- ]?)?renewal|stop (?:auto[- ]?)?renewal|will be cancel[le]+d|will end|lose access|no further charges|cancellation fee|charged\b.*\bfee|irreversible|permanent\w*)\b/i
 
@@ -65,6 +91,38 @@ function clearlyHasAnotherStep(context: string): boolean {
       context,
     )
   )
+}
+
+export function establishedFinalBoundary(d: DesktopDecision): boolean {
+  return (
+    d.flowStage === "FINAL_CONFIRMATION" &&
+    cancellationLabel.test(d.targetText ?? "") &&
+    finalConsequence.test(`${d.targetText ?? ""} ${d.visibleText ?? ""}`)
+  )
+}
+
+// Opaque, one-use local dispatch grants. Raw model decisions cannot be dispatched.
+// Freezing the clone prevents mutation between policy evaluation and execution.
+const dispatchGrants = new WeakSet<DesktopDecision>()
+export function authorizeDesktopNavigation(
+  d: DesktopDecision,
+  origin: string,
+  width: number,
+  height: number,
+  minConfidence: number,
+): DesktopDecision | null {
+  if (desktopPolicy(d, origin, width, height, minConfidence).result !== "ALLOW")
+    return null
+  if (!["click", "cancel_flow_navigation", "type", "key"].includes(d.type))
+    return null
+  const grant = { ...d, keys: d.keys ? [...d.keys] : null }
+  if (grant.keys) Object.freeze(grant.keys)
+  Object.freeze(grant)
+  dispatchGrants.add(grant)
+  return grant
+}
+export function consumeDesktopNavigationGrant(d: DesktopDecision): boolean {
+  return dispatchGrants.delete(d)
 }
 
 export type DesktopPolicy = {
@@ -139,10 +197,21 @@ export function desktopPolicy(
   // Only this explicitly classified, narrowly allowlisted path can advance a
   // cancellation flow. Nonempty context alone is not evidence of reversibility.
   if (d.type === "cancel_flow_navigation") {
+    const ambiguousEntry = /^(cancel plan|cancel subscription)$/.test(label)
+    const opensReview =
+      /\bopens? (?:the |a |another |next )?(?:cancellation )?review (?:step|screen)\b/i.test(
+        context,
+      )
     if (
-      !cancellationLabel.test(label) ||
-      !flowNavigationLabel.test(label) ||
-      !clearlyHasAnotherStep(context)
+      !(flowNavigationLabel.test(label) || (ambiguousEntry && opensReview)) ||
+      !(
+        clearlyHasAnotherStep(context) ||
+        (ambiguousEntry &&
+          opensReview &&
+          !/\b(no|not|without|immediate|immediately|last)\b/i.test(context))
+      ) ||
+      (/^(no thanks|continue|next|proceed)$/.test(label) &&
+        d.flowStage === "BILLING")
     )
       return intercept()
     return { result: "ALLOW", code: "HUMAN_NAVIGATION_REVIEW_REQUIRED" }
@@ -150,15 +219,25 @@ export function desktopPolicy(
   if (d.type === "click" && cancellationLabel.test(label)) return intercept()
   if (
     d.type === "click" &&
-    /^(continue|next)$/.test(label) &&
-    d.flowStage !== "BILLING" &&
+    /^(continue|next|proceed)$/.test(label) &&
     !clearlyHasAnotherStep(context)
   )
     return intercept()
   if (d.type === "scroll") return block("SCROLL_DELTA_UNSUPPORTED")
   if (
     d.type === "click" &&
-    !/^(account|settings|billing(?: & plans)?|subscription|subscriptions|membership|manage (?:plan|subscription)|plans|no thanks|continue|next)$/i.test(
+    d.flowStage === "REASON" &&
+    /^(i no longer need this subscription\.?|no longer needed|not using it|i no longer use it)$/i.test(
+      label,
+    ) &&
+    /\b(cancellation reason|reason for cancel(?:ling|ing)|why.*cancel)\b/i.test(
+      context,
+    )
+  )
+    return { result: "ALLOW", code: "HUMAN_NAVIGATION_REVIEW_REQUIRED" }
+  if (
+    d.type === "click" &&
+    !/^(account|settings|billing(?: & plans)?|subscription|subscriptions|membership|manage (?:plan|subscription)|plans|no thanks|not now|back|continue|next|proceed)$/i.test(
       label,
     )
   )
@@ -168,11 +247,7 @@ export function desktopPolicy(
     (d.text !== NEUTRAL_REASON || label !== "cancellation reason")
   )
     return block("TYPING_NOT_ALLOWED")
-  if (
-    d.type === "key" &&
-    (d.keys?.length !== 1 ||
-      !["Escape", "Page_Down", "Page_Up"].includes(d.keys[0]))
-  )
+  if (d.type === "key" && desktopNavigationKeys(d.keys) === null)
     return block("KEY_NOT_ALLOWED")
   return { result: "ALLOW", code: "HUMAN_NAVIGATION_REVIEW_REQUIRED" }
 }
@@ -188,9 +263,7 @@ export function safeDesktopDecision(d: DesktopDecision) {
     pageStatus: d.pageStatus,
     flowStage: d.flowStage,
     deltaY: d.deltaY,
-    keys:
-      d.keys?.filter((k) => ["Escape", "Page_Down", "Page_Up"].includes(k)) ??
-      null,
+    keys: desktopNavigationKeys(d.keys),
     text: d.text === NEUTRAL_REASON ? NEUTRAL_REASON : null,
     targetText: "[withheld; inspect private screenshot]",
     visibleText: "[withheld]",

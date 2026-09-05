@@ -9,6 +9,8 @@ export function successfulDesktopValidation(run: DesktopRun): boolean {
     run.stopReason === "FINAL_ACTION_BOUNDARY" &&
     run.destructiveClicksExecuted === 0 &&
     run.unsafeActionsExecuted === 0 &&
+    run.automaticDestructiveRetries === 0 &&
+    (run.mode !== "auto" || run.finalBoundaryEstablished) &&
     run.proposedAction !== null &&
     run.paused &&
     run.controlClosed &&
@@ -56,6 +58,9 @@ export function desktopEvidence(
           {
             schemaVersion: 1,
             executor: "desktop",
+            mode: run.mode,
+            finalBoundaryEstablished: run.finalBoundaryEstablished,
+            automaticDestructiveRetries: run.automaticDestructiveRetries,
             runId,
             state: run.state,
             stopReason: run.stopReason,

@@ -352,7 +352,51 @@ stream/playback capabilities live only in process/browser memory; do not share
 even the local link. The server checks its loopback Host, same-origin requests,
 and a random path, sends no-store headers, and closes at completion.
 
-Watch the live view and type `START` only after checking the correct authenticated
+### Opt-in autonomous dry run
+
+Read [the autonomous trust-boundary memo](desktop-auto-trust-boundary.md) first.
+In the existing dedicated, already-authenticated provider Desktop, open billing,
+close unrelated/private windows, and run:
+
+```bash
+npm run real-provider:desktop-dry-run -- --auto
+```
+
+Invocation is consent to screenshot planning/recording and policy-approved
+reversible navigation. Auto does not ask for START, NAVIGATE, or recording review,
+and does not require a TTY. It prints safe enum/key step summaries, stops on BLOCK
+or INTERCEPT, pauses the Desktop and closes control/viewer without destroying it.
+There is no final-action dispatcher. Missing/uncertain context can still stop an
+auto run early: no live Miro success is claimed by the offline implementation.
+
+The allowed keys are exactly Escape, Page_Down, Page_Up, Tab, Shift+Tab, ArrowDown,
+ArrowUp, ArrowLeft, ArrowRight. Shift+Tab is sent as the SDK chord `["Shift", "Tab"]`.
+Enter, Return, Space, Delete, Backspace, Ctrl/Alt/Meta/Super combinations, function
+keys and arbitrary character keys are blocked. Button activation must be a
+policy-approved coordinate action, not keyboard activation.
+
+Every dispatch consumes one immutable, one-use policy-ALLOW grant, after fresh
+screen stability. After a returned action the runner waits at least 750ms, then
+compares consecutive screenshots until stable or a five-second/poll-count bound.
+Only observed frames are planned; failed capture/decode stops, and the independent
+pre-dispatch target guard remains mandatory even after the settling deadline.
+
+Read-only screenshot planning retries transient network/API/parse failures at most
+twice (three attempts total; SDK transport retries disabled to avoid multiplication).
+SDK logging is explicitly disabled so an ambient debug setting cannot log screenshot
+request bodies. See the [official OpenAI SDK documentation](https://developers.openai.com/api/reference/typescript#retries).
+Reported tokens across invalid parse responses are included in the run budget.
+Refusals, authorization errors and exhausted budgets are not retried. Clicks,
+keyboard input, final actions and unknown outcomes are never retried.
+
+Auto validation additionally requires a reported FINAL_CONFIRMATION screen with
+recognized final-cancellation label/consequence evidence, at least one returned
+cancellation-flow navigation, and the successful state/cleanup/zero-unsafe-action
+conditions below. An ambiguous intermediate boundary is not successful validation.
+
+### Default human-supervised mode
+
+Without `--auto`, watch the live view and type `START` only after checking the correct authenticated
 provider page. This explicitly allows screenshots, recording, and sending the
 visible screen to the configured OpenAI model. No login/MFA automation is included.
 
@@ -381,7 +425,9 @@ budget limits risk for this first provider-validation milestone.
 Cancellation-related navigation requires the explicit `cancel_flow_navigation`
 decision type. Its case-insensitive exact-label allowlist is: `Start cancellation`,
 `Continue cancellation`, `Proceed with cancellation`, `Proceed to cancellation`,
-`Review cancellation`, and `Manage cancellation`. Coordinates must be valid, the
+`Review cancellation`, `Manage cancellation`, `Keep cancelling`/`Keep canceling`,
+`No thanks`, `Continue`, `Next`, and `Proceed` (the generic labels only in cancellation
+stages). Coordinates must be valid, the
 provider authenticated and same-origin, and confidence at least the configured
 minimum. Visible context must show an unfinished numbered `Step N of M` (1 <= N < M
 <= 20) or explicitly state that another/next/additional review step, step, or screen
@@ -393,16 +439,23 @@ final, yes…cancel, cancel/end now, end trial/subscription/membership, effectiv
 immediately, turn off/stop renewal, will be cancelled/canceled, will end, lose
 access, no further charges, cancellation fee, charged…fee, irreversible, or permanent.
 Every `final_cancel_candidate` is intercepted and has no dispatcher. Cancellation
-labels on ordinary `click` decisions also intercept, as do ambiguous labels such as
-`Cancel subscription` or `Cancel plan`; no Miro-specific label is added without
-private evidence. Ordinary Continue/Next actions in cancellation stages also require
-positive next-step context. A reported FINAL_CONFIRMATION stage never permits clicks.
+labels on ordinary `click` decisions also intercept. `Cancel subscription` and
+`Cancel plan` on `cancel_flow_navigation` default to interception unless visible
+context explicitly says the control opens a cancellation review step/screen and
+contains no negation or destructive cue. No account-specific exception is used.
+Ordinary Continue/Next/Proceed clicks also require positive next-step context.
+A reported FINAL_CONFIRMATION stage never permits clicks.
 
-Every allowed input still requires `NAVIGATE <step> <hash>` and fresh visual stability,
+In default mode every allowed input requires `NAVIGATE <step> <hash>`; in auto,
+invocation opts into policy-ALLOW navigation. Both require fresh visual stability,
 including the 32-pixel target guard for cancellation-flow clicks. `No thanks` may
 reject retention; only the fixed neutral cancellation reason may be typed. Offer
 acceptance, pause, upgrade/downgrade, purchase, payment and account/security changes
-remain forbidden. No input is automatically retried.
+remain forbidden. Neutral reason radio/dropdown labels are narrowly limited to
+`I no longer need this subscription`, `No longer needed`, `Not using it`, and
+`I no longer use it` on a REASON screen with visible cancellation-reason context.
+No arbitrary reason text or financial/product/account-change choice is permitted.
+No input is automatically retried.
 
 **Uncertain context can still stop at an intermediate cancellation entry control.**
 `AWAITING_APPROVAL` here means a candidate is ready for human inspection, not that
@@ -420,7 +473,9 @@ Each run uses a new ignored directory `artifacts/desktop/<run-id>/`:
 - `validation.json`: written **only** for `AWAITING_APPROVAL` with
   `FINAL_ACTION_BOUNDARY`, zero destructive/unsafe actions, an established provider
   candidate, successful pause/close, and at least one preceding successfully returned,
-  human-reviewed `cancel_flow_navigation` step. An early boundary alone is not a
+  policy-approved `cancel_flow_navigation` step (human-reviewed by default). Auto
+  also requires an established final boundary and zero automatic destructive retries.
+  An early boundary alone is not a
   successful validation (the CLI prints no validation path and exits nonzero).
   It uses a hash reference instead of the capability-bearing VM ID and includes
   only enum flow stages, not private screen text.
@@ -431,11 +486,13 @@ secrets, account data, or injected instructions. Inspect the private screenshot
 for target text. Raw SDK errors, credentials, browser/session state, signed stream
 and recording URLs are not logged or included in the validation artifact.
 
-Recording starts only after `START`. It uses `record.start({ fps: 10, format:
+Recording starts after `START` in default mode or explicit `--auto` invocation.
+It uses `record.start({ fps: 10, format:
 "mp4", path: "/tmp/cleanbreak-<run-id>.mp4" })`. Cleanup calls `record.stop()`,
 obtains a private download URL when a nonempty recording is available, then pauses
 the VM and closes control. The local viewer stays up for optional recording review
-after the VM is paused; press Enter to close it. Later retrieval can use the
+after the VM is paused in default mode; press Enter to close it. Auto skips this
+prompt and closes its viewer immediately. Later retrieval can use the
 recording guest path in the private job record with Solari's `downloadUrl` API.
 Recording failures are reported, not fabricated as success.
 
@@ -466,7 +523,11 @@ status is FAILED, no validation artifact is emitted, and you must pause the VM
 manually in Solari. A killed host process/network outage cannot guarantee cleanup;
 set the VM's server-side idle lifecycle to pause. Never destroy it to recover login.
 
-## Trust-boundary memo
+## Default-mode trust-boundary memo
+
+This section describes human-supervised mode. The separate
+[auto-mode trust-boundary memo](desktop-auto-trust-boundary.md) records its explicit
+navigation-consent override and research-only limitations.
 
 | Read surface                                 | Trust                                                         |
 | -------------------------------------------- | ------------------------------------------------------------- |
@@ -491,13 +552,13 @@ the six-item history is process-local fixed action outcomes, never an instructio
 store. Any future durable model memory needs provenance/canaries before deployment.
 OpenTelemetry is not installed, so no OTel spans are fabricated.
 
-| Known attack                    | Defense / remaining limitation                                                                                                       |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Visible-text injection          | Structured schema + allowlist + fresh human review; no sanitizer-alone claim                                                         |
-| URL fragment/query injection    | No address-bar/type navigation; origin mismatch or unknown stops; visual origin reading is fallible                                  |
-| Tainted-memory binding          | No persistent planner memory or profile writes; fixed bounded action history                                                         |
-| CSRF-shaped authenticated input | Fresh human navigation review; no arbitrary URLs/typing, Enter, or final dispatcher; not comprehensive provider-side CSRF protection |
-| One-click hijack                | Denylist/allowlist, explicit review, screenshot equality before dispatch; visual coordinate safety is not mathematically guaranteed  |
+| Known attack                    | Defense / remaining limitation                                                                                                           |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Visible-text injection          | Structured schema + allowlist + fresh human review; no sanitizer-alone claim                                                             |
+| URL fragment/query injection    | No address-bar/type navigation; origin mismatch or unknown stops; visual origin reading is fallible                                      |
+| Tainted-memory binding          | No persistent planner memory or profile writes; fixed bounded action history                                                             |
+| CSRF-shaped authenticated input | Fresh human navigation review; no arbitrary URLs/typing, Enter, or final dispatcher; not comprehensive provider-side CSRF protection     |
+| One-click hijack                | Denylist/allowlist, explicit review, decoded visual stability before dispatch; visual coordinate safety is not mathematically guaranteed |
 
 No Browser/StreamMax or general computer-use benchmark proves real-provider visual
 reliability. Verdict: **research-only, human-supervised**. A human can misread a

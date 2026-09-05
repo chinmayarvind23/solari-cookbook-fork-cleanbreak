@@ -16,6 +16,9 @@ import {
   desktopDecisionSchema,
   desktopPolicy,
   NEUTRAL_REASON,
+  SAFE_DESKTOP_NAVIGATION_KEYS,
+  safeDesktopDecision,
+  authorizeDesktopNavigation,
   type DesktopDecision,
 } from "@/lib/desktop/decision"
 import { createDesktopPlanner } from "@/lib/desktop/planner"
@@ -29,6 +32,7 @@ import {
   successfulDesktopValidation,
 } from "@/lib/desktop/evidence"
 import { startDesktopViewer } from "@/lib/desktop/viewer"
+import { desktopDryRunCommand } from "@/scripts/real-provider-desktop-dry-run"
 
 vi.mock("@/lib/desktop/session", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/desktop/session")>()),
@@ -232,6 +236,9 @@ describe("Desktop config and strict planner", () => {
     expect(options.input[0].content).toContain("cancel_flow_navigation")
     expect(options.input[0].content).toContain("ANY uncertainty")
     expect(options.input[0].content).not.toContain("ANY cancellation control")
+    for (const key of SAFE_DESKTOP_NAVIGATION_KEYS)
+      expect(options.input[0].content).toContain(key)
+    expect(options.input[0].content).toContain("never\nkeyboard activation")
   })
   it("rejects arbitrary code and missing structured fields", () => {
     expect(() =>
@@ -381,7 +388,7 @@ describe("offline visual Desktop dry-run lifecycle", () => {
     )
     expect(changed.vm.mouse.click).not.toHaveBeenCalled()
   })
-  it.each(["Page_Down", "Page_Up", "Escape"])(
+  it.each(SAFE_DESKTOP_NAVIGATION_KEYS)(
     "%s permits tiny drift after confirmation and preserves the audit hash",
     async (key) => {
       const h = harness([
@@ -393,7 +400,9 @@ describe("offline visual Desktop dry-run lifecycle", () => {
         .mockResolvedValueOnce(await drift())
       const result = await runDesktopDryRun(env, h.deps)
       expect(result.state).toBe("AWAITING_APPROVAL")
-      expect(h.vm.keyboard.press).toHaveBeenCalledExactlyOnceWith([key])
+      expect(h.vm.keyboard.press).toHaveBeenCalledExactlyOnceWith(
+        key === "Shift+Tab" ? ["Shift", "Tab"] : [key],
+      )
       expect(h.vm.mouse.click).not.toHaveBeenCalled()
       expect(h.deps.confirm.mock.invocationCallOrder[0]).toBeLessThan(
         h.vm.screenshot.mock.invocationCallOrder[1],
@@ -510,59 +519,150 @@ describe("offline visual Desktop dry-run lifecycle", () => {
     expect(h.vm.mouse.click).not.toHaveBeenCalled()
     expect(h.vm.pause).toHaveBeenCalledOnce()
   })
-  it("redacts model free text and keeps capabilities out of validation artifacts", async () => {
-    const root = mkdtempSync(join(tmpdir(), "cleanbreak-desktop-test-"))
-    const h = harness([
-      decision({
-        type: "cancel_flow_navigation",
-        targetText: "Start cancellation",
-        visibleText: "Step 1 of 3",
-        flowStage: "CANCELLATION_ENTRY",
-      }),
-      decision({
-        reasoning: "password private-password user@example.com",
-        visibleText: "private-token",
-        reason: "https://secret.example?token=private-token",
-      }),
+  it.each([false, true])(
+    "redacts model free text and keeps capabilities out of validation artifacts (auto=%s)",
+    async (auto) => {
+      const root = mkdtempSync(join(tmpdir(), "cleanbreak-desktop-test-"))
+      const h = harness([
+        decision({
+          type: "cancel_flow_navigation",
+          targetText: "Start cancellation",
+          visibleText: "Step 1 of 3",
+          flowStage: "CANCELLATION_ENTRY",
+        }),
+        decision({
+          flowStage: "FINAL_CONFIRMATION",
+          reasoning: "password private-password user@example.com",
+          visibleText: "private-token",
+          reason: "https://secret.example?token=private-token",
+        }),
+      ])
+      const evidence = desktopEvidence("safe-run", root)
+      try {
+        const result = await runDesktopDryRun(env, {
+          ...h.deps,
+          auto,
+          id: "safe-run",
+          evidence,
+        })
+        const artifact = readFileSync(
+          join(evidence.directory, "validation.json"),
+          "utf8",
+        )
+        const job = readFileSync(join(evidence.directory, "job.json"), "utf8")
+        expect(job).toContain(env.SOLARI_DESKTOP_SESSION_ID)
+        for (const secret of [
+          env.SOLARI_API_KEY!,
+          env.OPENAI_API_KEY!,
+          env.SOLARI_DESKTOP_SESSION_ID!,
+          "private-password",
+          "private-token",
+          "user@example.com",
+          "private-stream-sentinel",
+          "private-recording-sentinel",
+        ])
+          expect(artifact).not.toContain(secret)
+        for (const secret of [
+          "private-password",
+          "private-token",
+          "private-stream-sentinel",
+          "private-recording-sentinel",
+        ])
+          expect(job).not.toContain(secret)
+        expect(evidence.validation({ ...result, state: "FAILED" })).toBe(false)
+      } finally {
+        for (const file of readdirSync(evidence.directory))
+          unlinkSync(join(evidence.directory, file))
+        rmdirSync(evidence.directory)
+        rmdirSync(root)
+      }
+    },
+  )
+})
+
+describe("exact Desktop navigation key boundary", () => {
+  it("accepts the SDK Shift+Tab chord and preserves it in safe evidence", async () => {
+    const proposed = decision({
+      type: "key",
+      targetText: null,
+      keys: ["Shift", "Tab"],
+    })
+    const h = harness([proposed, decision()])
+    const result = await runDesktopDryRun(env, h.deps)
+    expect(result.stopReason).toBe("FINAL_ACTION_BOUNDARY")
+    expect(h.vm.keyboard.press).toHaveBeenCalledExactlyOnceWith([
+      "Shift",
+      "Tab",
     ])
-    const evidence = desktopEvidence("safe-run", root)
-    try {
-      const result = await runDesktopDryRun(env, {
-        ...h.deps,
-        id: "safe-run",
-        evidence,
-      })
-      const artifact = readFileSync(
-        join(evidence.directory, "validation.json"),
-        "utf8",
-      )
-      const job = readFileSync(join(evidence.directory, "job.json"), "utf8")
-      expect(job).toContain(env.SOLARI_DESKTOP_SESSION_ID)
-      for (const secret of [
-        env.SOLARI_API_KEY!,
-        env.OPENAI_API_KEY!,
-        env.SOLARI_DESKTOP_SESSION_ID!,
-        "private-password",
-        "private-token",
-        "user@example.com",
-        "private-stream-sentinel",
-        "private-recording-sentinel",
-      ])
-        expect(artifact).not.toContain(secret)
-      for (const secret of [
-        "private-password",
-        "private-token",
-        "private-stream-sentinel",
-        "private-recording-sentinel",
-      ])
-        expect(job).not.toContain(secret)
-      expect(evidence.validation({ ...result, state: "FAILED" })).toBe(false)
-    } finally {
-      for (const file of readdirSync(evidence.directory))
-        unlinkSync(join(evidence.directory, file))
-      rmdirSync(evidence.directory)
-      rmdirSync(root)
-    }
+    expect(result.steps[0].decision?.keys).toEqual(["Shift", "Tab"])
+    expect(h.deps.confirm).toHaveBeenCalledOnce()
+    expect(result.destructiveClicksExecuted).toBe(0)
+  })
+  it.each(
+    [
+      ["Enter"],
+      ["Return"],
+      ["Space"],
+      ["space"],
+      [" "],
+      ["Delete"],
+      ["Backspace"],
+      ["Ctrl", "Tab"],
+      ["Control", "ArrowDown"],
+      ["Alt", "ArrowLeft"],
+      ["Meta", "Tab"],
+      ["Super", "Tab"],
+      ["Ctrl+Tab"],
+      ["F1"],
+      ["F12"],
+      ["a"],
+      ["private-key-sentinel"],
+      ["tab"],
+      ["Shift"],
+      ["Shift", "ArrowDown"],
+      ["Tab", "Shift"],
+      ["Tab", "Enter"],
+      ["Shift", "Tab", "Return"],
+      ["Tab", "Tab"],
+      [],
+      null,
+    ].map((keys) => ({ keys })),
+  )(
+    "rejects non-allowlisted key input %# without dispatch or logging",
+    async ({ keys }) => {
+      const proposed = decision({ type: "key", targetText: null, keys })
+      expect(
+        desktopPolicy(proposed, "https://provider.example", 1280, 720, 0.9)
+          .code,
+      ).toBe("KEY_NOT_ALLOWED")
+      expect(safeDesktopDecision(proposed).keys).toBeNull()
+      const h = harness([proposed])
+      expect(
+        await executeNavigation(h.vm as unknown as DesktopHandle, proposed),
+      ).toBe("ACTION_NOT_DISPATCHED")
+      const result = await runDesktopDryRun(env, h.deps)
+      expect(result.stopReason).toBe("KEY_NOT_ALLOWED")
+      expect(h.vm.keyboard.press).not.toHaveBeenCalled()
+      expect(h.vm.keyboard.type).not.toHaveBeenCalled()
+      expect(h.vm.mouse.click).not.toHaveBeenCalled()
+      expect(h.deps.confirm).not.toHaveBeenCalled()
+      expect(result.destructiveClicksExecuted).toBe(0)
+    },
+  )
+  it("requires confirmation and never retries failed keyboard navigation", async () => {
+    const proposed = decision({ type: "key", targetText: null, keys: ["Tab"] })
+    const denied = harness([proposed])
+    denied.deps.confirm.mockResolvedValue(false)
+    expect((await runDesktopDryRun(env, denied.deps)).stopReason).toBe(
+      "NAVIGATION_NOT_CONFIRMED",
+    )
+    expect(denied.vm.keyboard.press).not.toHaveBeenCalled()
+    const failed = harness([proposed])
+    failed.vm.keyboard.press.mockRejectedValue(new Error("private-sdk-error"))
+    expect((await runDesktopDryRun(env, failed.deps)).stopReason).toBe(
+      "ACTION_FAILED_OUTCOME_UNKNOWN_NO_RETRY",
+    )
+    expect(failed.vm.keyboard.press).toHaveBeenCalledOnce()
   })
 })
 
@@ -819,6 +919,333 @@ describe("reversible cancellation flow and final boundary", () => {
     expect(result.unsafeActionsExecuted).toBe(0)
     expect(successfulDesktopValidation(result)).toBe(false)
   })
+})
+
+describe("autonomous Desktop dry run", () => {
+  const flow = () => [
+    decision({ type: "click", targetText: "Billing", flowStage: "BILLING" }),
+    decision({
+      type: "cancel_flow_navigation",
+      targetText: "Manage cancellation",
+      visibleText: "Step 1 of 4",
+      flowStage: "CANCELLATION_ENTRY",
+    }),
+    decision({
+      type: "cancel_flow_navigation",
+      targetText: "Start cancellation",
+      visibleText: "Step 2 of 4",
+      flowStage: "CANCELLATION_ENTRY",
+    }),
+    decision({
+      type: "click",
+      targetText: "No thanks",
+      visibleText: "Keep your plan at a discount",
+      flowStage: "RETENTION",
+    }),
+    decision({
+      type: "click",
+      targetText: "No longer needed",
+      visibleText: "Cancellation reason",
+      flowStage: "REASON",
+    }),
+    decision({
+      type: "type",
+      targetText: "cancellation reason",
+      text: NEUTRAL_REASON,
+      flowStage: "REASON",
+    }),
+    decision({
+      type: "cancel_flow_navigation",
+      targetText: "Continue cancellation",
+      visibleText: "Another review step follows",
+      flowStage: "REVIEW",
+    }),
+    decision({
+      targetText: "Confirm cancellation",
+      visibleText: "Your trial will end",
+      flowStage: "FINAL_CONFIRMATION",
+    }),
+  ]
+  it("dispatches only ALLOW decisions and reaches the final boundary without any prompts", async () => {
+    const h = harness(flow())
+    const progress = vi.fn()
+    const result = await runDesktopDryRun(env, {
+      ...h.deps,
+      auto: true,
+      progress,
+    })
+    expect(result).toMatchObject({
+      mode: "auto",
+      state: "AWAITING_APPROVAL",
+      stopReason: "FINAL_ACTION_BOUNDARY",
+      finalBoundaryEstablished: true,
+      automaticDestructiveRetries: 0,
+      destructiveClicksExecuted: 0,
+      unsafeActionsExecuted: 0,
+      paused: true,
+      controlClosed: true,
+    })
+    expect(h.deps.prepare).not.toHaveBeenCalled()
+    expect(h.deps.confirm).not.toHaveBeenCalled()
+    expect(h.deps.reviewRecording).not.toHaveBeenCalled()
+    expect(h.vm.mouse.click).toHaveBeenCalledTimes(6)
+    expect(h.vm.keyboard.type).toHaveBeenCalledExactlyOnceWith(NEUTRAL_REASON)
+    expect(result.steps.at(-1)?.execution).toBe("NOT_EXECUTED")
+    expect(successfulDesktopValidation(result)).toBe(true)
+    expect(
+      result.steps
+        .slice(0, -1)
+        .every((step) => step.transitionStability?.stable),
+    ).toBe(true)
+    expect(h.deps.sleep).toHaveBeenCalledWith(750)
+    expect(progress).toHaveBeenLastCalledWith(
+      "step 8: final_cancel_candidate -> INTERCEPT",
+    )
+    expect(progress.mock.calls.flat().join(" ")).not.toContain(
+      "Your trial will end",
+    )
+  })
+  it("CLI --auto works without a TTY and prints successful output without START/NAVIGATE", async () => {
+    const h = harness(flow())
+    const confirm = vi.fn(async () => true)
+    const output = vi.fn()
+    const run = vi.fn(async (environment, supplied) =>
+      runDesktopDryRun(environment, { ...h.deps, ...supplied }),
+    )
+    expect(
+      await desktopDryRunCommand(["--auto"], env, {
+        run,
+        interactive: false,
+        confirm,
+        output,
+      }),
+    ).toBe(0)
+    expect(confirm).not.toHaveBeenCalled()
+    const logs = output.mock.calls.flat().join(" ")
+    expect(logs).not.toContain("START")
+    expect(logs).not.toContain("NAVIGATE")
+    expect(logs).not.toContain("private-")
+    expect(JSON.parse(output.mock.calls.at(-1)![0])).toMatchObject({
+      mode: "auto",
+      state: "AWAITING_APPROVAL",
+      stopReason: "FINAL_ACTION_BOUNDARY",
+      automaticDestructiveRetries: 0,
+      destructiveClicksExecuted: 0,
+      unsafeActionsExecuted: 0,
+      paused: true,
+      controlClosed: true,
+      validation: "artifacts/desktop/test-desktop-run/validation.json",
+    })
+  })
+  it("default CLI retains START, NAVIGATE and recording-review prompts", async () => {
+    const h = harness(flow())
+    const confirm = vi.fn(async () => true)
+    const run = vi.fn(async (environment, supplied) =>
+      runDesktopDryRun(environment, { ...h.deps, ...supplied }),
+    )
+    expect(
+      await desktopDryRunCommand([], env, {
+        run,
+        interactive: true,
+        confirm,
+        output: vi.fn(),
+      }),
+    ).toBe(0)
+    expect(confirm.mock.calls.length).toBe(9)
+    expect(run.mock.calls[0][1]?.auto).toBe(false)
+  })
+  it("rejects unknown CLI flags and still requires a TTY for supervised mode", async () => {
+    const run = vi.fn()
+    for (const args of [["--unknown"], ["--auto", "--auto"], []])
+      expect(
+        await desktopDryRunCommand(args, env, {
+          run,
+          interactive: false,
+          output: vi.fn(),
+        }),
+      ).toBe(1)
+    expect(run).not.toHaveBeenCalled()
+  })
+  it.each([
+    { type: "click", targetText: "Delete account" },
+    { type: "click", targetText: "Accept offer" },
+    { type: "click", targetText: "Buy" },
+    { type: "key", targetText: null, keys: ["Space"] },
+    {
+      type: "click",
+      targetText: "Billing",
+      observedOrigin: "https://other.example",
+    },
+    { type: "click", targetText: "Billing", pageStatus: "login" },
+    { type: "click", targetText: "Billing", pageStatus: "challenge" },
+  ] as Partial<DesktopDecision>[])(
+    "auto stops on BLOCK before any dispatch %#",
+    async (patch) => {
+      const h = harness([decision(patch)])
+      const result = await runDesktopDryRun(env, { ...h.deps, auto: true })
+      expect(result.steps[0].policyResult).toBe("BLOCK")
+      expect(h.vm.mouse.click).not.toHaveBeenCalled()
+      expect(h.vm.keyboard.press).not.toHaveBeenCalled()
+      expect(h.vm.keyboard.type).not.toHaveBeenCalled()
+      expect(result.automaticDestructiveRetries).toBe(0)
+      expect(result.paused && result.controlClosed).toBe(true)
+    },
+  )
+  it.each([
+    "Confirm cancellation",
+    "Cancel now",
+    "End trial",
+    "Cancel subscription",
+  ])("auto cannot dispatch model-misclassified %s", async (targetText) => {
+    const h = harness([
+      decision({
+        type: "cancel_flow_navigation",
+        targetText,
+        visibleText: "Step 1 of 3",
+      }),
+    ])
+    const result = await runDesktopDryRun(env, { ...h.deps, auto: true })
+    expect(result.steps[0].policyResult).toBe("INTERCEPT")
+    expect(h.vm.mouse.click).not.toHaveBeenCalled()
+    expect(successfulDesktopValidation(result)).toBe(false)
+  })
+  it("does not claim an ambiguous intermediate boundary is successful in auto", async () => {
+    const h = harness([
+      flow()[1],
+      decision({
+        targetText: "Cancel subscription",
+        visibleText: "Subscription",
+        flowStage: "CANCELLATION_ENTRY",
+      }),
+    ])
+    const result = await runDesktopDryRun(env, { ...h.deps, auto: true })
+    expect(result.state).toBe("AWAITING_APPROVAL")
+    expect(result.finalBoundaryEstablished).toBe(false)
+    expect(successfulDesktopValidation(result)).toBe(false)
+  })
+  it("allows ambiguous entry only with explicit visible review-opening context", () => {
+    const proposed = decision({
+      type: "cancel_flow_navigation",
+      targetText: "Cancel plan",
+      visibleText: "Opens the cancellation review screen",
+    })
+    expect(
+      desktopPolicy(proposed, "https://provider.example", 1280, 720, 0.9)
+        .result,
+    ).toBe("ALLOW")
+    expect(
+      desktopPolicy(
+        {
+          ...proposed,
+          visibleText:
+            "Opens the cancellation review screen. Effective immediately",
+        },
+        "https://provider.example",
+        1280,
+        720,
+        0.9,
+      ).result,
+    ).toBe("INTERCEPT")
+  })
+  it.each(["Keep cancelling", "Proceed", "No thanks", "Continue", "Next"])(
+    "allows reversible %s only with next-step context",
+    (targetText) => {
+      const proposed = decision({
+        type: "cancel_flow_navigation",
+        targetText,
+        flowStage: "RETENTION",
+        visibleText: "Step 1 of 3",
+      })
+      expect(
+        desktopPolicy(proposed, "https://provider.example", 1280, 720, 0.9)
+          .result,
+      ).toBe("ALLOW")
+      expect(
+        desktopPolicy(
+          { ...proposed, visibleText: "" },
+          "https://provider.example",
+          1280,
+          720,
+          0.9,
+        ).result,
+      ).toBe("INTERCEPT")
+    },
+  )
+  it("requires one-use, immutable policy authorization at the dispatcher", async () => {
+    const h = harness()
+    const proposed = decision({ type: "click", targetText: "Billing" })
+    expect(
+      await executeNavigation(h.vm as unknown as DesktopHandle, proposed),
+    ).toBe("ACTION_NOT_DISPATCHED")
+    const grant = authorizeDesktopNavigation(
+      proposed,
+      "https://provider.example",
+      1280,
+      720,
+      0.9,
+    )!
+    expect(Object.isFrozen(grant)).toBe(true)
+    expect(
+      await executeNavigation(h.vm as unknown as DesktopHandle, { ...grant }),
+    ).toBe("ACTION_NOT_DISPATCHED")
+    expect(
+      await executeNavigation(h.vm as unknown as DesktopHandle, grant),
+    ).toBe("NAVIGATION_RETURNED")
+    expect(
+      await executeNavigation(h.vm as unknown as DesktopHandle, grant),
+    ).toBe("ACTION_NOT_DISPATCHED")
+    expect(h.vm.mouse.click).toHaveBeenCalledOnce()
+    expect(
+      authorizeDesktopNavigation(
+        decision(),
+        "https://provider.example",
+        1280,
+        720,
+        0.9,
+      ),
+    ).toBeNull()
+  })
+  it.each(["click", "key"])(
+    "auto never retries %s with unknown outcome",
+    async (type) => {
+      const proposed =
+        type === "click"
+          ? flow()[1]
+          : decision({ type: "key", targetText: null, keys: ["Tab"] })
+      const h = harness([proposed])
+      const action = type === "click" ? h.vm.mouse.click : h.vm.keyboard.press
+      action.mockRejectedValue(new Error("private-sdk-error"))
+      const result = await runDesktopDryRun(env, { ...h.deps, auto: true })
+      expect(result.stopReason).toBe("ACTION_FAILED_OUTCOME_UNKNOWN_NO_RETRY")
+      expect(action).toHaveBeenCalledOnce()
+      expect(h.planner).toHaveBeenCalledOnce()
+      expect(result.automaticDestructiveRetries).toBe(0)
+    },
+  )
+  it("auto preserves screen-change guard before dispatch", async () => {
+    const h = harness([flow()[1]])
+    h.vm.screenshot
+      .mockResolvedValueOnce(png())
+      .mockResolvedValueOnce(await drift(200, 300))
+    const result = await runDesktopDryRun(env, { ...h.deps, auto: true })
+    expect(result.stopReason).toBe("SCREEN_CHANGED")
+    expect(h.vm.mouse.click).not.toHaveBeenCalled()
+  })
+  it.each(SAFE_DESKTOP_NAVIGATION_KEYS)(
+    "auto dispatches allowlisted %s without confirmation",
+    async (key) => {
+      const h = harness([
+        decision({ type: "key", targetText: null, keys: [key] }),
+        flow().at(-1)!,
+      ])
+      const result = await runDesktopDryRun(env, { ...h.deps, auto: true })
+      expect(result.stopReason).toBe("FINAL_ACTION_BOUNDARY")
+      expect(h.vm.keyboard.press).toHaveBeenCalledExactlyOnceWith(
+        key === "Shift+Tab" ? ["Shift", "Tab"] : [key],
+      )
+      expect(h.deps.confirm).not.toHaveBeenCalled()
+    },
+  )
 })
 
 describe("private local Desktop viewer", () => {
