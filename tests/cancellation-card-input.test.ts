@@ -1,11 +1,14 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import type { ReactElement } from "react"
-const state = vi.hoisted(() => ({ update: vi.fn() }))
+const state = vi.hoisted(() => ({ update: vi.fn(), job: null as unknown }))
 // Exercise the actual component event handler with mocked browser I/O; no server,
 // worker, provider, or real cancellation is contacted by these tests.
 vi.mock("react", async (original) => ({
   ...(await original<typeof import("react")>()),
-  useState: (initial: unknown) => [initial, state.update],
+  useState: (initial: unknown) => [
+    initial === null ? state.job : initial,
+    state.update,
+  ],
   useRef: (initial: unknown) => ({ current: initial }),
   useEffect: () => undefined,
 }))
@@ -38,6 +41,7 @@ function button(enabled = true) {
 let storage: Map<string, string>
 beforeEach(() => {
   state.update.mockClear()
+  state.job = null
   storage = new Map()
   vi.stubGlobal("localStorage", {
     getItem: (key: string) => storage.get(key) ?? null,
@@ -46,6 +50,55 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn())
 })
 afterEach(() => vi.unstubAllGlobals())
+it("shows an explicit new-attempt button for an eligible restored failure and sends nothing on render", () => {
+  state.job = { id: "failed-job", state: "FAILED", canStartNewAttempt: true }
+  expect(button()).toBeDefined()
+  expect(fetch).not.toHaveBeenCalled()
+})
+it.each(["COMMITTING", "INCONCLUSIVE", "VERIFIED", "NOT_VERIFIED", "FAILED"])(
+  "never offers a new attempt for ineligible %s",
+  (status) => {
+    state.job = { id: "failed-job", state: status, canStartNewAttempt: false }
+    expect(button()).toBeUndefined()
+    expect(fetch).not.toHaveBeenCalled()
+  },
+)
+it("an explicit click creates a new request key and retains the previous job ID for the server check", async () => {
+  state.job = { id: "failed-job", state: "FAILED", canStartNewAttempt: true }
+  storage.set(
+    "cleanbreak-cancellation-miro",
+    JSON.stringify({ key: "old-request-key-1234", id: "failed-job" }),
+  )
+  vi.mocked(fetch).mockResolvedValue(
+    Response.json({ id: "new-job", state: "AUTHORIZED" }, { status: 202 }),
+  )
+  await button().onClick()
+  const options = vi.mocked(fetch).mock.calls[0][1]!
+  expect(options.body).toBe(
+    JSON.stringify({ provider: "miro", retryOf: "failed-job" }),
+  )
+  expect(
+    (options.headers as Record<string, string>)["Idempotency-Key"],
+  ).not.toBe("old-request-key-1234")
+  expect(
+    JSON.parse(storage.get("cleanbreak-cancellation-miro")!),
+  ).toMatchObject({ id: "new-job" })
+})
+it("a lost new-attempt response never rotates its pending key on another explicit click", async () => {
+  state.job = { id: "failed-job", state: "FAILED", canStartNewAttempt: true }
+  vi.mocked(fetch).mockRejectedValue(new Error("private-network-error"))
+  const control = button()
+  await control.onClick()
+  const first = JSON.parse(storage.get("cleanbreak-cancellation-miro")!)
+  expect(first).toMatchObject({ id: "failed-job", retryOf: "failed-job" })
+  await control.onClick()
+  expect(JSON.parse(storage.get("cleanbreak-cancellation-miro")!)).toEqual(
+    first,
+  )
+  expect(state.update.mock.calls.flat().join(" ")).not.toContain(
+    "private-network-error",
+  )
+})
 it("never sends when live mode is disabled", async () => {
   await button(false).onClick()
   expect(fetch).not.toHaveBeenCalled()

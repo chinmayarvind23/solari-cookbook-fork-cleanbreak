@@ -1,5 +1,7 @@
 // Fixed client-facing copy only. Never show raw server/SDK errors.
 export function cancellationStartError(status: number, code?: string): string {
+  if (code === "NEW_ATTEMPT_NOT_ALLOWED")
+    return "A new attempt is not allowed for this job or the configuration has changed. No new cancellation was started. Review the existing job; do not clear its history to retry."
   if (status === 401 || code === "OPERATOR_AUTH_REQUIRED")
     return "Operator login required. Reload this page and sign in as cleanbreak with the password used to start the web server."
   if (code === "APP_ORIGIN_MISMATCH")

@@ -1,4 +1,5 @@
 import type { Job, State } from "./state"
+import { canStartNewAttempt } from "./new-attempt"
 export const progressText: Record<State, string> = {
   AUTHORIZED: "Cancellation authorized.",
   CONNECTING: "Connecting to authenticated session...",
@@ -39,6 +40,7 @@ export function publicJob(job: Job) {
     automaticDestructiveRetries: job.automaticDestructiveRetries,
     unsafeActionsExecuted: job.unsafeActionsExecuted,
     authorizationUses: job.authorizationUses,
+    canStartNewAttempt: canStartNewAttempt(job),
     receiptUrl:
       job.state === "VERIFIED" && job.receipt
         ? `/cancellations/${job.id}/receipt`

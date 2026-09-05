@@ -4,6 +4,7 @@ import { cancellationRepository } from "@/lib/cancellations/repository"
 import { publicJob } from "@/lib/cancellations/public"
 import { operatorAllowed, sameOriginPost } from "@/lib/cancellations/security"
 import { executeCancellation } from "@/lib/cancellations/worker"
+import { NewAttemptNotAllowed } from "@/lib/cancellations/new-attempt"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 export async function POST(request: Request) {
@@ -27,17 +28,27 @@ export async function POST(request: Request) {
       !key ||
       !/^[a-zA-Z0-9-]{16,80}$/.test(key) ||
       !body ||
-      Object.keys(body).length !== 1 ||
+      Object.keys(body).some(
+        (key) => key !== "provider" && key !== "retryOf",
+      ) ||
+      ("retryOf" in body &&
+        (typeof body.retryOf !== "string" ||
+          !/^[a-zA-Z0-9-]{16,80}$/.test(body.retryOf))) ||
       !["miro", "streammax"].includes(body.provider)
     )
       throw new Error("INVALID_REQUEST")
     const config = productConfig(body.provider)
-    const job = cancellationRepository().create(config.scope, key)
+    const job = cancellationRepository().create(config.scope, key, body.retryOf)
     after(() => executeCancellation(job.id))
     return Response.json(publicJob(job), { status: 202, headers })
-  } catch {
+  } catch (error) {
     return Response.json(
-      { error: "CANCELLATION_NOT_STARTED_CHECK_CONFIGURATION" },
+      {
+        error:
+          error instanceof NewAttemptNotAllowed
+            ? "NEW_ATTEMPT_NOT_ALLOWED"
+            : "CANCELLATION_NOT_STARTED_CHECK_CONFIGURATION",
+      },
       { status: 409, headers },
     )
   }

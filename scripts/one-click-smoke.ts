@@ -6,6 +6,9 @@ import { createServer } from "node:net"
 import { randomUUID } from "node:crypto"
 import { chromium } from "patchright-core"
 import { createDatabase } from "../lib/db"
+import { productConfig } from "../lib/cancellations/config"
+import { cancellationRepository } from "../lib/cancellations/repository"
+import type { Job } from "../lib/cancellations/state"
 import { canonicalJson } from "../lib/receipts/canonical"
 import { createHash } from "node:crypto"
 
@@ -50,6 +53,7 @@ const server = spawn(
 )
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
 let stage = "server_ready"
+let previousJob: Job | undefined
 try {
   let ready = false
   for (let attempt = 0; attempt < 60; attempt++) {
@@ -72,6 +76,44 @@ try {
   const page = await browser.newPage({
     viewport: { width: 1280, height: 1000 },
   })
+  if (process.argv.includes("--failed-job")) {
+    stage = "seed_failed_fixture_job"
+    const db = createDatabase(databasePath)
+    try {
+      const repository = cancellationRepository(db)
+      const initial = repository.create(
+        productConfig("streammax", {
+          ...process.env,
+          CLEANBREAK_APP_ORIGIN: origin,
+        }).scope,
+        "fixture-previous-request",
+      )
+      const owner = "fixture-seed-owner"
+      if (!repository.acquire(initial.id, owner))
+        throw new Error("FIXTURE_SEED_FAILED")
+      previousJob = repository.save(
+        {
+          ...initial,
+          state: "FAILED",
+          reason: "FINAL_BOUNDARY_NOT_ESTABLISHED",
+          authorizationStatus: "EXPIRED",
+        },
+        owner,
+      )
+      repository.unlockUnclaimed(previousJob)
+      repository.release(initial.id, owner)
+    } finally {
+      db.close()
+    }
+    await page.addInitScript((id) => {
+      const key = "cleanbreak-cancellation-streammax"
+      if (!localStorage.getItem(key))
+        localStorage.setItem(
+          key,
+          JSON.stringify({ id, key: "fixture-previous-request" }),
+        )
+    }, previousJob.id)
+  }
   stage = "dashboard"
   await page.goto(origin)
   const card = page.locator("article").filter({
@@ -84,10 +126,17 @@ try {
       r.request().method() === "POST",
   )
   await card
-    .getByRole("button", { name: "Cancel subscription", exact: true })
+    .getByRole("button", {
+      name: previousJob
+        ? "Start a new cancellation attempt"
+        : "Cancel subscription",
+      exact: true,
+    })
     .click()
   const started = (await (await response).json()) as { id: string }
   if (!started.id) throw new Error("AUTHORIZATION_NOT_CREATED")
+  if (previousJob && started.id === previousJob.id)
+    throw new Error("FAILED_JOB_REUSED")
   stage = "poll_job"
   await page.reload() // Reload must resume the same job, not authorize again.
   let result:
@@ -145,15 +194,25 @@ try {
         db
           .prepare("SELECT count(*) AS count FROM one_click_authorizations")
           .get()!.count,
-      ) !== 1
+      ) !== (previousJob ? 2 : 1)
     )
       throw new Error("DUPLICATE_AUTHORIZATION")
+    if (
+      previousJob &&
+      JSON.stringify(cancellationRepository(db).load(previousJob.id)) !==
+        JSON.stringify(previousJob)
+    )
+      throw new Error("PREVIOUS_JOB_CHANGED")
   } finally {
     db.close()
   }
   console.log(
     "STREAMMAX_ONE_CLICK_OK: authorization=1 clicks=1 retries=0 verification=VERIFIED receiptDigest=valid",
   )
+  if (previousJob)
+    console.log(
+      "FAILED_JOB_UI_RECOVERY_OK: freshAuthorization=1 previousJobPreserved=true",
+    )
   console.log(`Private fixture evidence: ${directory}`)
 } catch {
   console.error(

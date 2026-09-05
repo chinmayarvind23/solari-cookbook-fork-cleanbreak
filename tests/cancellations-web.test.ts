@@ -7,6 +7,8 @@ import { cancellationRepository } from "@/lib/cancellations/repository"
 import { POST } from "@/app/api/cancellations/route"
 import { GET } from "@/app/api/cancellations/[id]/route"
 import { GET as receiptGET } from "@/app/api/cancellations/[id]/receipt/route"
+import type { Job } from "@/lib/cancellations/state"
+import { canStartNewAttempt } from "@/lib/cancellations/new-attempt"
 const shared = vi.hoisted(() => ({
   repository: undefined as
     ReturnType<typeof cancellationRepository> | undefined,
@@ -40,7 +42,7 @@ afterEach(() => {
 })
 const request = (
   key = "test-request-key-1234",
-  body = { provider: "streammax" },
+  body: { provider: string; retryOf?: string } = { provider: "streammax" },
   origin = "http://localhost:3000",
 ) =>
   new Request("http://localhost:3000/api/cancellations", {
@@ -54,6 +56,126 @@ const request = (
     body: JSON.stringify(body),
   })
 describe("one-click server routes", () => {
+  async function failedJob(patch: Partial<Job> = {}) {
+    const initial = await (await POST(request())).json()
+    const repo = shared.repository!,
+      owner = "test-owner"
+    expect(repo.acquire(initial.id, owner)).toBe(true)
+    const failed = repo.save(
+      {
+        ...repo.load(initial.id)!,
+        state: "FAILED",
+        authorizationStatus: "EXPIRED",
+        reason: "FINAL_BOUNDARY_NOT_ESTABLISHED",
+        ...patch,
+      },
+      owner,
+    )
+    repo.unlockUnclaimed(failed)
+    repo.release(initial.id, owner)
+    shared.scheduled = []
+    return failed
+  }
+  it("an explicit new request creates a fresh scoped authorization without changing the failed job", async () => {
+    const previous = await failedJob()
+    expect(canStartNewAttempt(previous)).toBe(true)
+    const response = await POST(
+      request("new-attempt-key-1234", {
+        provider: "streammax",
+        retryOf: previous.id,
+      }),
+    )
+    expect(response.status).toBe(202)
+    const current = await response.json()
+    expect(current.id).not.toBe(previous.id)
+    expect(current.state).toBe("AUTHORIZED")
+    expect(current.authorizationUses).toBe(0)
+    expect(shared.repository!.load(current.id)!.authorization.id).not.toBe(
+      previous.authorization.id,
+    )
+    expect(shared.repository!.load(previous.id)).toEqual(previous)
+    expect(shared.scheduled).toHaveLength(1)
+    const replay = await (
+      await POST(
+        request("new-attempt-key-1234", {
+          provider: "streammax",
+          retryOf: previous.id,
+        }),
+      )
+    ).json()
+    expect(replay.id).toBe(current.id)
+    const doubleClick = await (
+      await POST(
+        request("new-attempt-key-5678", {
+          provider: "streammax",
+          retryOf: previous.id,
+        }),
+      )
+    ).json()
+    expect(doubleClick.id).toBe(current.id)
+    expect(
+      db.prepare("SELECT count(*) n FROM one_click_authorizations").get()?.n,
+    ).toBe(2)
+  })
+  it.each([
+    { authorizationUses: 1 },
+    { destructiveClicksAttempted: 1 },
+    { destructiveClicksExecuted: 1 },
+    { authorizationStatus: "CONSUMED" },
+    { reason: "WORKFLOW_FAILED_CLOSED" },
+    { reason: "ACTION_FAILED_OUTCOME_UNKNOWN_NO_RETRY" },
+  ] satisfies Partial<Job>[])(
+    "server rejects an ineligible prior failure %j",
+    async (patch) => {
+      const previous = await failedJob(patch)
+      expect(canStartNewAttempt(previous)).toBe(false)
+      const response = await POST(
+        request("new-attempt-key-1234", {
+          provider: "streammax",
+          retryOf: previous.id,
+        }),
+      )
+      expect(response.status).toBe(409)
+      expect(await response.json()).toEqual({
+        error: "NEW_ATTEMPT_NOT_ALLOWED",
+      })
+      expect(shared.scheduled).toHaveLength(0)
+      expect(
+        db.prepare("SELECT count(*) n FROM one_click_authorizations").get()?.n,
+      ).toBe(1)
+    },
+  )
+  it("rejects missing/active predecessors and changed scope without changing locks", async () => {
+    const active = await (await POST(request())).json()
+    shared.scheduled = []
+    for (const retryOf of [active.id, "missing-job-identifier"]) {
+      expect(
+        (
+          await POST(
+            request("new-attempt-key-1234", { provider: "streammax", retryOf }),
+          )
+        ).status,
+      ).toBe(409)
+    }
+    expect(shared.scheduled).toHaveLength(0)
+    const previous = await failedJob()
+    const {
+      id: _id,
+      intent: _intent,
+      authorizedAt: _at,
+      expiresAt: _expires,
+      maxDestructiveActions: _max,
+      ...scope
+    } = previous.authorization
+    expect(() =>
+      shared.repository!.create(
+        { ...scope, expectedAmountCents: 1 },
+        "new-attempt-key-1234",
+        previous.id,
+      ),
+    ).toThrow("NEW_ATTEMPT_NOT_ALLOWED")
+    expect(shared.repository!.load(previous.id)).toEqual(previous)
+  })
   it("clearly labels live irreversible authorization without a second approval button", () => {
     const markup = renderToStaticMarkup(
       createElement(CancellationCard, {

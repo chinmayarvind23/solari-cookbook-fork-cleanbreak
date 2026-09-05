@@ -2,6 +2,7 @@ import "server-only"
 import { randomUUID } from "node:crypto"
 import type { DatabaseSync } from "node:sqlite"
 import { getDatabase } from "@/lib/db"
+import { canStartNewAttempt, NewAttemptNotAllowed } from "./new-attempt"
 import {
   edges,
   terminal,
@@ -80,8 +81,19 @@ export function cancellationRepository(
   }
   return {
     load,
-    create(scope: Scope, requestKey: string) {
+    create(scope: Scope, requestKey: string, retryOf?: string) {
       return transaction(() => {
+        if (retryOf) {
+          const previous = load(retryOf)
+          if (
+            !previous ||
+            !canStartNewAttempt(previous) ||
+            (Object.keys(scope) as Array<keyof Scope>).some(
+              (key) => previous.authorization[key] !== scope[key],
+            )
+          )
+            throw new NewAttemptNotAllowed()
+        }
         const existing = db
           .prepare(
             "SELECT id, subscription_key FROM one_click_jobs WHERE request_key=? OR (locked=1 AND (subscription_key=? OR resource_key=?)) ORDER BY rowid LIMIT 1",

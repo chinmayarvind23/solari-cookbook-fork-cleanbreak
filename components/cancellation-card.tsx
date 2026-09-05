@@ -24,6 +24,7 @@ export function CancellationCard({
   const sending = useRef(false)
   const storageKey = `cleanbreak-cancellation-${provider}`
   useEffect(() => {
+    if (busy) return
     let canceled = false,
       timer: ReturnType<typeof setTimeout>
     const poll = async () => {
@@ -55,22 +56,32 @@ export function CancellationCard({
       clearTimeout(timer)
     }
   }, [storageKey, busy])
-  async function cancel() {
+  async function cancel(retryOf?: string) {
     if (sending.current || !enabled) return
+    if (retryOf && (job?.id !== retryOf || !job.canStartNewAttempt)) return
     sending.current = true
     setBusy(true)
     setError("")
     try {
       const saved = JSON.parse(localStorage.getItem(storageKey) || "null") as {
         key?: string
+        retryOf?: string
       } | null
-      const key = saved?.key || crypto.randomUUID()
-      localStorage.setItem(storageKey, JSON.stringify({ key }))
+      const key =
+        retryOf && saved?.retryOf !== retryOf
+          ? crypto.randomUUID()
+          : saved?.key || crypto.randomUUID()
+      // Retain the predecessor and same pending key if the response is lost.
+      // An explicit subsequent click reuses this key, never silently rotates it.
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({ key, ...(retryOf ? { id: retryOf, retryOf } : {}) }),
+      )
       const response = await fetch("/api/cancellations", {
         method: "POST",
         signal: AbortSignal.timeout(15_000),
         headers: { "Content-Type": "application/json", "Idempotency-Key": key },
-        body: JSON.stringify({ provider }),
+        body: JSON.stringify({ provider, ...(retryOf ? { retryOf } : {}) }),
       })
       if (!response.ok) {
         const body = (await response.json().catch(() => null)) as {
@@ -127,6 +138,23 @@ export function CancellationCard({
             <strong>{job.state.replaceAll("_", " ")}</strong>
             <p>{job.message}</p>
             {job.reason && <p>{job.reason}</p>}
+            {job.canStartNewAttempt && enabled && (
+              <>
+                <p>
+                  No destructive click was attempted. Return the Solari browser
+                  to Billing before starting again. This button authorizes a new
+                  one-shot attempt; it does not resume the failed job.
+                </p>
+                <button
+                  className="primary-button"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => cancel(job.id)}
+                >
+                  {busy ? "Authorizing..." : "Start a new cancellation attempt"}
+                </button>
+              </>
+            )}
             {job.receiptUrl && (
               <a className="primary-button" href={job.receiptUrl}>
                 View receipt
@@ -138,7 +166,7 @@ export function CancellationCard({
             className="primary-button"
             type="button"
             disabled={!enabled || busy}
-            onClick={cancel}
+            onClick={() => cancel()}
           >
             {!enabled
               ? "Live setup required"

@@ -38,10 +38,28 @@ mutable columns, atomically changed on claim. A changed environment/session/plan
 does not transfer an existing authorization to that new scope.
 
 POST requires operator authentication in live mode, exact same-origin JSON, a
-bounded strict provider-only body and an Idempotency-Key. Caller-supplied prices,
+bounded strict provider body (optional `retryOf` predecessor ID) and an Idempotency-Key. Caller-supplied prices,
 account IDs, target coordinates, grants or action counts are never accepted.
 Unique indexes serialize active requests by subscription AND Desktop resource.
 Browser reload stores only non-secret request/job IDs and polls the same job.
+
+Eligible pre-claim failures now show **Start a new cancellation attempt** below
+the preserved failure. No private window or storage clearing is required. This
+is a fresh human authorization, not an automatic retry or continuation: return the
+dedicated Desktop to Billing first. The server transaction requires FAILED,
+EXPIRED, zero authorization use/attempted/executed/unsafe/retry counters, a known
+navigation-stop reason, and the exact same configured scope. Unknown outcomes,
+generic unknown failures, active/consumed/inconclusive/verified jobs are ineligible.
+No old record or lock is reset. Existing active/consumed resource locks still win.
+A lost response retains the pending new request key for a later explicit click;
+it never silently rotates the key. The UI pauses old-job polling during submit.
+See [new-attempt trust boundary](new-attempt-trust-boundary.md).
+
+Offline browser regression: after `npm run build`, run
+`npm run test:one-click -- --production --failed-job`. It restores a synthetic
+failed StreamMax ticket in browser storage, clicks the actual recovery button,
+checks a fresh one-use authorization/verified receipt, and proves the predecessor
+was unchanged. This never connects to Miro or Solari.
 
 Workers acquire a 120-second lease, refreshed every 20 seconds. A versioned CAS
 and `BEGIN IMMEDIATE` protect every checkpoint and the authorization claim across
