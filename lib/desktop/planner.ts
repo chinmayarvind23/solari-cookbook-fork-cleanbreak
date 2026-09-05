@@ -116,7 +116,15 @@ visibleText retains relevant page/section context and all cancellation consequen
 do not omit warnings, fees or consequence text to obtain permission.
 The Miro adapter handles the documented first Billing actions Cancel subscription or
 Licensing configuration Cancel trial entry, using trusted completed-flow history.
-Continue/Continue to cancel may advance the documented dialog/reason flow. Reused cancel
+Continue/Continue to cancel may advance the documented dialog/reason flow.
+In Miro's first Business trial benefits
+dialog, scrolling may clip its cancellation heading: report the visible trial
+benefits-until-expiry text, account-expiry text, Keep Business Plan and Continue
+controls faithfully, with surface CANCELLATION_DIALOG. The adapter may recognize
+this documented Continue only after this run's completed Billing entry. Do not
+invent a clipped heading or infer that trial-expiry information itself commits
+cancellation. Any immediate commit wording, fees or changed terms still stops.
+Reused cancel
 labels are NOT automatically reversible: distinguish selecting a cancel option before a
 later button from the actual button. Report explicit next-step text for reused buttons.
 The last cancel button, or cancellation scheduled/effective/confirmed consequences, must

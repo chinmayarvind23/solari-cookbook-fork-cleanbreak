@@ -67,6 +67,23 @@ const consequence =
 const entryLabel = /^(cancel subscription|cancel trial)$/i
 const nextReview =
   /\b(?:opens?|shows?) (?:the |a |another |next )?(?:cancellation )?(?:review|reason) (?:step|screen)\b|\b(?:next|another) (?:review|reason) step (?:follows|is required)\b/i
+const financialChange =
+  /\b(?:downgrade|upgrade|pause|purchase|payment|password|security|accept.*offer|agree.*terms|unpaid invoice|invoicing)\b/i
+
+// Documented free-to-Business trial step 4: Continue precedes the choice and
+// reason screens. Scrolling its benefits list can clip every occurrence of
+// "cancel". Recognize this exact informational surface, never any Continue.
+function trialBenefitsDialog(text: string) {
+  text = text.replace(/\s+/g, " ").trim()
+  return (
+    /\byou can enjoy all business plan benefits until the trial ends\b/i.test(
+      text,
+    ) &&
+    /\byour account will expire at the end of the trial period\b/i.test(text) &&
+    /\bkeep business plan\b/i.test(text) &&
+    !financialChange.test(text)
+  )
+}
 
 // Provider-specific assessment only; generic desktopPolicy is never relaxed.
 // Docs: Miro Help Center cancellation article 360011986179; trial article 15392587152786.
@@ -151,11 +168,7 @@ export function assessMiroDecision(
       "MIRO_FINAL_OR_CONSEQUENCE_CONTEXT",
     )
   // A Continue button must not authorize a retention/payment/security flow.
-  if (
-    /\b(?:downgrade|upgrade|pause|purchase|payment|password|security|accept.*offer|agree.*terms|unpaid invoice|invoicing)\b/i.test(
-      targetContext,
-    )
-  )
+  if (financialChange.test(targetContext))
     return intercept(false, "MIRO_TARGET_FINANCIAL_OR_ACCOUNT_CHANGE")
   const allow = (
     rule: MiroRule,
@@ -184,6 +197,20 @@ export function assessMiroDecision(
   // Once entered, billing-background wording never re-enables the first exception.
   if (observation?.surface === "BILLING_PAGE")
     return intercept(false, "MIRO_ENTRY_ALREADY_TRAVERSED")
+  if (
+    label === "continue" &&
+    observation?.surface === "CANCELLATION_DIALOG" &&
+    observation.targetRole === "BUTTON" &&
+    d.confidence >= Math.max(minConfidence, 0.95) &&
+    scope.completedCancellationSteps === 1 &&
+    scope.completedRules.length === 1 &&
+    scope.completedRules[0] === "ENTRY" &&
+    trialBenefitsDialog(`${context} ${targetContext}`)
+  )
+    return {
+      ...allow("CONTINUE_DIALOG", "RETENTION"),
+      diagnostic: "MIRO_CONTINUE_TRIAL_BENEFITS",
+    }
   const safeNext =
     nextReview.test(context) && !/\b(no|not|without|last|only)\b/i.test(context)
   if (

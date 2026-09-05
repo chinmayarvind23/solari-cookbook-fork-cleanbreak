@@ -208,6 +208,181 @@ describe("narrow Miro cancellation adapter", () => {
     d.miroObservation!.pageUrl = `${url}/`
     return d
   }
+  const trialBenefitsCopy =
+    "You can enjoy all Business Plan benefits until the trial ends on September 30, 2026, but won't be able to add new Members. Your account will expire at the end of the trial period. Here's what you'll lose: Unlimited private workspaces. Keep Business Plan Continue"
+  function trialBenefits() {
+    const d = miro("Continue", "CANCELLATION_DIALOG", trialBenefitsCopy)
+    d.flowStage = "RETENTION"
+    return d
+  }
+  it("recognizes the observed scrolled trial-benefits Continue without a visible cancel heading", () => {
+    expect(trialBenefitsCopy.toLowerCase()).not.toContain("cancel")
+    const assessment = assess(trialBenefits(), entered)
+    expect(assessment).toMatchObject({
+      diagnostic: "MIRO_CONTINUE_TRIAL_BENEFITS",
+      rule: "CONTINUE_DIALOG",
+      decision: { type: "cancel_flow_navigation", flowStage: "RETENTION" },
+      policy: { result: "ALLOW" },
+      finalBoundaryEstablished: false,
+    })
+  })
+  it("recognizes wrapped visible text without inventing the clipped heading", () => {
+    const d = trialBenefits()
+    d.visibleText = "Continue"
+    d.miroObservation!.targetContext = trialBenefitsCopy.replaceAll(" ", "\n")
+    expect(assess(d, entered).diagnostic).toBe("MIRO_CONTINUE_TRIAL_BENEFITS")
+  })
+  it.each([
+    "you can enjoy all business plan benefits until the trial ends",
+    "your account will expire at the end of the trial period",
+    "keep business plan",
+  ])(
+    "requires the complete visible trial-benefits signature: %s",
+    (missing) => {
+      const d = trialBenefits()
+      const reduced = trialBenefitsCopy.toLowerCase().replace(missing, "")
+      d.visibleText = reduced
+      d.miroObservation!.targetContext = reduced
+      expect(assess(d, entered).policy.result).toBe("INTERCEPT")
+    },
+  )
+  it("does not import entry history from another job or repeat this Continue", () => {
+    expect(assess(trialBenefits()).diagnostic).toBe(
+      "MIRO_ENTRY_CONTEXT_NOT_ESTABLISHED",
+    )
+    for (const completedRules of [
+      [],
+      ["CONTINUE_DIALOG"],
+      ["ENTRY", "CONTINUE_DIALOG"],
+      ["ENTRY", "CANCEL_CHOICE"],
+    ] as MiroScope["completedRules"][]) {
+      expect(
+        assess(trialBenefits(), { ...entered, completedRules }).policy.result,
+      ).toBe("INTERCEPT")
+    }
+    expect(
+      assess(trialBenefits(), { ...entered, completedCancellationSteps: 2 })
+        .policy.result,
+    ).toBe("INTERCEPT")
+  })
+  it.each([
+    "cancellation will be scheduled",
+    "clicking Continue cancels your trial now",
+    "cancellation fee",
+    "unpaid invoice",
+    "downgrade",
+    "agree to terms",
+    "payment change",
+  ])("never overrides %s with the benefits-dialog exception", (warning) => {
+    for (const local of [true, false]) {
+      const d = trialBenefits()
+      if (local) d.miroObservation!.targetContext += ` ${warning}`
+      else d.visibleText += ` ${warning}`
+      expect(assess(d, entered).policy.result).toBe("INTERCEPT")
+    }
+  })
+  it.each([
+    { confidence: 0.94 },
+    { pageStatus: "login" },
+    { pageStatus: "challenge" },
+    { observedOrigin: "https://other.example" },
+    { x: null },
+    { targetText: "Cancel trial" },
+    { targetText: "Confirm cancellation" },
+    { targetText: "Keep Business Plan" },
+  ] as Partial<DesktopDecision>[])(
+    "keeps unsafe/mismatched trial observations closed %#",
+    (patch) => {
+      expect(
+        assess({ ...trialBenefits(), ...patch }, entered).policy.result,
+      ).not.toBe("ALLOW")
+    },
+  )
+  it.each([
+    "BILLING_PAGE",
+    "FINAL_CONFIRMATION",
+    "REASON",
+    "CANCELLATION_CHOICE",
+  ] as const)("does not apply the trial-benefits Continue to %s", (surface) => {
+    const d = trialBenefits()
+    d.miroObservation!.surface = surface
+    expect(assess(d, entered).policy.result).toBe("INTERCEPT")
+  })
+  it("keeps generic Continue policy unchanged", () => {
+    const d = trialBenefits()
+    d.type = "click"
+    expect(desktopPolicy(d, "https://miro.com", 1280, 720, 0.9).result).toBe(
+      "INTERCEPT",
+    )
+    expect(assess(d, { ...entered, providerName: "Other" }).policy.result).toBe(
+      "INTERCEPT",
+    )
+  })
+  it("traverses the clipped-heading regression and the documented synthetic later steps to the final boundary", async () => {
+    const reason = miro(
+      "No longer needed",
+      "REASON",
+      "Cancellation reason",
+      "RADIO",
+    )
+    reason.type = "click"
+    reason.flowStage = "REASON"
+    const h = harness([
+      billingTrial(),
+      scrollbarDecision({
+        observedOrigin: "https://miro.com",
+        flowStage: "RETENTION",
+      }),
+      trialBenefits(),
+      miro(
+        "Cancel trial",
+        "CANCELLATION_CHOICE",
+        "Choose Cancel trial before the Cancel subscription button",
+        "RADIO",
+      ),
+      miro(
+        "Cancel subscription",
+        "CANCELLATION_CHOICE",
+        "Opens the cancellation reason screen",
+      ),
+      reason,
+      miro(
+        "Cancel trial",
+        "FINAL_CONFIRMATION",
+        "Cancellation will be scheduled",
+      ),
+    ])
+    const run = await runDesktopDryRun(miroEnv, { ...h.deps, auto: true })
+    expect(run.steps[2]).toMatchObject({
+      adapterDiagnostic: "MIRO_CONTINUE_TRIAL_BENEFITS",
+      execution: "NAVIGATION_RETURNED",
+    })
+    expect(run).toMatchObject({
+      state: "AWAITING_APPROVAL",
+      stopReason: "FINAL_ACTION_BOUNDARY",
+      finalBoundaryEstablished: true,
+      destructiveClicksExecuted: 0,
+      unsafeActionsExecuted: 0,
+      automaticDestructiveRetries: 0,
+    })
+    expect(successfulDesktopValidation(run)).toBe(true)
+    expect(h.vm.mouse.drag).toHaveBeenCalledOnce()
+    expect(h.vm.mouse.click).toHaveBeenCalledTimes(5)
+    expect(run.steps.at(-1)?.execution).toBe("NOT_EXECUTED")
+    expect(JSON.stringify(run)).not.toContain(trialBenefitsCopy)
+    expect(h.deps.confirm).not.toHaveBeenCalled()
+  })
+  it("does not retry the trial dialog Continue after an uncertain input", async () => {
+    const h = harness([billingTrial(), trialBenefits()])
+    h.vm.mouse.click
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("private failure"))
+    const run = await runDesktopDryRun(miroEnv, { ...h.deps, auto: true })
+    expect(run.stopReason).toBe("ACTION_FAILED_OUTCOME_UNKNOWN_NO_RETRY")
+    expect(h.vm.mouse.click).toHaveBeenCalledTimes(2)
+    expect(run.automaticDestructiveRetries).toBe(0)
+    expect(JSON.stringify(run)).not.toContain("private failure")
+  })
   it("allows standalone trial entry despite unrelated Upgrade/payment controls and a trailing slash", () => {
     expect(assess(billingTrial())).toMatchObject({
       rule: "ENTRY",
