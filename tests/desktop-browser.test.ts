@@ -70,6 +70,15 @@ function harness() {
 afterEach(() => vi.restoreAllMocks())
 
 describe("manual Desktop browser launch", () => {
+  it("closes local resources without pausing when confirmation times out or is canceled", async () => {
+    const h = harness()
+    h.deps.confirm.mockResolvedValueOnce(false)
+    await runDesktopOpen(h.env, h.deps)
+    expect(h.vm.close).toHaveBeenCalledOnce()
+    expect(h.viewer.close).toHaveBeenCalledOnce()
+    expect(h.vm.pause).not.toHaveBeenCalled()
+    expect(h.client.pause).not.toHaveBeenCalled()
+  })
   it("waits for health, opens Firefox at the validated provider URL, then starts the viewer", async () => {
     const h = harness()
     h.vm.health.mockResolvedValueOnce({
@@ -118,7 +127,7 @@ describe("manual Desktop browser launch", () => {
       "streamUrl",
     ])
       expect(logs.includes(value)).toBe(false)
-    expect(h.client.pause).toHaveBeenCalledOnce()
+    expect(h.client.pause).not.toHaveBeenCalled()
     expect(h.vm.close).toHaveBeenCalledOnce()
     expect(h.client.destroy).not.toHaveBeenCalled()
     expect(h.vm.exec).not.toHaveBeenCalled()
@@ -159,7 +168,7 @@ describe("manual Desktop browser launch", () => {
     )
     expect(h.vm.stream.start).not.toHaveBeenCalled()
     expect(h.deps.viewer).not.toHaveBeenCalled()
-    expect(h.client.pause).toHaveBeenCalledOnce()
+    expect(h.client.pause).not.toHaveBeenCalled()
     expect(h.vm.close).toHaveBeenCalledOnce()
   })
   it("uses a fallback only after Firefox absence and executable presence are confirmed", async () => {

@@ -87,8 +87,8 @@ correct provider page open yourself before starting.
    and `expiresAt`. `.cleanbreak/` is ignored by Git. Never share or commit the
    file: the SDK describes the compound session ID as an opaque capability.
 
-   Creation pauses the session in cleanup, including on failed verification when
-   its ID is available; it never destroys it. An existing local state file is
+   Creation closes only local handles, including on failed verification;
+   it never pauses or destroys the VM. An existing local state file is
    never overwritten. If creation fails after returning metadata, keep the
    printed exact ID privately and pause the session in Solari. Do not blindly
    create duplicates. You can explicitly set the returned compound ID in
@@ -127,7 +127,7 @@ correct provider page open yourself before starting.
    In the manual-only viewer, log into your provider, complete MFA yourself, and
    leave its billing page visible.
    Verify the intended account and trial/plan. Do not cancel anything. Return to
-   the terminal and press Enter to pause the VM. Its startup screenshot is checked
+   the terminal and press Enter to close the local viewer, not pause the VM. Its startup screenshot is checked
    in memory only, never saved or sent to a planner. It does not record, read
    credentials, or export browser state. Keep private windows closed during startup.
 
@@ -315,7 +315,7 @@ or agent run is launched by the typing helper.
 The helper closes its own control connection in `finally`; the SDK has no separate
 client close method. It deliberately leaves the existing VM/viewer running (and
 can resume a paused VM), so return to the original `desktop:open` terminal when
-finished and press Enter there to pause it, or pause it in Solari yourself.
+finished and press Enter there to close the local viewer. Pause it in Solari yourself.
 On a typing error, inspect/clear the field before retrying: delivery may already
 have happened and there is no automatic retry.
 
@@ -365,7 +365,7 @@ npm run real-provider:desktop-dry-run -- --auto
 Invocation is consent to screenshot planning/recording and policy-approved
 reversible navigation. Auto does not ask for START, NAVIGATE, or recording review,
 and does not require a TTY. It prints safe enum/key step summaries, stops on BLOCK
-or INTERCEPT, pauses the Desktop and closes control/viewer without destroying it.
+or INTERCEPT, closes control/viewer without pausing or destroying the Desktop.
 There is no final-action dispatcher. Missing/uncertain context can still stop an
 auto run early: no live Miro success is claimed by the offline implementation.
 
@@ -472,7 +472,7 @@ Each run uses a new ignored directory `artifacts/desktop/<run-id>/`:
   references, recording guest path/status, pause/close outcome, and safety counts.
 - `validation.json`: written **only** for `AWAITING_APPROVAL` with
   `FINAL_ACTION_BOUNDARY`, zero destructive/unsafe actions, an established provider
-  candidate, successful pause/close, and at least one preceding successfully returned,
+  candidate, successful control close, and at least one preceding successfully returned,
   policy-approved `cancel_flow_navigation` step (human-reviewed by default). Auto
   also requires an established final boundary and zero automatic destructive retries.
   An early boundary alone is not a
@@ -489,9 +489,9 @@ and recording URLs are not logged or included in the validation artifact.
 Recording starts after `START` in default mode or explicit `--auto` invocation.
 It uses `record.start({ fps: 10, format:
 "mp4", path: "/tmp/cleanbreak-<run-id>.mp4" })`. Cleanup calls `record.stop()`,
-obtains a private download URL when a nonempty recording is available, then pauses
-the VM and closes control. The local viewer stays up for optional recording review
-after the VM is paused in default mode; press Enter to close it. Auto skips this
+obtains a private download URL when a nonempty recording is available, then closes
+control without pausing the VM. The local viewer stays up for optional recording review
+in default mode; press Enter to close it. Auto skips this
 prompt and closes its viewer immediately. Later retrieval can use the
 recording guest path in the private job record with Solari's `downloadUrl` API.
 Recording failures are reported, not fabricated as success.
@@ -511,16 +511,16 @@ Example final terminal metadata (illustrative, not a live test result):
   "evidence": "artifacts/desktop/<run-id>/job.json",
   "validation": "artifacts/desktop/<run-id>/validation.json",
   "recordingStatus": "AVAILABLE",
-  "paused": true,
+  "paused": false,
   "controlClosed": true,
   "destructiveClicksExecuted": 0,
   "unsafeActionsExecuted": 0
 }
 ```
 
-Errors also attempt pause (with a gateway fallback) and close. If pause fails,
-status is FAILED, no validation artifact is emitted, and you must pause the VM
-manually in Solari. A killed host process/network outage cannot guarantee cleanup;
+Errors also close local control without pausing the shared VM. If control cleanup
+fails, status is FAILED and no validation artifact is emitted. Pause the VM
+manually in Solari when finished to stop compute billing. A killed host process/network outage cannot guarantee cleanup;
 set the VM's server-side idle lifecycle to pause. Never destroy it to recover login.
 
 ## Default-mode trust-boundary memo
@@ -569,7 +569,7 @@ cancellation was performed to validate this code.
 Worked offline trace: screenshot of Billing → model proposes Billing click with
 high confidence → policy requests human review → visually stable screen and confirmation
 → navigation returns → new screenshot → cancellation candidate → INTERCEPT →
-AWAITING_APPROVAL → record stops → VM pauses → control closes. Recorded reasoning
+AWAITING_APPROVAL → record stops → control closes → VM remains running. Recorded reasoning
 is withheld; the policy result explains each dispatch/stop. Tool failure produces
 `ACTION_FAILED_OUTCOME_UNKNOWN_NO_RETRY` and ends the loop, never a blind retry.
 

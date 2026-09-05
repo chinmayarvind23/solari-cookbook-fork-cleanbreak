@@ -136,6 +136,8 @@ describe("Desktop product adapter isolation", () => {
     )
     expect(shared.vm.mouse.click).not.toHaveBeenCalled()
     await driver.close()
+    expect(shared.vm.pause).not.toHaveBeenCalled()
+    expect(shared.vm.close).toHaveBeenCalled()
     expect(shared.vm.destroy).not.toHaveBeenCalled()
   })
   it("verification reconnects, opens a configured billing window and never dispatches input", async () => {

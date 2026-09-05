@@ -156,19 +156,11 @@ export async function runDesktopSession(
     )
     result = 1
   } finally {
-    // Pause newly created desktops even after failed verification; never destroy.
-    // A check only closes its handle, leaving a concurrently used viewer intact.
-    if (creating && sessionId && client) {
-      try {
-        await client.pause(sessionId)
-        output("Created desktop paused.")
-      } catch {
-        output(
-          "Pause was not confirmed. Pause the created desktop manually in Solari; do not destroy it.",
-        )
-        result = 1
-      }
-    }
+    // Close only local handles, including failures; never interrupt the console.
+    if (creating && sessionId)
+      output(
+        "Desktop left running. Pause it in Solari when finished to stop compute billing.",
+      )
     try {
       connected?.close()
     } catch {

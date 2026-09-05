@@ -91,7 +91,7 @@ export async function runDesktopOpen(
       false,
     )
     await (dependencies.confirm ?? confirmTerminal)(
-      `Private manual desktop: ${viewer.url}\nLog in and complete MFA manually in the launched browser, and leave the billing page visible. Do not cancel. Press Enter here when ready to pause the VM.`,
+      `Private manual desktop: ${viewer.url}\nLog in and complete MFA manually in the launched browser, and leave the billing page visible. Do not cancel. Press Enter to close this local viewer; the VM stays running.`,
       "",
       signals.signal,
     )
@@ -99,15 +99,9 @@ export async function runDesktopOpen(
     output(failureMessage)
     exitCode = 1
   } finally {
-    try {
-      await client.pause(config.desktopId)
-      output("Desktop paused; authenticated machine state retained.")
-    } catch {
-      output(
-        "Pause was not confirmed. Pause the existing VM in Solari; do not destroy it.",
-      )
-      exitCode = 1
-    }
+    output(
+      "Desktop left running. Pause it in Solari when finished to stop compute billing.",
+    )
     try {
       vm?.close()
     } catch {

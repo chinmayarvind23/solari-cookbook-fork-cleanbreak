@@ -26,7 +26,7 @@ model-reported facts are necessary policy checks, not independent attestation.
 | Explicitly allowlisted navigation clicks/keys                                    | Focus, scrolling, or workflow position in the dedicated provider session | Intended yes; a mislabeled or hijacked target can affect the account        |
 | Fixed neutral cancellation reason / narrowly allowlisted neutral reason choice   | Cancellation-reason field in the current workflow                        | Intended yes before submission; a provider may autosave field data          |
 | Local screenshots, structured job/validation metadata                            | Ignored private artifacts for this run                                   | Deletable; screenshots/recordings themselves may contain private account UI |
-| Remote recording, pause, local-handle close                                      | Dedicated Desktop session only                                           | Session is paused, never destroyed; recording remains private               |
+| Remote recording, local-handle close                                             | Dedicated Desktop session only                                           | VM remains running; user controls pause; recording remains private          |
 | Final cancellation, financial/offer acceptance, account/security/payment changes | Subscription/account state, trial access, or charges                     | **Never authorized**, regardless of `--auto`                                |
 
 Worst-case wrong-write blast radius is the subscription/account in the dedicated

@@ -67,7 +67,7 @@ export async function desktopDryRunCommand(
         ? undefined
         : async (url) => {
             await confirm(
-              `VM paused. Optional private recording review: ${url}\nPress Enter to close the local viewer.`,
+              `VM left running. Optional private recording review: ${url}\nPress Enter to close the local viewer.`,
               "",
               signals.signal,
             )

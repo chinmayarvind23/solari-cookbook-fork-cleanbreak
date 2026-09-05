@@ -1,5 +1,11 @@
 # CleanBreak
 
+Desktop lifecycle: CleanBreak closes its own connections but does **not** pause
+the shared VM when creation, manual authentication, dry-runs, or cancellation
+workers finish or fail. This keeps the Solari website viewer available. Pause the
+VM yourself in Solari when finished to stop compute billing. The configured
+server-side idle timeout still applies; `paused: false` is expected in dry-run output.
+
 CleanBreak is a safety-first subscription cancellation agent. It uses a recorded
 Solari browser, an OpenAI planner, deterministic policy gates, explicit human
 approval, independent verification, and tamper-evident receipts. The repository

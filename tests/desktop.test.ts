@@ -585,7 +585,7 @@ describe("Desktop config and strict planner", () => {
 })
 
 describe("offline visual Desktop dry-run lifecycle", () => {
-  it("reconnects an existing VM, waits for health, captures each step, intercepts final action, and pauses", async () => {
+  it("reconnects an existing VM, intercepts final action, and closes without pausing", async () => {
     const h = harness([
       decision({ type: "click", targetText: "Billing" }),
       decision(),
@@ -602,7 +602,7 @@ describe("offline visual Desktop dry-run lifecycle", () => {
     expect(h.deps.confirm).toHaveBeenCalledOnce()
     expect(result).toMatchObject({
       state: "AWAITING_APPROVAL",
-      paused: true,
+      paused: false,
       controlClosed: true,
       destructiveClicksExecuted: 0,
       unsafeActionsExecuted: 0,
@@ -610,7 +610,7 @@ describe("offline visual Desktop dry-run lifecycle", () => {
     expect(result.steps[1].execution).toBe("NOT_EXECUTED")
     expect(h.vm.record.start).toHaveBeenCalledOnce()
     expect(h.vm.record.stop).toHaveBeenCalledOnce()
-    expect(h.vm.pause).toHaveBeenCalledOnce()
+    expect(h.vm.pause).not.toHaveBeenCalled()
     expect(h.vm.close).toHaveBeenCalledOnce()
     expect(h.vm.destroy).not.toHaveBeenCalled()
     expect(h.viewer.close).toHaveBeenCalledOnce()
@@ -654,7 +654,7 @@ describe("offline visual Desktop dry-run lifecycle", () => {
       expect(h.vm.mouse.click).not.toHaveBeenCalled()
       expect(h.vm.keyboard.press).not.toHaveBeenCalled()
       expect(h.vm.keyboard.type).not.toHaveBeenCalled()
-      expect(h.vm.pause).toHaveBeenCalledOnce()
+      expect(h.vm.pause).not.toHaveBeenCalled()
       expect(h.vm.close).toHaveBeenCalledOnce()
     },
   )
@@ -787,7 +787,7 @@ describe("offline visual Desktop dry-run lifecycle", () => {
       })
       expect(result.destructiveClicksExecuted).toBe(0)
       expect(result.unsafeActionsExecuted).toBe(0)
-      expect(h.vm.pause).toHaveBeenCalledOnce()
+      expect(h.vm.pause).not.toHaveBeenCalled()
       expect(h.vm.close).toHaveBeenCalledOnce()
     },
   )
@@ -806,7 +806,7 @@ describe("offline visual Desktop dry-run lifecycle", () => {
     "planner",
     "recording",
     "confirmation",
-  ])("pauses and closes on %s failure", async (phase) => {
+  ])("closes without pausing on %s failure", async (phase) => {
     const h = harness([decision({ type: "click", targetText: "Billing" })])
     const error = new Error("private-sdk-error")
     if (phase === "connect") h.vm.connect.mockRejectedValue(error)
@@ -817,31 +817,33 @@ describe("offline visual Desktop dry-run lifecycle", () => {
     if (phase === "confirmation") h.deps.confirm.mockRejectedValue(error)
     const result = await runDesktopDryRun(env, h.deps)
     expect(result.state).toBe("FAILED")
-    expect(h.vm.pause).toHaveBeenCalledOnce()
+    expect(h.vm.pause).not.toHaveBeenCalled()
     expect(h.vm.close).toHaveBeenCalledOnce()
     expect(JSON.stringify(result)).not.toContain("private-sdk-error")
   })
-  it("tries gateway pause when attaching fails or handle pause fails", async () => {
+  it("never pauses the shared VM even when attaching fails", async () => {
     const h = harness()
     h.client.connect.mockRejectedValue(new Error("private-url"))
-    expect((await runDesktopDryRun(env, h.deps)).paused).toBe(true)
-    expect(h.client.pause).toHaveBeenCalledOnce()
+    expect((await runDesktopDryRun(env, h.deps)).paused).toBe(false)
+    expect(h.client.pause).not.toHaveBeenCalled()
     const fallback = harness()
     fallback.vm.pause.mockRejectedValue(new Error("private"))
-    expect((await runDesktopDryRun(env, fallback.deps)).paused).toBe(true)
-    expect(fallback.client.pause).toHaveBeenCalledOnce()
+    expect((await runDesktopDryRun(env, fallback.deps)).paused).toBe(false)
+    expect(fallback.client.pause).not.toHaveBeenCalled()
+    expect(fallback.vm.pause).not.toHaveBeenCalled()
     expect(fallback.vm.close).toHaveBeenCalledOnce()
   })
-  it("does not report success if pause cannot be confirmed", async () => {
+  it("does not report success if local control cleanup fails", async () => {
     const h = harness()
-    h.vm.pause.mockRejectedValue(new Error())
-    h.client.pause.mockRejectedValue(new Error())
+    h.vm.close.mockImplementation(() => {
+      throw new Error()
+    })
     const result = await runDesktopDryRun(env, h.deps)
     expect(result.state).toBe("FAILED")
     expect(result.paused).toBe(false)
     expect(h.vm.close).toHaveBeenCalledOnce()
   })
-  it("stops on interruption before any model-directed input and still pauses", async () => {
+  it("stops on interruption before any model-directed input and closes only", async () => {
     const h = harness()
     const controller = new AbortController()
     h.deps.prepare.mockImplementation(async () => {
@@ -853,7 +855,7 @@ describe("offline visual Desktop dry-run lifecycle", () => {
         .stopReason,
     ).toBe("INTERRUPTED")
     expect(h.vm.mouse.click).not.toHaveBeenCalled()
-    expect(h.vm.pause).toHaveBeenCalledOnce()
+    expect(h.vm.pause).not.toHaveBeenCalled()
   })
   it.each([false, true])(
     "redacts model free text and keeps capabilities out of validation artifacts (auto=%s)",
@@ -1189,9 +1191,9 @@ describe("reversible cancellation flow and final boundary", () => {
     expect(
       successfulDesktopValidation({ ...result, stopReason: "SCREEN_CHANGED" }),
     ).toBe(false)
-    expect(successfulDesktopValidation({ ...result, paused: false })).toBe(
-      false,
-    )
+    expect(
+      successfulDesktopValidation({ ...result, controlClosed: false }),
+    ).toBe(false)
     expect(
       successfulDesktopValidation({
         ...result,
@@ -1318,7 +1320,7 @@ describe("autonomous Desktop dry run", () => {
       automaticDestructiveRetries: 0,
       destructiveClicksExecuted: 0,
       unsafeActionsExecuted: 0,
-      paused: true,
+      paused: false,
       controlClosed: true,
     })
     expect(h.deps.prepare).not.toHaveBeenCalled()
@@ -1334,7 +1336,7 @@ describe("autonomous Desktop dry run", () => {
         .every((step) => step.transitionStability?.stable),
     ).toBe(true)
     expect(h.deps.sleep).toHaveBeenCalledWith(750)
-    expect(progress).toHaveBeenLastCalledWith(
+    expect(progress).toHaveBeenCalledWith(
       "step 8: final_cancel_candidate -> INTERCEPT",
     )
     expect(progress.mock.calls.flat().join(" ")).not.toContain(
@@ -1368,7 +1370,7 @@ describe("autonomous Desktop dry run", () => {
       automaticDestructiveRetries: 0,
       destructiveClicksExecuted: 0,
       unsafeActionsExecuted: 0,
-      paused: true,
+      paused: false,
       controlClosed: true,
       validation: "artifacts/desktop/test-desktop-run/validation.json",
     })
@@ -1424,7 +1426,8 @@ describe("autonomous Desktop dry run", () => {
       expect(h.vm.keyboard.press).not.toHaveBeenCalled()
       expect(h.vm.keyboard.type).not.toHaveBeenCalled()
       expect(result.automaticDestructiveRetries).toBe(0)
-      expect(result.paused && result.controlClosed).toBe(true)
+      expect(result.paused).toBe(false)
+      expect(result.controlClosed).toBe(true)
     },
   )
   it.each([

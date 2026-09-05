@@ -126,12 +126,12 @@ new authority. Dedicated, narrowly scoped provider identity/VM is required.
 | Configured OpenAI extraction endpoint                          | Authorized screenshot processor; model output remains untrusted         |
 | SQLite checkpoints                                             | Local authority; never replay raw provider text as planner instructions |
 
-| Write surface                                           | Blast radius                                                                 | Reversible                  |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------- |
-| Navigation/reason selection                             | Dedicated provider session                                                   | Intended yes, still guarded |
-| One cancellation click                                  | Exactly the authorized account subscription; loss/charges if UI is deceptive | No                          |
-| Authorization/checkpoints/receipt                       | Local persistent SQLite                                                      | Audit records retained      |
-| Private screenshots/recording, window open and VM pause | Dedicated VM and local ignored evidence                                      | Yes                         |
+| Write surface                                                         | Blast radius                                                                 | Reversible                  |
+| --------------------------------------------------------------------- | ---------------------------------------------------------------------------- | --------------------------- |
+| Navigation/reason selection                                           | Dedicated provider session                                                   | Intended yes, still guarded |
+| One cancellation click                                                | Exactly the authorized account subscription; loss/charges if UI is deceptive | No                          |
+| Authorization/checkpoints/receipt                                     | Local persistent SQLite                                                      | Audit records retained      |
+| Private screenshots/recording, window open and local connection close | Dedicated VM and local ignored evidence                                      | Yes; VM remains running     |
 
 Defense stack: Basic operator authentication (username `cleanbreak`, ≥24-character
 secret), HTTPS except loopback, exact Origin/Host JSON CSRF checks, strict schemas,

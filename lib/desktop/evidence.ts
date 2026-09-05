@@ -24,7 +24,6 @@ export function successfulDesktopValidation(run: DesktopRun): boolean {
               s.screenStability?.stable === true,
           ))) &&
     run.proposedAction !== null &&
-    run.paused &&
     run.controlClosed &&
     run.steps.at(-1)?.policy === "FINAL_ACTION_BOUNDARY" &&
     run.steps.at(-1)?.execution === "NOT_EXECUTED" &&

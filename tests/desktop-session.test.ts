@@ -79,7 +79,7 @@ function harness() {
 afterEach(() => vi.restoreAllMocks())
 
 describe("SDK Desktop create/check", () => {
-  it("round-trips the exact SDK ID, persists only safe fields, then pauses without destroying", async () => {
+  it("round-trips the exact SDK ID, persists safe fields and closes without pausing or destroying", async () => {
     const h = harness()
     expect(await runDesktopSession(["--create"], h.env, h.deps)).toBe(0)
     expect(h.client.create).toHaveBeenCalledExactlyOnceWith({
@@ -110,7 +110,7 @@ describe("SDK Desktop create/check", () => {
     expect(h.deps.saveState.mock.invocationCallOrder[0]).toBeGreaterThan(
       h.connected.health.mock.invocationCallOrder[0],
     )
-    expect(h.client.pause).toHaveBeenCalledExactlyOnceWith(h.sessionId)
+    expect(h.client.pause).not.toHaveBeenCalled()
     expect(h.connected.close).toHaveBeenCalledOnce()
     expect(h.client.destroy).not.toHaveBeenCalled()
     expect(h.created.destroy).not.toHaveBeenCalled()
@@ -138,7 +138,6 @@ describe("SDK Desktop create/check", () => {
     "health",
     "not_ready",
     "save",
-    "pause",
   ])("fails safely at %s without retries or destruction", async (phase) => {
     const h = harness()
     const error = new Error(
@@ -159,14 +158,12 @@ describe("SDK Desktop create/check", () => {
       h.deps.saveState.mockImplementationOnce(() => {
         throw error
       })
-    if (phase === "pause") h.client.pause.mockRejectedValueOnce(error)
     expect(await runDesktopSession(["--create"], h.env, h.deps)).toBe(1)
     expect(h.client.create).toHaveBeenCalledOnce()
-    if (!["save", "pause"].includes(phase))
-      expect(h.deps.saveState).not.toHaveBeenCalled()
+    if (phase !== "save") expect(h.deps.saveState).not.toHaveBeenCalled()
     if (phase !== "create") {
       expect(h.created.close).toHaveBeenCalledOnce()
-      expect(h.client.pause).toHaveBeenCalledExactlyOnceWith(h.sessionId)
+      expect(h.client.pause).not.toHaveBeenCalled()
     }
     if (!["create", "client_connect"].includes(phase))
       expect(h.connected.close).toHaveBeenCalledOnce()

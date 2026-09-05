@@ -431,29 +431,21 @@ export async function runDesktopDryRun(
         run.recordingStatus = "FAILED"
       }
     } else run.recordingStatus = "FAILED"
-    try {
-      if (vm) await vm.pause()
-      else await client.pause(config.desktopId)
-      run.paused = true
-    } catch {
-      try {
-        await client.pause(config.desktopId)
-        run.paused = true
-      } catch {
-        run.paused = false
-      }
-    }
+    // This is a shared, user-managed VM. Release only our control connection;
+    // pausing here would disconnect the user's Solari console viewer.
     try {
       vm?.close()
       run.controlClosed = true
     } catch {
       run.controlClosed = false
     }
-    if (!run.paused || !run.controlClosed) {
+    if (!run.controlClosed) {
       run.state = "FAILED"
       run.stopReason = "DESKTOP_CLEANUP_FAILED"
     }
-    // Pause first; optional local recording review must never keep compute alive.
+    supplied.progress?.(
+      "No VM pause requested. Pause it in Solari when finished to stop compute billing.",
+    )
     try {
       if (
         !auto &&

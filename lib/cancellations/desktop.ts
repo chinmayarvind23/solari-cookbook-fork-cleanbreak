@@ -32,12 +32,8 @@ export function desktopCancellationDriver(
   const close = async () => {
     const current = vm
     vm = undefined
-    if (current)
-      try {
-        await current.pause()
-      } finally {
-        current.close()
-      }
+    // Disconnect this worker, not the user's shared Desktop/console viewer.
+    current?.close()
   }
   const connect = async () => {
     if (vm) return
