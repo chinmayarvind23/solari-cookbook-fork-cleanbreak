@@ -51,6 +51,7 @@ export type DesktopRun = {
     flowStage: DesktopDecision["flowStage"] | null
     providerAdapter: "miro" | null
     adapterRule: MiroRule | null
+    adapterDiagnostic?: string | null
     width: number
     height: number
     decision: ReturnType<typeof safeDesktopDecision> | null
@@ -295,6 +296,7 @@ export async function runDesktopDryRun(
       )
       const decision = assessment.decision
       entry.adapterRule = assessment.rule
+      entry.adapterDiagnostic = assessment.diagnostic
       entry.decision = safeDesktopDecision(decision)
       entry.flowStage = decision.flowStage
       tokens += planned.tokens
@@ -318,6 +320,8 @@ export async function runDesktopDryRun(
         break
       }
       if (policy.result === "INTERCEPT") {
+        if (auto && assessment.diagnostic)
+          supplied.progress?.(`Miro policy: ${assessment.diagnostic}`)
         run.state = "AWAITING_APPROVAL"
         run.stopReason = "FINAL_ACTION_BOUNDARY"
         run.finalBoundaryEstablished = assessment.finalBoundaryEstablished

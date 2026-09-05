@@ -157,6 +157,7 @@ export function evaluateDesktopDecision(
     : null
   return (
     adapter ?? {
+      diagnostic: null,
       decision: d,
       policy: desktopPolicy(d, origin, width, height, minConfidence),
       rule: null,

@@ -73,6 +73,13 @@ pageUrl is the full URL readable in the browser address bar (null if truncated/u
 surface identifies standalone BILLING_PAGE versus CANCELLATION_DIALOG, CANCELLATION_CHOICE,
 REASON, TOOL_SWITCH, FINAL_CONFIRMATION or UNKNOWN. A dialog over Billing is NOT BILLING_PAGE.
 targetRole distinguishes BUTTON from a non-committing OPTION/RADIO/CHECKBOX; never guess.
+targetContext must contain the exact target label and its immediate non-personal
+consequence/next-step text. For a dialog include the entire active dialog's
+non-personal terms, warnings and choices. For standalone Billing entry include
+the local section heading. Do not include unrelated page-header Upgrade buttons,
+payment-method links or sidebar controls. Use null if target context is unknown.
+visibleText retains relevant page/section context and all cancellation consequences;
+do not omit warnings, fees or consequence text to obtain permission.
 The Miro adapter handles the documented first Billing actions Cancel subscription or
 Licensing configuration Cancel trial entry, using trusted completed-flow history.
 Continue/Continue to cancel may advance the documented dialog/reason flow. Reused cancel

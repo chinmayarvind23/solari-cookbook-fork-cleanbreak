@@ -116,11 +116,87 @@ describe("narrow Miro cancellation adapter", () => {
       targetText: label,
       visibleText: context,
       observedOrigin: "https://miro.com",
-      miroObservation: { pageUrl: url, surface, targetRole: role },
+      miroObservation: {
+        pageUrl: url,
+        surface,
+        targetRole: role,
+        targetContext: context,
+      },
     })
   }
   const assess = (d: DesktopDecision, s = scope) =>
     evaluateDesktopDecision(d, "https://miro.com", 1280, 720, 0.9, s)
+  function billingTrial() {
+    const d = miro(
+      "Cancel trial",
+      "BILLING_PAGE",
+      "Plan details Upgrade Billing actions Change payment method Licensing configuration Cancel trial",
+    )
+    d.miroObservation!.targetContext = "Licensing configuration Cancel trial"
+    d.miroObservation!.pageUrl = `${url}/`
+    return d
+  }
+  it("allows standalone trial entry despite unrelated Upgrade/payment controls and a trailing slash", () => {
+    expect(assess(billingTrial())).toMatchObject({
+      rule: "ENTRY",
+      diagnostic: "MIRO_ENTRY",
+      policy: { result: "ALLOW" },
+    })
+    const d = billingTrial()
+    d.miroObservation!.pageUrl = url
+    expect(assess(d, { ...scope, startUrl: `${url}/` }).rule).toBe("ENTRY")
+  })
+  it.each([null, "", "Cancel trial payment change", "Cancel trial upgrade"])(
+    "fails closed for missing or risky target context %s",
+    (context) => {
+      const d = billingTrial()
+      d.miroObservation!.targetContext = context
+      expect(assess(d).policy.result).toBe("INTERCEPT")
+    },
+  )
+  it("does not hide consequences in either page or local target context", () => {
+    for (const local of [true, false]) {
+      const d = billingTrial()
+      if (local)
+        d.miroObservation!.targetContext += " Cancellation will be scheduled"
+      else d.visibleText += " Cancellation will be scheduled"
+      expect(assess(d)).toMatchObject({
+        policy: { result: "INTERCEPT" },
+        diagnostic: "MIRO_FINAL_OR_CONSEQUENCE_CONTEXT",
+        finalBoundaryEstablished: false,
+      })
+    }
+  })
+  it("traverses the live-shaped trial entry and stops at a later final boundary offline", async () => {
+    const h = harness([
+      billingTrial(),
+      miro("Continue", "CANCELLATION_DIALOG", "Cancel trial"),
+      miro(
+        "Cancel trial",
+        "FINAL_CONFIRMATION",
+        "Cancellation will be scheduled",
+      ),
+    ])
+    const run = await runDesktopDryRun(miroEnv, { ...h.deps, auto: true })
+    expect(h.vm.mouse.click).toHaveBeenCalledTimes(2)
+    expect(run.steps[0]).toMatchObject({
+      adapterRule: "ENTRY",
+      adapterDiagnostic: "MIRO_ENTRY",
+      execution: "NAVIGATION_RETURNED",
+    })
+    expect(run.steps.at(-1)?.execution).toBe("NOT_EXECUTED")
+    expect(successfulDesktopValidation(run)).toBe(true)
+    expect(run).toMatchObject({
+      finalBoundaryEstablished: true,
+      paused: false,
+      controlClosed: true,
+      destructiveClicksExecuted: 0,
+      unsafeActionsExecuted: 0,
+      automaticDestructiveRetries: 0,
+    })
+    expect(JSON.stringify(run)).not.toContain("Change payment method")
+    expect(JSON.stringify(run)).not.toContain(url)
+  })
   it.each(["Cancel subscription", "Cancel trial"])(
     "allows first documented %s Billing entry",
     (label) => {

@@ -5,6 +5,8 @@ import type { DesktopDecision, DesktopPolicy } from "./decision"
 export const miroObservationSchema = z
   .object({
     pageUrl: z.string().max(2048).nullable(),
+    // Immediate control/active-dialog context, never unrelated billing chrome.
+    targetContext: z.string().max(3000).nullable(),
     surface: z.enum([
       "BILLING_PAGE",
       "CANCELLATION_DIALOG",
@@ -33,6 +35,7 @@ export type MiroScope = {
   completedRules: readonly MiroRule[]
 }
 export type MiroAssessment = {
+  diagnostic: string
   decision: DesktopDecision
   policy: DesktopPolicy
   rule: MiroRule
@@ -89,7 +92,11 @@ export function assessMiroDecision(
     /cancel|end.*(?:trial|subscription)|(?:turn off|stop).*renew/.test(label)
   const relevant =
     cancellationTarget || /^(continue|prefer not to say)$/.test(label)
-  const intercept = (established = false): MiroAssessment => ({
+  const intercept = (
+    established = false,
+    diagnostic = "MIRO_AMBIGUOUS_STEP",
+  ): MiroAssessment => ({
+    diagnostic,
     decision: {
       ...d,
       type: "final_cancel_candidate",
@@ -107,7 +114,8 @@ export function assessMiroDecision(
     const actual = new URL(observation?.pageUrl ?? "")
     pageMatches =
       actual.origin === expected.origin &&
-      actual.pathname === expected.pathname &&
+      actual.pathname.replace(/\/$/, "") ===
+        expected.pathname.replace(/\/$/, "") &&
       !actual.username &&
       !actual.password &&
       !actual.search &&
@@ -115,8 +123,8 @@ export function assessMiroDecision(
   } catch {
     /* Unknown/truncated address bar fails closed. */
   }
+  if (!pageMatches) return intercept(false, "MIRO_BILLING_URL_MISMATCH")
   if (
-    !pageMatches ||
     origin !== "https://miro.com" ||
     d.observedOrigin !== origin ||
     (d.destinationOrigin !== null && d.destinationOrigin !== origin) ||
@@ -129,27 +137,31 @@ export function assessMiroDecision(
     d.x >= width ||
     d.y >= height
   )
-    return intercept()
+    return intercept(false, "MIRO_UNSAFE_OBSERVATION")
   const entered = scope.completedCancellationSteps > 0
-  const finalCue = consequence.test(`${label} ${context}`)
+  const targetContext = observation?.targetContext?.trim()
+  if (!targetContext) return intercept(false, "MIRO_TARGET_CONTEXT_MISSING")
+  const finalCue = consequence.test(`${label} ${context} ${targetContext}`)
   if (finalCue || observation?.surface === "FINAL_CONFIRMATION")
     return intercept(
       entered &&
         finalCue &&
         cancellationTarget &&
         observation?.targetRole === "BUTTON",
+      "MIRO_FINAL_OR_CONSEQUENCE_CONTEXT",
     )
   // A Continue button must not authorize a retention/payment/security flow.
   if (
     /\b(?:downgrade|upgrade|pause|purchase|payment|password|security|accept.*offer|agree.*terms|unpaid invoice|invoicing)\b/i.test(
-      context,
+      targetContext,
     )
   )
-    return intercept()
+    return intercept(false, "MIRO_TARGET_FINANCIAL_OR_ACCOUNT_CHANGE")
   const allow = (
     rule: MiroRule,
     flowStage: DesktopDecision["flowStage"],
   ): MiroAssessment => ({
+    diagnostic: `MIRO_${rule}`,
     decision: { ...d, type: "cancel_flow_navigation", flowStage },
     policy: { result: "ALLOW", code: "HUMAN_NAVIGATION_REVIEW_REQUIRED" },
     rule,
@@ -168,9 +180,10 @@ export function assessMiroDecision(
     (label !== "cancel trial" || /\btrial\b/i.test(context))
   )
     return allow("ENTRY", "CANCELLATION_ENTRY")
-  if (!entered) return intercept()
+  if (!entered) return intercept(false, "MIRO_ENTRY_CONTEXT_NOT_ESTABLISHED")
   // Once entered, billing-background wording never re-enables the first exception.
-  if (observation?.surface === "BILLING_PAGE") return intercept()
+  if (observation?.surface === "BILLING_PAGE")
+    return intercept(false, "MIRO_ENTRY_ALREADY_TRAVERSED")
   const safeNext =
     nextReview.test(context) && !/\b(no|not|without|last|only)\b/i.test(context)
   if (
