@@ -709,6 +709,59 @@ a {
   column-gap: 30px;
 }
 
+/* One-click cards have no icon column: let their text use the whole card. */
+.subscription-card.cancellation-card {
+  grid-template-columns: minmax(0, 1fr);
+  padding: clamp(20px, 3vw, 32px);
+}
+
+.cancellation-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  min-width: 0;
+}
+
+.cancellation-content h3 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: -0.025em;
+}
+
+.cancellation-content p {
+  margin: 0;
+  max-width: 80ch;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.cancellation-price {
+  font-weight: 650;
+}
+
+.cancellation-notice {
+  padding: 16px 20px;
+  border-left: 3px solid var(--forest-2);
+  border-radius: 8px;
+  background: #f4f7f3;
+}
+
+.cancellation-status {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.cancellation-content .primary-button {
+  margin-top: 4px;
+  max-width: 100%;
+  white-space: normal;
+}
+
 .subscription-title-row {
   display: flex;
   align-items: flex-start;

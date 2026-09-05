@@ -85,15 +85,7 @@ export function SubscriptionCard({
             {active ? "Cancel with CleanBreak" : "Inspect account"}
             <span aria-hidden="true">↗</span>
           </Link>
-        ) : (
-          <button
-            className="secondary-button card-action"
-            disabled
-            type="button"
-          >
-            Demo fixture unavailable
-          </button>
-        )}
+        ) : null}
       </div>
     </article>
   )

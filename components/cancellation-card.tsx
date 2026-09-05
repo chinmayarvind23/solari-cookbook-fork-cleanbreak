@@ -84,8 +84,8 @@ export function CancellationCard({
     }
   }
   return (
-    <article className="subscription-card">
-      <div className="subscription-main">
+    <article className="subscription-card cancellation-card">
+      <div className="cancellation-content">
         <p className="eyebrow">
           {provider === "miro"
             ? "Configured dedicated Desktop"
@@ -94,14 +94,14 @@ export function CancellationCard({
         <h3>{provider === "miro" ? "Miro" : "StreamMax"}</h3>
         <p>{planName}</p>
         {provider === "miro" && enabled && (
-          <p role="note">
+          <p className="cancellation-notice" role="note">
             Live cancellation — this button authorizes one irreversible
             cancellation attempt. CleanBreak will not ask for a second approval
             and will never retry an uncertain final click. A receipt requires
             independent verification.
           </p>
         )}
-        <p>
+        <p className="cancellation-price">
           Renews/charges:{" "}
           {new Intl.NumberFormat("en-US", {
             style: "currency",
@@ -115,7 +115,7 @@ export function CancellationCard({
           stop the job.
         </p>
         {job ? (
-          <div role="status">
+          <div className="cancellation-status" role="status">
             <strong>{job.state.replaceAll("_", " ")}</strong>
             <p>{job.message}</p>
             {job.reason && <p>{job.reason}</p>}
