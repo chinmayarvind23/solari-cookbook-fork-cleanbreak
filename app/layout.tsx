@@ -22,7 +22,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    // Extensions such as FoxClocks add attributes before hydration. Limit this
+    // escape hatch to the root element; app content must still match normally.
+    <html lang="en" suppressHydrationWarning>
       <body className={`${sans.variable} ${mono.variable}`}>{children}</body>
     </html>
   )
