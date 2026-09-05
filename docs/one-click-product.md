@@ -6,6 +6,14 @@ and safe Desktop dry-run remain available. Real execution is **off by default**.
 This is a single-operator, persistent Node/SQLite deployment, not a multi-tenant
 or ephemeral/serverless service. Miro execution is offline-tested, not live-proven.
 
+**To test the entire transaction, including the irreversible click:** use
+`npm run test:one-click` for the local StreamMax fixture, or explicitly enable
+live mode and use the Miro dashboard button / `real-provider:desktop-live` as
+documented below. `real-provider:desktop-dry-run -- --auto` intentionally cannot
+submit the final click, verify a cancellation, or issue a cancellation receipt.
+`--auto` removes navigation prompts; it does not turn a dry-run into live execution.
+Enabling live mode does not override ambiguous targets or changed financial terms.
+
 ## State and durable authorization
 
 ```text

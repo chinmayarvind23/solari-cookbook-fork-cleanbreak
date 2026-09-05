@@ -1,5 +1,14 @@
 # CleanBreak Implementation Status
 
+## Current one-click transaction audit
+
+- Primary product flow is live-capable, not the developer dry-run: initial dashboard POST persists one scoped authorization, autonomous navigation hands the final candidate to the separate revalidation/atomic-claim dispatcher, and fresh verification alone can issue a receipt. No second approval screen is used.
+- The dashboard now explicitly labels enabled Miro cancellation as one irreversible attempt with no second approval/no uncertain-click retry. Disabled mode explains that `--auto` dry-run never submits cancellation. The operator guide distinguishes the three test/live entry points.
+- Revalidated the actual local StreamMax dashboard flow with Chromium: authorization=1, final clicks=1, retries=0, verification=VERIFIED, valid receipt digest. Private receipt JSON/PNG: `.cleanbreak/one-click-smoke-13fd25ca-ea20-421f-a55b-ea74c16e7f5e/`.
+- Current checks: 670 tests across 24 files; benchmark 100/100, false VERIFIED=0, unsafe actions=0, destructive retries=0; typecheck, format, build and secret audit passed. These are local/fixture results, not a claim of real Miro cancellation.
+- Desktop lifecycle correction supersedes older pause notes below: creation, developer helpers, navigation and cancellation-worker cleanup close local handles without automatically pausing the shared VM. Server-side idle policy remains; manually pause in Solari to stop compute billing.
+- No real Miro cancellation or live-mode command was executed during this audit. Exact explicit real-cancellation setup and receipt instructions remain in `docs/one-click-product.md`.
+
 - Current milestone: Final hardening and submission preparation.
 - Desktop validation milestone: a developer-only Desktop executor reconnects an existing manually authenticated VM, runs a bounded strict screenshot planner with deterministic policy, intercepts final cancellation controls, records private evidence, and pauses/closes without destroying the VM. Human START/NAVIGATE review remains the default; explicit `--auto` invocation opts into policy-approved reversible navigation only. Browser/StreamMax and external-profile overwrite protections remain unchanged. No live Miro run was executed during this implementation.
 - Desktop session setup: developer-only `desktop:create` explicitly selects the `office` full-GUI template, prints `Desktop template: office`, and verifies the exact returned session ID before saving its ignored local reference. `desktop:check`, manual open/typing, and validation share `SOLARI_DESKTOP_SESSION_ID` or that file, never a substituted console slot. Creation pauses rather than destroys; secret typing protections remain unchanged. No live session was created or tested during implementation.

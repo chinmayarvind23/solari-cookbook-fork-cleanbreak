@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { createElement } from "react"
+import { renderToStaticMarkup } from "react-dom/server"
+import { CancellationCard } from "@/components/cancellation-card"
 import { createDatabase } from "@/lib/db"
 import { cancellationRepository } from "@/lib/cancellations/repository"
 import { POST } from "@/app/api/cancellations/route"
@@ -51,6 +54,37 @@ const request = (
     body: JSON.stringify(body),
   })
 describe("one-click server routes", () => {
+  it("clearly labels live irreversible authorization without a second approval button", () => {
+    const markup = renderToStaticMarkup(
+      createElement(CancellationCard, {
+        provider: "miro",
+        planName: "Business Trial",
+        amountCents: 24000,
+        currency: "USD",
+        interval: "YEARLY",
+        enabled: true,
+      }),
+    )
+    expect(markup).toContain("Live cancellation")
+    expect(markup).toContain("one irreversible cancellation")
+    expect(markup).toContain("will not ask for a second approval")
+    expect(markup.match(/<button/g)).toHaveLength(1)
+    expect(markup).not.toContain("disabled=")
+  })
+  it("disabled live mode explains why dry-run cannot cancel", () => {
+    const markup = renderToStaticMarkup(
+      createElement(CancellationCard, {
+        provider: "miro",
+        planName: "Business Trial",
+        amountCents: 24000,
+        currency: "USD",
+        interval: "YEARLY",
+        enabled: false,
+      }),
+    )
+    expect(markup).toContain("dry-run never submits")
+    expect(markup).toContain("disabled=")
+  })
   it("initial POST persists authorization and returns immediately before worker runs", async () => {
     const response = await POST(request())
     expect(response.status).toBe(202)

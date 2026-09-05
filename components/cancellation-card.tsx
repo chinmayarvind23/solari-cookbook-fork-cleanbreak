@@ -93,6 +93,14 @@ export function CancellationCard({
         </p>
         <h3>{provider === "miro" ? "Miro" : "StreamMax"}</h3>
         <p>{planName}</p>
+        {provider === "miro" && enabled && (
+          <p role="note">
+            Live cancellation — this button authorizes one irreversible
+            cancellation attempt. CleanBreak will not ask for a second approval
+            and will never retry an uncertain final click. A receipt requires
+            independent verification.
+          </p>
+        )}
         <p>
           Renews/charges:{" "}
           {new Intl.NumberFormat("en-US", {
@@ -129,7 +137,9 @@ export function CancellationCard({
         )}
         {!enabled && (
           <p>
-            Live cancellation is disabled. Use the safe developer dry-run first.
+            Live cancellation is disabled. The developer dry-run never submits
+            cancellation. Enable the three explicit live-mode flags and operator
+            authentication on the server to use this one-click product flow.
           </p>
         )}
         {error && <p role="alert">{error}</p>}
