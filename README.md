@@ -2,7 +2,7 @@
 
 Cancel a subscription once. Independently verify that renewal stopped.
 
-## 1. Watch the real Miro cancellation
+## Live Solari & Miro Demo
 
 [![Full-page Miro cancellation recording with only credit-card details blurred](docs/media/miro-cancellation.gif)](docs/media/miro-cancellation.mp4)
 
@@ -11,14 +11,13 @@ Cancel a subscription once. Independently verify that renewal stopped.
 
 This is the actual Solari Desktop recording from the completed Miro Business
 Trial cancellation. Only credit-card details are blurred; the full page and
-provider controls remain visible. The original 38.7 seconds play at 0.6x speed
-for a 64.5-second walkthrough. No provider screen or interaction was generated.
+provider controls remain visible.
 
 The recording shows execution. A separate fresh Billing-page check and reload
-established the verified outcome. The original recording and receipt are preserved.
+established the verified outcome. 
 
-| Measured live outcome                          | Result                                  |
-| ---------------------------------------------- | --------------------------------------- |
+| Measured live outcome                          | Result                                        |
+| ---------------------------------------------- | --------------------------------------------- |
 | Verified recurring renewal avoided             | **$240/year**                           |
 | Completed real subscription cancellations      | **1 Miro Business Trial**               |
 | Final clicks / authorization uses              | **1 / 1**                               |
