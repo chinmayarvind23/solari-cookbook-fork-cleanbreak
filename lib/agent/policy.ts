@@ -1,3 +1,4 @@
+// Decide which Browser actions are safe within the current cancellation scope.
 import type {
   BrowserDecision,
   ObservationAction,

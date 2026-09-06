@@ -1,3 +1,4 @@
+// Checks local DOM evidence and private billing observations.
 import { afterEach, beforeAll, afterAll, expect, it, vi } from "vitest"
 import { chromium, type Browser, type Page } from "patchright-core"
 import { readAgentConfig } from "@/lib/agent/config"

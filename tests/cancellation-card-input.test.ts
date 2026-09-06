@@ -1,3 +1,4 @@
+// Regression checks for one-click input handling and duplicate-submit protection.
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import type { ReactElement } from "react"
 const state = vi.hoisted(() => ({ update: vi.fn(), job: null as unknown }))

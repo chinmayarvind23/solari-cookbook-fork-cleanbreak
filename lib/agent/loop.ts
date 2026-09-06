@@ -1,3 +1,4 @@
+// Run bounded observation, planning, and policy steps until the Browser job stops.
 import { createHash } from "node:crypto"
 
 import type { AgentConfig } from "@/lib/agent/config"

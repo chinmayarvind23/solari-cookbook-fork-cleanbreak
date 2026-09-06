@@ -1,3 +1,4 @@
+// Checks authenticated loopback transport and relay cleanup.
 import { afterEach, expect, it, vi } from "vitest"
 import { createConnection, createServer, type Socket } from "node:net"
 import { chromium, type Browser } from "playwright-core"

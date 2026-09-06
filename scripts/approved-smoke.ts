@@ -1,3 +1,4 @@
+// Exercise the explicit approval and final Browser commit path.
 import { approveCancellation } from "@/lib/agent/commit"
 import { createAgentRepository } from "@/lib/agent/repository"
 import { runCancellationAgent } from "@/lib/agent/runtime"

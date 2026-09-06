@@ -1,3 +1,5 @@
+// Server actions start the Browser demo and reset its fictional subscription.
+// Server actions start the Browser demo and reset its fictional subscription.
 "use server"
 
 import { revalidatePath } from "next/cache"

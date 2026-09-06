@@ -1,3 +1,4 @@
+-- Create the initial subscription and fictional provider tables.
 CREATE TABLE IF NOT EXISTS subscriptions (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,

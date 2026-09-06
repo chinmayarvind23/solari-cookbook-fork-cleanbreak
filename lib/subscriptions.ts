@@ -1,3 +1,4 @@
+// Represent recurring subscriptions and format their monthly and annual amounts.
 export type SubscriptionInterval = "MONTHLY" | "YEARLY"
 export type SubscriptionStatus = "ACTIVE" | "CANCELED"
 

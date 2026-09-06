@@ -1,3 +1,4 @@
+-- Add the Browser agent's saved jobs and action history.
 PRAGMA foreign_keys = OFF;
 BEGIN IMMEDIATE;
 

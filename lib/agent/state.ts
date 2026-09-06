@@ -1,3 +1,4 @@
+// Define valid transitions for the supervised Browser workflow.
 import type { CancellationJobState } from "@/lib/agent/types"
 
 const transitions: Record<CancellationJobState, CancellationJobState[]> = {

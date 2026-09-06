@@ -1,11 +1,10 @@
 /**
- * Persistent profiles — log in once, reuse the session forever.
+ * Save and reuse a visit counter in the cookbook-demo Browser profile.
  *
- * A profile stores cookies + localStorage server-side. Attach it with
- * `profileId` and the browser starts already logged in, so you stop paying the
- * login (and the 2FA, and the bot check) on every run.
+ * The profile stores the context's captured cookies and localStorage.
+ * Authentication on a real provider can expire or require another login.
  *
- * Run this file twice: the first run logs in and saves, the second reuses it.
+ * Each run increments the example.com counter and explicitly saves the state.
  */
 import { Solari } from "@solarisdk/browser"
 
@@ -21,8 +20,7 @@ const browser = await solari.launch({ profileId: profile.id })
 try {
   const page = await browser.newPage()
 
-  // This demo site echoes whatever is in localStorage/cookies back to you, so
-  // you can see state survive between runs. Swap it for your real login flow.
+  // Use a public page so this persistence example handles no account credentials.
   await page.goto("https://example.com")
 
   const seen = await page.evaluate(() => {
@@ -33,12 +31,12 @@ try {
   console.log(`visit #${seen} for this profile`)
 
   // Persist whatever the browser accumulated. Without this the session's state
-  // is discarded on release — attaching a profile does not auto-save it.
+  // is discarded on release; attaching a profile does not auto-save it.
   const state = await page.context().storageState()
   const { version, sizeBytes } = await solari.profiles.save(profile.id, state)
   console.log(`saved profile v${version} (${sizeBytes} bytes)`)
 } finally {
   await browser.close()
-  // Required, or the process never exits — see browser-quickstart-ts.
+  // Required, or the process never exits; see browser-quickstart-ts.
   await solari.close()
 }

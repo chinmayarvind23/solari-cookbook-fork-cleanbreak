@@ -1,3 +1,5 @@
+// Render each step of the fictional StreamMax cancellation flow.
+// Render each step of the fictional StreamMax cancellation flow.
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import type { ReactNode } from "react"

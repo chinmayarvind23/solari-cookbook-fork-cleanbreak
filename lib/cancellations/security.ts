@@ -1,3 +1,4 @@
+// Validate operator credentials and the origin of cancellation requests.
 import { createHash, timingSafeEqual } from "node:crypto"
 export function operatorAllowed(
   headers: Headers,

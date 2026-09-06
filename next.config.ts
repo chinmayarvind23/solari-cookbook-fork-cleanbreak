@@ -1,3 +1,4 @@
+// Configure the standalone build and the files it must include.
 import { existsSync } from "node:fs"
 import { resolve } from "node:path"
 import { loadEnvFile } from "node:process"

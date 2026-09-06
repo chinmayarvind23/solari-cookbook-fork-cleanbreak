@@ -1,3 +1,4 @@
+// Checks Miro stage order and the handoff of the final control.
 import { afterAll, beforeAll, afterEach, expect, it, vi } from "vitest"
 import { mkdtempSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"

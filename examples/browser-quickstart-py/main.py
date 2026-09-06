@@ -1,4 +1,5 @@
-"""Browser quickstart — launch a cloud browser, open a page, read it, close.
+# Open example.com in a cloud browser and read its heading.
+"""Browser quickstart : launch a cloud browser, open a page, read it, close.
 
 `launch()` creates a session and connects a Playwright-compatible browser to it
 in one call. Everything after that is ordinary Playwright: the browser just

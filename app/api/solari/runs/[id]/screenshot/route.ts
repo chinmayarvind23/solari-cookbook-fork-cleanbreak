@@ -1,3 +1,5 @@
+// Serve the requested private screenshot after checking its stored evidence reference.
+// Serve the requested private screenshot after checking its stored evidence reference.
 import { readFile } from "node:fs/promises"
 import { resolve } from "node:path"
 

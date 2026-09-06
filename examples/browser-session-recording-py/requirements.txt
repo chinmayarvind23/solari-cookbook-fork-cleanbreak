@@ -1,1 +1,2 @@
+# Browser SDK dependencies for the replay recording example.
 solari-browser>=0.1.2

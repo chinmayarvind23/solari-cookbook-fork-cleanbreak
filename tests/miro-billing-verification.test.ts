@@ -1,3 +1,4 @@
+// Checks account-bound billing responses and independent verdicts.
 import { afterAll, afterEach, beforeAll, expect, it, vi } from "vitest"
 import { chromium, type Browser, type BrowserContext } from "playwright-core"
 import { chromium as installedChromium } from "patchright-core"

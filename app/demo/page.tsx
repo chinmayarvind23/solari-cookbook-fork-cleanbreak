@@ -1,3 +1,5 @@
+// Expose fictional provider scenarios for repeatable local tests.
+// Expose fictional provider scenarios for repeatable local tests.
 import Link from "next/link"
 
 import {

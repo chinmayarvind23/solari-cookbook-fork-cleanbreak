@@ -1,3 +1,4 @@
+# Keep local credentials, evidence, and build output outside the Docker context.
 node_modules
 .next
 .git

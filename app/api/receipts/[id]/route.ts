@@ -1,3 +1,5 @@
+// Return a digest-checked legacy receipt.
+// Return a digest-checked legacy receipt.
 import { NextResponse } from "next/server"
 
 import { createReceiptRepository } from "@/lib/receipts/repository"

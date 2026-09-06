@@ -1,3 +1,4 @@
+// Persist one-click jobs and coordinate leases, locks, and single-use claims.
 import "server-only"
 import { randomUUID } from "node:crypto"
 import type { DatabaseSync } from "node:sqlite"
@@ -81,6 +82,20 @@ export function cancellationRepository(
   }
   return {
     load,
+    // Read saved jobs without acquiring a worker lease or contacting a provider.
+    dashboardJobs() {
+      return (
+        db
+          .prepare("SELECT payload FROM one_click_jobs ORDER BY rowid DESC")
+          .all() as { payload: string }[]
+      ).flatMap((row) => {
+        try {
+          return [JSON.parse(row.payload) as Job]
+        } catch {
+          return []
+        }
+      })
+    },
     currentForScope(scope: Scope) {
       const locked = db
         .prepare(

@@ -1,3 +1,4 @@
+// Read page structure into the limited facts the Browser planner can use.
 import type {
   BrowserDecision,
   ObservationAction,

@@ -1,3 +1,5 @@
+// Display a subscription's price, renewal date, and receipt link.
+// Display a subscription's price, renewal date, and receipt link.
 import Link from "next/link"
 
 import {

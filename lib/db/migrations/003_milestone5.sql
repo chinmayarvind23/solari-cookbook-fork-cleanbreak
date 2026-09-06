@@ -1,3 +1,4 @@
+-- Add persisted approval, execution, and verification records.
 PRAGMA foreign_keys = OFF;
 BEGIN IMMEDIATE;
 

@@ -1,3 +1,4 @@
+// Connect the Browser SDK to the agent loop and handle owned resources.
 import "server-only"
 
 import { mkdirSync } from "node:fs"

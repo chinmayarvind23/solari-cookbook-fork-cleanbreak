@@ -1,3 +1,4 @@
+// Validate Desktop proposals and apply the allowed navigation policy.
 import { z } from "zod"
 import { classifyTarget } from "@/lib/agent/policy"
 import {

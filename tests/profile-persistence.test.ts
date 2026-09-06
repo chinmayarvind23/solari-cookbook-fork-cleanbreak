@@ -1,3 +1,4 @@
+// Checks authentication overwrite protection.
 import { mkdtempSync, rmdirSync, unlinkSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"

@@ -1,3 +1,4 @@
+// Track Browser replay availability and safe recording metadata.
 import type { RecordingStatus } from "@/lib/solari/types"
 
 export type ReplayResult = {

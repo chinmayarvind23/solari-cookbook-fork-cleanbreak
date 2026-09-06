@@ -1,3 +1,4 @@
+// Validate Browser SDK configuration without exposing credentials.
 export class SolariConfigurationError extends Error {
   readonly code = "SOLARI_CONFIGURATION_ERROR"
 }

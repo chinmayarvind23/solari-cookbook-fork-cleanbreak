@@ -1,3 +1,4 @@
+// Checks SDK session identity, persistence, and reconnect behavior.
 import { randomBytes } from "node:crypto"
 import {
   mkdtempSync,

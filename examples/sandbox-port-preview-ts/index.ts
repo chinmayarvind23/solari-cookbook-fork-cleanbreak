@@ -1,5 +1,5 @@
 /**
- * Port preview — expose a server running inside the sandbox on a public URL.
+ * Port preview; expose a server running inside the sandbox on a public URL.
  *
  * Handy for previewing something an agent just built: start the dev server in
  * the VM, hand the URL to a human (or fetch it yourself). The URL is served
@@ -19,7 +19,7 @@ try {
     "<h1>Served from inside a Solari sandbox</h1>\n",
   )
 
-  // Background it with a shell — `commands.run` waits for the process to exit,
+  // Background it with a shell; `commands.run` waits for the process to exit,
   // so running a server in the foreground would block until the idle timeout.
   await sandbox.commands.run("sh", {
     args: ["-c", `cd /tmp/site && nohup python3 -m http.server ${PORT} >/dev/null 2>&1 &`],

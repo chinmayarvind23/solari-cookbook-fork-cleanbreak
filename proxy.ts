@@ -1,3 +1,4 @@
+// Check operator authentication before requests reach private application routes.
 import { NextResponse, type NextRequest } from "next/server"
 import { operatorAllowed } from "@/lib/cancellations/security"
 export function proxy(request: NextRequest) {

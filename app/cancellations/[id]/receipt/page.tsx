@@ -1,3 +1,5 @@
+// Display a saved one-click receipt after checking its digest.
+// Display a saved one-click receipt after checking its digest.
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import { Brand } from "@/components/brand"

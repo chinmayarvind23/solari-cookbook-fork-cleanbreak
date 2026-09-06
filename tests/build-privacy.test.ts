@@ -1,3 +1,4 @@
+// Regression checks for private-file removal from standalone build output.
 import { execFileSync } from "node:child_process"
 import {
   mkdtempSync,

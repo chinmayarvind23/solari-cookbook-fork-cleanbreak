@@ -1,3 +1,4 @@
+// Regression checks for reversible dialog navigation and final interception.
 import { chromium } from "patchright-core"
 import { expect, it } from "vitest"
 import sharp from "sharp"

@@ -1,3 +1,4 @@
+// Shared Browser session, replay, and evidence types.
 export type SolariRunStatus = "RUNNING" | "SUCCEEDED" | "FAILED"
 export type RecordingStatus = "PENDING" | "AVAILABLE" | "UNAVAILABLE" | "FAILED"
 

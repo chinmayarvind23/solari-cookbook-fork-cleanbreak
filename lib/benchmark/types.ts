@@ -1,3 +1,4 @@
+// Describe benchmark runs, failures, and aggregate results.
 export type BenchmarkVerificationResult =
   "VERIFIED" | "NOT_VERIFIED" | "INCONCLUSIVE" | null
 

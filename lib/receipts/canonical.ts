@@ -1,3 +1,4 @@
+// Serialize receipt fields consistently so their digest can be checked.
 import { createHash } from "node:crypto"
 
 import type { ReceiptPayload } from "@/lib/receipts/types"

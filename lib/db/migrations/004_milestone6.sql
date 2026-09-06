@@ -1,3 +1,4 @@
+-- Add receipt storage and its integrity fields.
 BEGIN IMMEDIATE;
 
 CREATE TABLE receipt_before_evidence (

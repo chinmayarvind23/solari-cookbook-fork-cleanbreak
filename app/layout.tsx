@@ -1,3 +1,5 @@
+// Apply the shared page shell, fonts, and metadata.
+// Apply the shared page shell, fonts, and metadata.
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import type { ReactNode } from "react"

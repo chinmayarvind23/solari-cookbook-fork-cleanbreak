@@ -1,3 +1,4 @@
+// Regression checks for the Desktop driver's authorization and final dispatch.
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { randomUUID } from "node:crypto"
 import sharp from "sharp"

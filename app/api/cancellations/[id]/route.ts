@@ -1,3 +1,5 @@
+// Return safe job progress and reconnect eligible pending work.
+// Return safe job progress and reconnect eligible pending work.
 import { after } from "next/server"
 import { cancellationRepository } from "@/lib/cancellations/repository"
 import { publicJob } from "@/lib/cancellations/public"

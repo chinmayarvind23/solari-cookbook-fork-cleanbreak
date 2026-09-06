@@ -1,3 +1,4 @@
+// Bridge browser debugging through an authenticated loopback-only connection.
 import "server-only"
 import { randomBytes, timingSafeEqual } from "node:crypto"
 import { createServer, type Socket } from "node:net"

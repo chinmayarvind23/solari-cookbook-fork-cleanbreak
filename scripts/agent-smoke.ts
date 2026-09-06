@@ -1,3 +1,4 @@
+// Run the remote Browser planner against the fictional provider.
 import { runCancellationAgent } from "@/lib/agent/runtime"
 import { getDemoState, resetDemo } from "@/lib/db"
 

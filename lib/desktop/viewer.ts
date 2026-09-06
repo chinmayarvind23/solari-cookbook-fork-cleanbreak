@@ -1,3 +1,4 @@
+// Serve the private local Desktop viewer without exposing its remote capabilities.
 import { createServer } from "node:http"
 import { randomBytes } from "node:crypto"
 import { readFile } from "node:fs/promises"

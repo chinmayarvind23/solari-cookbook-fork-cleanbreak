@@ -1,3 +1,4 @@
+// Regression checks for detected browser launch, fallbacks, and cleanup.
 import { randomBytes } from "node:crypto"
 import type { Desktop } from "@solarisdk/desktop"
 import { afterEach, describe, expect, it, vi } from "vitest"

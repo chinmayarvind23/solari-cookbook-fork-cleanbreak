@@ -1,3 +1,5 @@
+// Validate one cancellation request and schedule its saved authorization.
+// Validate one cancellation request and schedule its saved authorization.
 import { after } from "next/server"
 import { productConfig, digest } from "@/lib/cancellations/config"
 import { cancellationRepository } from "@/lib/cancellations/repository"

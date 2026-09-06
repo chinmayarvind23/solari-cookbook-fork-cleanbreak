@@ -1,3 +1,4 @@
+// Exercise Browser cancellation and its independent verification path.
 import { approveCancellation } from "@/lib/agent/commit"
 import { runCancellationAgent } from "@/lib/agent/runtime"
 import { getDemoState, resetDemo } from "@/lib/db"

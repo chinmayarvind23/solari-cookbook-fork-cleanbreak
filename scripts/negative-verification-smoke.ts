@@ -1,3 +1,4 @@
+// Check that active billing cannot produce a verified receipt.
 import { getDemoState, resetDemo } from "@/lib/db"
 import { evaluateVerificationState } from "@/lib/verification/policy"
 

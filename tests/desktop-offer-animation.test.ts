@@ -1,3 +1,4 @@
+// Regression checks for the bounded offer-animation exception.
 import sharp from "sharp"
 import { describe, expect, it, vi } from "vitest"
 import { navigationScreenStability } from "@/lib/desktop/navigation-stability"

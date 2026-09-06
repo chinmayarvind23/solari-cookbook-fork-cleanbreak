@@ -16,9 +16,8 @@ and unknown surfaces cannot establish identity. Recognized Billing structure,
 trial/plan, currency, interval, amount and access date must match trusted scope
 and the account's billing response. Login fields, ambiguity or unsafe terms stop.
 
-Preparation and failure handling are documented in [operation](one-click-product.md).
-The current shared configuration validator still requires `OPENAI_API_KEY`;
-that does not cause a model request in this path.
+The shared configuration validator requires a server-side `OPENAI_API_KEY`.
+The DOM adapter itself makes no model requests.
 
 ## Ordered cancellation flow
 

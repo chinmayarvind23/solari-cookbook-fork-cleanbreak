@@ -1,12 +1,12 @@
 /**
- * Stealth mode + managed proxy — reach a site that blocks datacenter traffic.
+ * Request Browser launch options and inspect the public egress IP.
  *
  * Two independent knobs:
  *   stealth: true   runtime fingerprint patches + a headful browser on real GPU
  *   proxy:   "us"   residential egress in that country
  *
- * `proxy` and `captcha` both REQUIRE `stealth: true` — a proxied request from an
- * obviously-automated browser is the pairing that gets blocked. Shorthands:
+ * The sample enables stealth alongside the proxy option.
+ * Provider access still depends on the site and account. Proxy examples:
  *
  *   proxy: "us"                        residential, United States
  *   proxy: { country: "gb" }           residential, United Kingdom
@@ -26,7 +26,7 @@ const browser = await solari.launch({
 try {
   const page = await browser.newPage()
 
-  // Echoes the egress IP the target site actually sees — i.e. the proxy's,
+  // Echoes the egress IP the target site actually sees; i.e. the proxy's,
   // not your machine's and not the pool host's.
   await page.goto("https://api.ipify.org?format=json")
   console.log("egress :", await page.locator("pre").innerText())
@@ -36,6 +36,6 @@ try {
   console.log("proxy  :", JSON.stringify(browser.proxy))
 } finally {
   await browser.close()
-  // Required, or the process never exits — see browser-quickstart-ts.
+  // Required, or the process never exits; see browser-quickstart-ts.
   await solari.close()
 }

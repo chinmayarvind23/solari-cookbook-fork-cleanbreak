@@ -1,3 +1,4 @@
+// Checks literal keyboard input, secret handling, and cleanup.
 import { randomBytes } from "node:crypto"
 import { EventEmitter } from "node:events"
 import fs from "node:fs"

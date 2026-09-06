@@ -1,3 +1,4 @@
+// Check authorization, final targets, and stopped-renewal evidence.
 import { digest } from "./config"
 import type {
   Authorization,

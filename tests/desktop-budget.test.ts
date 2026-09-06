@@ -1,3 +1,4 @@
+// Regression checks for planner usage limits and safe budget failures.
 import { describe, expect, it } from "vitest"
 import {
   DESKTOP_TOKENS_PER_STEP,

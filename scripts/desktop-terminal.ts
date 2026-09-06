@@ -1,3 +1,4 @@
+// Handle terminal confirmation, cancellation, and cleanup signals.
 import { createInterface } from "node:readline"
 
 export function terminalSignals() {

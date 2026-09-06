@@ -1,3 +1,4 @@
+// Checks navigation progress and bounded waiting.
 import sharp from "sharp"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import {

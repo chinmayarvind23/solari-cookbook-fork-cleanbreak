@@ -1,3 +1,4 @@
+// Compare fresh Miro Billing observations after execution.
 import "server-only"
 import { createHash } from "node:crypto"
 import { chromium, type Page } from "playwright-core"

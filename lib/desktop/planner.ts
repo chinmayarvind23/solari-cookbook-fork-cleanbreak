@@ -1,3 +1,4 @@
+// Request a structured Desktop navigation proposal from the visual planner.
 import "server-only"
 import OpenAI from "openai"
 import { zodTextFormat } from "openai/helpers/zod"

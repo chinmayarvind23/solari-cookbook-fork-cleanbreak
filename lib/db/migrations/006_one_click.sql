@@ -1,3 +1,4 @@
+-- Create one-click authorization, job, and checkpoint tables.
 BEGIN IMMEDIATE;
 CREATE TABLE IF NOT EXISTS one_click_authorizations (
   id TEXT PRIMARY KEY,

@@ -1,3 +1,4 @@
+// Regression checks for one-use authorization, execution, and recovery.
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { createDatabase } from "@/lib/db"
 import { CancellationFailure } from "@/lib/cancellations/failure"

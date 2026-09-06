@@ -1,3 +1,4 @@
+// Read only matching Miro billing responses and discard unrelated account fields.
 import "server-only"
 import type { Page, Response } from "playwright-core"
 import { z } from "zod"

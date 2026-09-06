@@ -1,3 +1,4 @@
+// Exercise cancellation scenarios with local deterministic adapters.
 import "server-only"
 
 import { createHash } from "node:crypto"

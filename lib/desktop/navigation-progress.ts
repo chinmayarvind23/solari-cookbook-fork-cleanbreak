@@ -1,3 +1,4 @@
+// Track whether navigation changed the visible page and bound stalled actions.
 import type { DesktopDecision } from "./decision"
 import {
   screenStability,

@@ -1,3 +1,5 @@
+// Return a saved one-click receipt after checking its digest.
+// Return a saved one-click receipt after checking its digest.
 import { cancellationRepository } from "@/lib/cancellations/repository"
 import { operatorAllowed } from "@/lib/cancellations/security"
 import { digest } from "@/lib/cancellations/config"

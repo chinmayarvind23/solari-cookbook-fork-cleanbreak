@@ -1,3 +1,5 @@
+// Collect explicit approval for the supervised Browser workflow.
+// Collect explicit approval for the supervised Browser workflow.
 "use client"
 
 import { useFormStatus } from "react-dom"

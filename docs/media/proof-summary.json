@@ -1,0 +1,23 @@
+{
+  "kind": "public-redacted-outcome-summary",
+  "provider": "Miro",
+  "plan": "Business Trial",
+  "result": "VERIFIED",
+  "subscriptionStatus": "SCHEDULED",
+  "renewalStatus": "OFF",
+  "nextRenewalCharge": false,
+  "currency": "USD",
+  "annualizedRenewalAvoidedCents": 24000,
+  "destructiveClicksExecuted": 1,
+  "authorizationUses": 1,
+  "automaticDestructiveRetries": 0,
+  "unsafeActionsExecuted": 0,
+  "verificationSource": "DOM_AND_PROVIDER_BILLING",
+  "verificationMethod": "Fresh Billing page plus reload in the same authenticated Chrome profile",
+  "originalRecordingSeconds": 38.7,
+  "publicWalkthroughSeconds": 64.5,
+  "playbackRate": 0.6,
+  "sourceRecordingSha256": "d3aef468ebd0e738a13777338b373afb679294a4236931739e23cb33b5544e36",
+  "privacy": "Account and payment details are redacted. Original receipt and recording remain private.",
+  "scope": "One completed real cancellation. Earlier failed navigation attempts are not represented as successes."
+}

@@ -1,3 +1,4 @@
+// Regression checks for the animated offer fixture in a local browser.
 import { chromium } from "patchright-core"
 import { expect, it, vi } from "vitest"
 import {

@@ -1,3 +1,4 @@
+// Checks external-provider configuration and dry-run safety.
 import { describe, expect, it } from "vitest"
 
 import { isCleanBreakDryRun } from "@/lib/agent/config"

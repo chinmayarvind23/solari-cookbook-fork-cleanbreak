@@ -1,3 +1,4 @@
+// Apply target-aware stability checks to Desktop navigation.
 import type { DesktopDecision } from "./decision"
 import { isMiroExtensionOffer, type MiroScope } from "./miro"
 import {

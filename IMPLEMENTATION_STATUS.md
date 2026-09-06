@@ -27,9 +27,11 @@ charge, with access through September 18, 2026. The configured charge was
 **$240 yearly**: $240 in annualized avoided renewal charges, not a refund.
 
 A receipt was persisted and its digest validated. A full 38.7-second private MP4
-was saved; a separate card-blurred sharing copy was subsequently produced. Video
-duration is not an end-to-end performance benchmark. These artifacts remain local,
-not committed to Git.
+was saved; a separate card-blurred sharing copy was subsequently produced.
+The public [Miro walkthrough](docs/media/miro-cancellation.mp4) now contains the
+actual recording with broader privacy redaction and focused zooms. Its 64.5-second
+duration is the 38.7-second original slowed to 0.6x for readability.
+Original evidence stays private. [Public outcome summary](docs/media/proof-summary.json).
 
 Explicit VM-local authentication migration preserved the original Chrome
 directory. A separate in-memory profile refresh populated the configured Solari
@@ -38,7 +40,7 @@ bidirectional synchronization or a guarantee against future login expiry.
 
 ## Engineering validation
 
-Last full code validation: **936 tests across 40 files passed**, plus typecheck,
+Last full code validation: **951 tests across 42 files passed**, plus typecheck,
 format check, production build and secret audit. The deterministic Browser
 benchmark records **100/100 runs across 20 scenarios**, with zero false VERIFIED,
 unsafe actions or automatic destructive retries.
@@ -58,8 +60,9 @@ a production reliability percentage or evidence of a user pilot.
   profile, not a separately authenticated browser process.
 - The Miro DOM path makes no model requests, but the shared Desktop configuration
   validator still requires a server-side `OPENAI_API_KEY`.
-- The local StreamMax dashboard/summary data is fictional. Live receipts are the
-  authority for real billing outcomes, not aggregate demo totals.
+- Dashboard savings now use validated one-click receipts, counted once per
+  subscription and grouped by currency. StreamMax and legacy demo totals are
+  excluded. The completed Miro receipt contributes $240/year.
 - A prior Canva Browser dry-run stopped at an anti-bot challenge. It did not prove
   Canva compatibility; failed external runs now cannot overwrite authentication.
 - SQLite and local private files require persistent storage and one application
@@ -67,9 +70,7 @@ a production reliability percentage or evidence of a user pilot.
 - No measured pilot-user count, manual-follow-up reduction, operating-cost reduction
   or average live cancellation latency has been established.
 
-## Maintenance
+## Source
 
-Start with [README](README.md). Use [operation](docs/one-click-product.md) for
-existing jobs, [authentication](docs/authentication.md) for intentional state
-refresh and [development](docs/development.md) for checks. Do not rerun a real
-cancellation merely to reproduce the demo or refresh documentation.
+The [README](README.md) provides the public walkthrough and local entry points.
+The [source guide](docs/code-map.md) explains the implementation layout.

@@ -1,3 +1,4 @@
+// Select the configured external validation executor and enforce dry-run settings.
 import { mkdirSync, writeFileSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 

@@ -1,3 +1,4 @@
+// Checks scrollbar geometry and stalled navigation.
 import { chromium } from "patchright-core"
 import { expect, it, vi } from "vitest"
 import {

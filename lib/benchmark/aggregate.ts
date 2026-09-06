@@ -1,3 +1,4 @@
+// Combine scenario results into repeatable safety and coverage metrics.
 import type {
   BenchmarkResults,
   BenchmarkRun,

@@ -1,3 +1,5 @@
+// Reset the fictional provider while preserving real cancellation history.
+// Reset the fictional provider while preserving real cancellation history.
 import { NextResponse } from "next/server"
 
 import { isDemoScenario } from "@/lib/demo"

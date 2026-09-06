@@ -1,3 +1,4 @@
+// Disambiguate reversible Miro entry controls using page context and flow history.
 import { z } from "zod"
 import type { DesktopDecision, DesktopPolicy } from "./decision"
 

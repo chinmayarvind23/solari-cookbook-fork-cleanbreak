@@ -1,3 +1,4 @@
+// Compare decoded pixels and protect the intended click area from changes.
 import "server-only"
 import sharp from "sharp"
 

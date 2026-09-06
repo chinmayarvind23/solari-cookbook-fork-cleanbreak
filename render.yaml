@@ -1,3 +1,4 @@
+# Single-instance deployment settings with persistent storage for SQLite and evidence.
 services:
   - type: web
     name: cleanbreak

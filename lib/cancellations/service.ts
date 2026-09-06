@@ -1,3 +1,4 @@
+// Move one authorized job through navigation, one final attempt, and verification.
 import "server-only"
 import { randomUUID } from "node:crypto"
 import { digest } from "./config"

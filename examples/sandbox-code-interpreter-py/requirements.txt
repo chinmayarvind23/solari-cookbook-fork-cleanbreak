@@ -1,1 +1,2 @@
+# Sandbox SDK dependencies for the shared Python kernel example.
 solari-sandbox>=0.2.0

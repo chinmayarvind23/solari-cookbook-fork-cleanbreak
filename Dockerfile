@@ -1,3 +1,5 @@
+# Build a standalone Next.js image with the browser runtime it needs.
+# Build a standalone Next.js image with the browser runtime it needs.
 FROM node:22-bookworm-slim AS dependencies
 WORKDIR /app
 COPY package.json ./

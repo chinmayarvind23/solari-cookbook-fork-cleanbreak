@@ -1,10 +1,11 @@
-"""Session recording — capture a run and download the replay.
+# Record a public test page and fetch its Browser replay events.
+"""Session recording : capture a run and download the replay.
 
 Recording is OPT-IN PER SESSION (`recording=True` at create time). There is no
 account-level switch: a session created without the flag records nothing, and
 its replay endpoint will 404 forever.
 
-The replay is rrweb NDJSON (gzipped) — a DOM-level recording, not a video, so
+The replay is rrweb NDJSON (gzipped); a DOM-level recording, not a video, so
 it stays small and you can diff or grep it.
 """
 
@@ -42,7 +43,7 @@ async def main() -> None:
                 continue
             raise
         # The object is stored gzipped, but the HTTP client honours
-        # Content-Encoding and hands back decompressed bytes — so this is
+        # Content-Encoding and hands back decompressed bytes; so this is
         # already plain NDJSON. Don't gzip.decompress() it.
         events = blob.decode().splitlines()
         print(f"replay: {len(blob)} bytes, {len(events)} rrweb events")

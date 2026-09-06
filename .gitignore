@@ -1,3 +1,4 @@
+# Keep installed packages, private state, and generated evidence out of commits.
 node_modules/
 .next/
 package-lock.json

@@ -1,3 +1,4 @@
+// Build a Browser receipt from independently verified billing evidence.
 import { createHash } from "node:crypto"
 
 import {

@@ -2,7 +2,7 @@
 
 These are standalone cookbook samples, not CleanBreak's cancellation workflow.
 Each folder has its own dependencies. For the application, use the
-[root README](../README.md) and [operator guide](../docs/one-click-product.md).
+[root README](../README.md).
 
 ## Setup and safety
 

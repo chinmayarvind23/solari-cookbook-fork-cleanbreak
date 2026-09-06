@@ -8,8 +8,8 @@ this is not the root application's `office`-template Chrome setup.
 an existing authenticated CleanBreak VM without changing that lifecycle. It also
 prints a stream URL: treat the terminal output and screenshot as private.
 
-For a persistent CleanBreak Desktop, use the root
-[Desktop guide](../../docs/desktop-validation.md) instead.
+The root application's persistent Desktop lifecycle is implemented separately
+in [lib/desktop](../../lib/desktop).
 
 ## Run
 

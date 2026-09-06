@@ -1,3 +1,4 @@
+// Recognize the supported Miro dialog stages and their specific controls.
 import "server-only"
 import { createHash } from "node:crypto"
 import type { Page } from "playwright-core"

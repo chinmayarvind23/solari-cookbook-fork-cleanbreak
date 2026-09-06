@@ -1,3 +1,4 @@
+// Read the saved job for a card without starting a worker or authorizing input.
 import "server-only"
 import { productConfig, digest } from "./config"
 import { cancellationRepository } from "./repository"

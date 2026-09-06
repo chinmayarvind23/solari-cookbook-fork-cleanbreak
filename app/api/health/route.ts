@@ -1,3 +1,5 @@
+// Report application health without contacting a provider.
+// Report application health without contacting a provider.
 import { NextResponse } from "next/server"
 
 import { getDatabase } from "@/lib/db"

@@ -1,3 +1,4 @@
+// Connect the one-click driver to the dedicated Desktop and its verification reader.
 import "server-only"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"

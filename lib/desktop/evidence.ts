@@ -1,3 +1,4 @@
+// Write private Desktop evidence using fixed filenames and safe metadata.
 import { mkdirSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { createHash } from "node:crypto"

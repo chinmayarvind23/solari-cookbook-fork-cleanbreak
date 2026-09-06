@@ -1,3 +1,4 @@
+// Consume the saved one-use claim before sending the final input.
 import "server-only"
 import type { CancellationRepository } from "./repository"
 import { digest } from "./config"

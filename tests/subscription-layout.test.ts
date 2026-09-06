@@ -1,3 +1,4 @@
+// Checks subscription card layout at desktop and mobile widths.
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { readFileSync, mkdirSync } from "node:fs"

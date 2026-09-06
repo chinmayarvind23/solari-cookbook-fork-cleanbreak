@@ -1,3 +1,4 @@
+// Parse server settings and reject incomplete Browser agent configuration.
 export type AgentConfig = {
   allowScreenshotUploads?: boolean
   apiKey: string

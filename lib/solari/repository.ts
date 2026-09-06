@@ -1,3 +1,4 @@
+// Store Browser session metadata and local evidence references.
 import type { DatabaseSync, SQLInputValue } from "node:sqlite"
 
 import { getDatabase } from "@/lib/db"

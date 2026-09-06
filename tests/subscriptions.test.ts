@@ -1,3 +1,4 @@
+// Checks recurring-cost calculations and currency formatting.
 import { describe, expect, it } from "vitest"
 
 import { annualCost, monthlyEquivalent } from "@/lib/subscriptions"

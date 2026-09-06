@@ -1,3 +1,4 @@
+// Generate small artificial images for deterministic screenshot checks.
 import sharp from "sharp"
 
 // Synthetic non-secret image, generated in memory; no real desktop fixture.

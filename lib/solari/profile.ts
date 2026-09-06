@@ -1,3 +1,4 @@
+// Find or create the intended named Browser profile.
 export type SolariProfile = { id: string; name: string }
 
 export interface ProfilesClient {

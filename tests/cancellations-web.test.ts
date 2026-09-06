@@ -1,3 +1,4 @@
+// Regression checks for operator routes, idempotency, and public job responses.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"

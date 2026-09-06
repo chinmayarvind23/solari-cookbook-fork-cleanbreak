@@ -1,3 +1,4 @@
+// Checks Browser SDK lifecycle and profile integration.
 import type { DatabaseSync } from "node:sqlite"
 import { afterEach, describe, expect, it, vi } from "vitest"
 

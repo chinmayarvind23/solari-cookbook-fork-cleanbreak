@@ -1,3 +1,4 @@
+// Project saved jobs into safe status messages for the browser.
 import type { Job, State } from "./state"
 import { canStartNewAttempt } from "./new-attempt"
 export const progressText: Record<State, string> = {

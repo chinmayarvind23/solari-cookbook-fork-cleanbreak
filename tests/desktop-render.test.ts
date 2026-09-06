@@ -1,3 +1,4 @@
+// Checks live browser processes and required screenshot evidence.
 import { randomBytes } from "node:crypto"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"

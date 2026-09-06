@@ -1,3 +1,4 @@
+// Regression checks for recording lifecycle and private downloads.
 import { randomUUID } from "node:crypto"
 import { resolve } from "node:path"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"

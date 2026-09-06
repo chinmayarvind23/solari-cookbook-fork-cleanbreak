@@ -1,3 +1,5 @@
+// Apply the supervised Browser approval to the exact saved action.
+// Apply the supervised Browser approval to the exact saved action.
 import { readFile } from "node:fs/promises"
 import { resolve } from "node:path"
 

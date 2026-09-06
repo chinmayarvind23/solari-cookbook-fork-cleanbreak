@@ -1,3 +1,4 @@
+// Define the repeatable StreamMax scenarios and their screen states.
 import type { SubscriptionStatus } from "@/lib/subscriptions"
 
 export const DEMO_SCENARIOS = [

@@ -1,3 +1,4 @@
+# Generated files, private artifacts, and standalone examples keep their own formatting.
 .next/
 node_modules/
 next-env.d.ts

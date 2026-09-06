@@ -1,3 +1,4 @@
+// Advance recognized Miro stages once and return the final control to the commit gate.
 import "server-only"
 import { randomUUID, createHash } from "node:crypto"
 import { readFileSync, writeFileSync } from "node:fs"

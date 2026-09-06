@@ -1,3 +1,4 @@
+// Checks receipt construction, persistence, and integrity.
 import type { DatabaseSync } from "node:sqlite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 

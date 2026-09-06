@@ -1,3 +1,4 @@
+// Set up module aliases and test isolation for the local regression suite.
 import { fileURLToPath } from "node:url"
 import { defineConfig } from "vitest/config"
 

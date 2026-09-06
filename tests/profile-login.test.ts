@@ -1,3 +1,4 @@
+// Checks manual local authentication and in-memory profile saves.
 import { EventEmitter } from "node:events"
 import { readFileSync } from "node:fs"
 import { createInterface } from "node:readline"

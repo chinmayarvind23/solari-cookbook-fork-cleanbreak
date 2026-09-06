@@ -1,3 +1,4 @@
+// Checks Desktop policy decisions and dry-run outcomes.
 import {
   mkdtempSync,
   readFileSync,

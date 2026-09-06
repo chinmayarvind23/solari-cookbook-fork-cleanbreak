@@ -1,3 +1,4 @@
+// Limit planner calls and reported token usage for visual Desktop navigation.
 export const DESKTOP_TOKENS_PER_STEP = 5_000
 export const MIN_DESKTOP_TOKEN_BUDGET = 5_000
 export const MAX_DESKTOP_TOKEN_BUDGET = 200_000

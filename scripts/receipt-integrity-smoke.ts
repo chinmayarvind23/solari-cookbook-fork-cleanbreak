@@ -1,3 +1,4 @@
+// Check saved receipt data against its canonical digest.
 import { latestAgentJob } from "@/lib/agent/runtime"
 import { canonicalJson, receiptSha256 } from "@/lib/receipts/canonical"
 import { createReceiptRepository } from "@/lib/receipts/repository"

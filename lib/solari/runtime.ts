@@ -1,3 +1,4 @@
+// Attach Browser profiles and enforce separate persistence eligibility.
 import "server-only"
 
 import { mkdirSync } from "node:fs"

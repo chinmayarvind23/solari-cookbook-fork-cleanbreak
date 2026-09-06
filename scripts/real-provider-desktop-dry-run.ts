@@ -1,3 +1,4 @@
+// Run visual Desktop navigation with final cancellation intercepted.
 import { resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 import { readDesktopConfig } from "@/lib/desktop/config"

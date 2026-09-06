@@ -1,3 +1,4 @@
+// Read a limited set of browser facts without sending page text to a model.
 import "server-only"
 import type { Page } from "playwright-core"
 

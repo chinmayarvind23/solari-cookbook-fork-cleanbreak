@@ -1,5 +1,5 @@
 /**
- * Sandbox quickstart — run untrusted code in a fresh microVM.
+ * Sandbox quickstart; run untrusted code in a fresh microVM.
  *
  * A sandbox is a full Linux VM that boots from a memory snapshot, so it's
  * usually ready in about a second. Nothing you run inside can touch your
@@ -13,7 +13,7 @@ const pt = new SolariClient({ apiKey: process.env.SOLARI_API_KEY! })
 
 const sandbox = await pt.sandboxes.create({
   template: "base",
-  // Rolling IDLE window — it resets on every use, it is not a hard deadline.
+  // Rolling IDLE window; it resets on every use, it is not a hard deadline.
   timeoutMs: 5 * 60_000,
 })
 console.log("sandbox:", sandbox.sandboxId)
@@ -23,7 +23,7 @@ try {
   // take a one-shot HTTP path without it.
   await sandbox.connect()
 
-  // `cmd` is NOT shell-interpreted — argv goes in `args`. For pipes, globs or
+  // `cmd` is NOT shell-interpreted; argv goes in `args`. For pipes, globs or
   // redirection, run a shell explicitly: run("sh", { args: ["-c", "..."] }).
   const out = await sandbox.commands.run("python3", {
     args: ["-c", "print(sum(range(101)))"],

@@ -1,3 +1,4 @@
+// Checks explicit authentication refresh and safe profile uploads.
 import { expect, it, vi } from "vitest"
 import { saveAuthenticatedDesktopProfile } from "../scripts/desktop-profile-save"
 import type { Solari } from "@solarisdk/browser"

@@ -1,3 +1,4 @@
+// Run the Browser connection smoke check with controlled cleanup.
 import type { SolariConfig } from "@/lib/solari/config"
 import {
   type ProfilesClient,

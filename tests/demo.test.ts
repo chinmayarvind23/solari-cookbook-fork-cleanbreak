@@ -1,3 +1,4 @@
+// Regression checks for fictional provider scenario transitions.
 import { describe, expect, it } from "vitest"
 
 import {

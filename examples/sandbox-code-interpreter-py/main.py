@@ -1,8 +1,9 @@
-"""Code interpreter — a stateful Python kernel inside a sandbox.
+# Run a short calculation in a temporary shared Python kernel.
+"""Code interpreter : a stateful Python kernel inside a sandbox.
 
 `run_code` executes in a persistent kernel, so variables and imports survive
 between calls. That's what makes it useful for an LLM agent loop: the model
-writes a line, sees the output, and builds on it — exactly like a notebook.
+writes a line, sees the output, and builds on it; exactly like a notebook.
 """
 
 import asyncio
@@ -32,7 +33,7 @@ async def main() -> None:
 
             await sandbox.run_code("import math\nradius = 7", context_id=ctx)
 
-            # `radius` and `math` are still defined here — different call,
+            # `radius` and `math` are still defined here; different call,
             # same kernel.
             result = await sandbox.run_code(
                 "area = math.pi * radius ** 2\nprint(f'area = {area:.2f}')\narea",

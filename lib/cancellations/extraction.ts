@@ -1,3 +1,4 @@
+// Validate the limited identity and billing facts used by the cancellation policy.
 import "server-only"
 import OpenAI from "openai"
 import { z } from "zod"

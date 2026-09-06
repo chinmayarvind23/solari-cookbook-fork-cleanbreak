@@ -1,3 +1,4 @@
+// Ask the model for a typed proposal and track model usage.
 import "server-only"
 
 import OpenAI from "openai"

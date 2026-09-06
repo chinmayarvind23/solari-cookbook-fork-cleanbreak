@@ -7,7 +7,7 @@ The browser and Solari client are closed in `finally`.
 This demonstrates persistence, not login or permanent authentication. It saves
 on every run and does not include CleanBreak's external-profile overwrite guards.
 Do not point it at a valuable authenticated profile. For real provider login,
-use the root [authentication helpers](../../docs/authentication.md).
+use the dedicated root profile helpers with explicit manual confirmation.
 
 ## Run
 

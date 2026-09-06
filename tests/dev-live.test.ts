@@ -1,3 +1,4 @@
+// Checks live-server configuration and startup safety.
 import { randomUUID } from "node:crypto"
 import { describe, expect, it, vi } from "vitest"
 import { runLiveWeb } from "@/scripts/dev-live"

@@ -1,3 +1,5 @@
+// Render the shared CleanBreak wordmark and home link.
+// Render the shared CleanBreak wordmark and home link.
 import Link from "next/link"
 
 export function Brand({ fixture = false }: { fixture?: boolean }) {

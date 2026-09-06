@@ -1,3 +1,4 @@
+// Require explicit eligibility before replacing saved authentication state.
 import type { PageObservation } from "@/lib/agent/types"
 
 export type ProfileStateSaveSkippedReason =

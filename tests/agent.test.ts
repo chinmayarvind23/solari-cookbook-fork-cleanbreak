@@ -1,3 +1,4 @@
+// Regression checks for planner output, policy decisions, and bounded Browser execution.
 import type { DatabaseSync } from "node:sqlite"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 

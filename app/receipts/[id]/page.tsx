@@ -1,3 +1,5 @@
+// Display the legacy Browser receipt and its saved verification evidence.
+// Display the legacy Browser receipt and its saved verification evidence.
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"

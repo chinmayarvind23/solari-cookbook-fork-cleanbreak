@@ -1,3 +1,4 @@
+// Regression checks for deterministic scenario totals and safety failures.
 import { beforeAll, describe, expect, it } from "vitest"
 
 import {

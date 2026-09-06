@@ -1,3 +1,5 @@
+// Submit one cancellation authorization and reconnect to the same saved job.
+// Submit one cancellation authorization and reconnect to the same saved job.
 "use client"
 import { useEffect, useRef, useState } from "react"
 import type { PublicCancellation } from "@/lib/cancellations/public"
@@ -135,21 +137,25 @@ export function CancellationCard({
       <div className="cancellation-content">
         <p className="eyebrow">
           {provider === "miro"
-            ? "Recorded autonomous cancellation"
-            : "Local one-click test — no external account"}
+            ? job?.state === "VERIFIED"
+              ? "Cancellation verified"
+              : enabled
+                ? "Cancel with independent verification"
+                : "Saved cancellation"
+            : "Local one-click test: no external account"}
         </p>
         <h3>{provider === "miro" ? "Miro" : "StreamMax"}</h3>
         <p>{planName}</p>
-        {provider === "miro" && enabled && (
+        {provider === "miro" && enabled && job?.state !== "VERIFIED" && (
           <p className="cancellation-notice" role="note">
-            Live cancellation — this button authorizes one irreversible
+            Live cancellation: this button authorizes one irreversible
             cancellation attempt. CleanBreak will not ask for a second approval
             and will never retry an uncertain final click. A receipt requires
             independent verification.
           </p>
         )}
         <p className="cancellation-price">
-          Renews/charges:{" "}
+          {job?.state === "VERIFIED" ? "Avoided renewal: " : "Renews/charges: "}
           {new Intl.NumberFormat("en-US", {
             style: "currency",
             currency,
@@ -157,9 +163,9 @@ export function CancellationCard({
           {interval.toLowerCase()}
         </p>
         <p>
-          Authorize one cancellation attempt to stop this subscription’s future
-          renewal, preserving prepaid access. Unexpected fees or changed terms
-          stop the job.
+          {job?.state === "VERIFIED"
+            ? "Future renewal is off. The receipt records the independent billing check and the completed cancellation."
+            : "Authorize one cancellation attempt to stop this subscription’s future renewal, preserving prepaid access. Unexpected fees or changed terms stop the job."}
         </p>
         {job ? (
           <div className="cancellation-status" role="status">
@@ -222,7 +228,7 @@ export function CancellationCard({
         {!job && previousAttempt && (
           <details>
             <summary>
-              Previous attempt — no cancellation click was attempted
+              Previous attempt: no cancellation click was attempted
             </summary>
             <p>
               {previousAttempt.reason}. Its history is preserved. Clicking

@@ -1,3 +1,4 @@
+// Reserve the final Browser action before dispatch and recover uncertain outcomes safely.
 import "server-only"
 
 import { mkdirSync } from "node:fs"

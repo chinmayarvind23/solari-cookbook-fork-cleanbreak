@@ -1,3 +1,4 @@
+// Allow a fresh authorization only for eligible failures with no destructive claim.
 import type { Job, Scope } from "./state"
 
 // Explicit new authorization, never recovery/retry of a possibly sent action.

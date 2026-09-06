@@ -1,3 +1,4 @@
+// Validate structured planner decisions before policy evaluates them.
 import { z } from "zod"
 
 import type { BrowserDecision } from "@/lib/agent/types"

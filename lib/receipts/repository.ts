@@ -1,3 +1,4 @@
+// Store legacy receipts and retrieve them by job or subscription.
 import type { DatabaseSync } from "node:sqlite"
 
 import { getDatabase } from "@/lib/db"

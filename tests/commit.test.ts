@@ -1,3 +1,4 @@
+// Regression checks for crash recovery around the final Browser action.
 import type { DatabaseSync } from "node:sqlite"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 

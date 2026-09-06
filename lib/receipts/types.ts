@@ -1,3 +1,4 @@
+// Describe the persisted Browser receipt and its evidence fields.
 export type ReceiptRecordingStatus =
   "PENDING" | "AVAILABLE" | "UNAVAILABLE" | "FAILED"
 

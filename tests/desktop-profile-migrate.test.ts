@@ -1,3 +1,4 @@
+// Checks VM-local profile migration and preservation of the original.
 import { describe, expect, it, vi } from "vitest"
 import type { Desktop } from "@solarisdk/desktop"
 import {

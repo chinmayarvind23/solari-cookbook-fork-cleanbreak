@@ -1,3 +1,4 @@
+// Drive the fictional StreamMax provider in local Chromium.
 import "server-only"
 import { mkdirSync, readFileSync } from "node:fs"
 import { resolve } from "node:path"

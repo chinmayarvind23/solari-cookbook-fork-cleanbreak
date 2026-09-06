@@ -1,3 +1,4 @@
+// Store Browser jobs, approvals, action history, and verification records.
 import type { DatabaseSync, SQLInputValue } from "node:sqlite"
 
 import { getDatabase } from "@/lib/db"

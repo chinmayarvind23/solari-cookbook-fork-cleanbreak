@@ -1,3 +1,4 @@
+// Classify billing observations as verified, active, or inconclusive.
 import type {
   NormalizedSubscriptionStatus,
   VerificationStatus,

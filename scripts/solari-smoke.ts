@@ -1,3 +1,4 @@
+// Check remote Browser connectivity with a public fixture page.
 import { runLiveSolariSmoke } from "../lib/solari/runtime"
 
 const run = await runLiveSolariSmoke()

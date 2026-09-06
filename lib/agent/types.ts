@@ -1,3 +1,4 @@
+// Shared types for Browser observations, proposals, jobs, and execution records.
 export type CancellationJobState =
   | "READY"
   | "NAVIGATING"

@@ -1,3 +1,4 @@
+// Checks the root layout's hydration behavior.
 import { createElement, type ReactElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 import { expect, it, vi } from "vitest"

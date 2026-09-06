@@ -1,3 +1,4 @@
+// Resolve Desktop connection settings and authorized provider configuration.
 import { readAgentConfig } from "@/lib/agent/config"
 import { readRealProviderConfig } from "@/lib/real-provider/config"
 import { readDesktopTokenBudget } from "./budget"

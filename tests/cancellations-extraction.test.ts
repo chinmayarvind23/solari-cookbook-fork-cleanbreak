@@ -1,3 +1,4 @@
+// Regression checks for strict extraction of safe cancellation facts.
 import { describe, expect, it, vi } from "vitest"
 import sharp from "sharp"
 import {

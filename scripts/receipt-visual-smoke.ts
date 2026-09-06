@@ -1,3 +1,4 @@
+// Inspect the local receipt layout in a browser.
 import { mkdirSync } from "node:fs"
 import { resolve } from "node:path"
 

@@ -1,3 +1,4 @@
+// Validate the provider URL and subscription terms used by external runs.
 import { isCleanBreakDryRun } from "@/lib/agent/config"
 import { parsePublicBaseUrl } from "@/lib/solari/config"
 import type { Subscription, SubscriptionInterval } from "@/lib/subscriptions"

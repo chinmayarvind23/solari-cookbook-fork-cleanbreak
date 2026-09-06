@@ -1,1 +1,2 @@
+# Desktop SDK dependencies for the disposable VM example.
 solari-desktop>=0.2.0

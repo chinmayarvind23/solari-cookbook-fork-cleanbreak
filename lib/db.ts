@@ -1,3 +1,4 @@
+// Open SQLite, apply migrations, and manage fictional subscription data.
 import { mkdirSync, readFileSync } from "node:fs"
 import { dirname, isAbsolute, join, resolve } from "node:path"
 import { DatabaseSync } from "node:sqlite"

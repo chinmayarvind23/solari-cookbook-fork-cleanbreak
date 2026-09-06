@@ -1,3 +1,4 @@
+// Scan tracked files and client bundles for configured credential values.
 import { execFileSync } from "node:child_process"
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { extname, join, resolve } from "node:path"

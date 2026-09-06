@@ -1,3 +1,4 @@
+// Wait for a bounded stable view before evaluating a Desktop action.
 import "server-only"
 import type { Desktop } from "@solarisdk/desktop"
 import { screenStability, type ScreenStability } from "./screen-stability"

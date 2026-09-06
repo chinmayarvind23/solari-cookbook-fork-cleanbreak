@@ -1,3 +1,4 @@
+// Run the bounded visual dry-run while preserving final-action interception.
 import "server-only"
 import { createHash, randomUUID } from "node:crypto"
 import { DesktopClient, type Desktop } from "@solarisdk/desktop"

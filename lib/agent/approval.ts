@@ -1,3 +1,4 @@
+// Check the user's approval against the proposed cancellation and its current terms.
 import { createHash } from "node:crypto"
 
 import type { ApprovalSnapshot, ProposedAction } from "@/lib/agent/types"

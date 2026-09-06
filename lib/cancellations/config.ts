@@ -1,3 +1,4 @@
+// Bind provider settings, financial terms, and session identity into an authorization scope.
 import "server-only"
 import { createHash } from "node:crypto"
 import { canonicalJson } from "@/lib/receipts/canonical"
@@ -79,6 +80,11 @@ export function miroProductSummary(env = process.env) {
       /* Disabled is the default. */
     }
     return {
+      subscriptionKey: digest([
+        "miro",
+        config.provider.startUrl,
+        config.provider.planName,
+      ]),
       planName: config.provider.planName,
       amountCents: Math.round(config.provider.subscription.amount * 100),
       currency: config.provider.subscription.currency,

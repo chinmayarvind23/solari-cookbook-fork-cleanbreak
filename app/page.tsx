@@ -1,3 +1,5 @@
+// Build the dashboard from saved jobs and keep real receipt totals separate from samples.
+// Build the dashboard from saved jobs and keep real receipt totals separate from samples.
 import Link from "next/link"
 
 import { resetDemoAction } from "@/app/actions"
@@ -7,45 +9,47 @@ import { CancellationCard } from "@/components/cancellation-card"
 import { miroProductSummary } from "@/lib/cancellations/config"
 import { cancellationCardState } from "@/lib/cancellations/card-state"
 import { getDemoState, listSubscriptions } from "@/lib/db"
-import { createAgentRepository } from "@/lib/agent/repository"
-import { createReceiptRepository } from "@/lib/receipts/repository"
-import {
-  annualCost,
-  formatCurrency,
-  monthlyEquivalent,
-} from "@/lib/subscriptions"
+import { cancellationRepository } from "@/lib/cancellations/repository"
+import { dashboardMetrics } from "@/lib/cancellations/metrics"
+import { publicJob } from "@/lib/cancellations/public"
+import { formatCurrency } from "@/lib/subscriptions"
 
 export const dynamic = "force-dynamic"
 
 export default function DashboardPage() {
-  const miro = miroProductSummary()
-  const miroCard = miro?.enabled ? cancellationCardState("miro") : undefined
+  const configured = miroProductSummary()
+  const jobs = cancellationRepository().dashboardJobs()
+  const metrics = dashboardMetrics(jobs, configured)
+  const saved = metrics.verified.find(
+    (job) =>
+      !configured ||
+      job.authorization.subscriptionKey === configured.subscriptionKey,
+  )
+  const miro =
+    configured ??
+    (saved
+      ? {
+          planName: saved.authorization.planName,
+          amountCents: saved.authorization.expectedAmountCents,
+          currency: saved.authorization.currency,
+          interval: saved.authorization.interval,
+          enabled: false,
+        }
+      : null)
+  const miroCard = miro?.enabled
+    ? cancellationCardState("miro")
+    : saved
+      ? {
+          initialJob: publicJob(saved),
+          requestScopeKey: saved.authorization.subscriptionKey,
+        }
+      : undefined
   const fixtureCard = cancellationCardState("streammax")
   const subscriptions = listSubscriptions()
   const demoState = getDemoState()
-  const activeSubscriptions = subscriptions.filter(
-    (subscription) => subscription.status === "ACTIVE",
-  )
-  const monthlySpend = activeSubscriptions.reduce(
-    (total, subscription) => total + monthlyEquivalent(subscription),
-    0,
-  )
-  const annualSpend = activeSubscriptions.reduce(
-    (total, subscription) =>
-      total + annualCost(subscription.amount, subscription.interval),
-    0,
-  )
   const streamMax = subscriptions.find(
     (subscription) => subscription.slug === "streammax",
   )!
-  const potentialSavings =
-    streamMax.status === "ACTIVE"
-      ? annualCost(streamMax.amount, streamMax.interval)
-      : 0
-  const verifiedSavings =
-    createAgentRepository().getVerifiedAnnualSavingsCents() / 100
-  const latestStreamMaxReceipt =
-    createReceiptRepository().getLatestForSubscription(streamMax.id)
 
   return (
     <main className="dashboard-shell">
@@ -83,30 +87,47 @@ export default function DashboardPage() {
 
       <section className="metrics page-width" aria-label="Subscription summary">
         <article className="metric-card metric-primary">
-          <p>Active recurring spend</p>
-          <strong>{formatCurrency(annualSpend)}</strong>
+          <p>Tracked renewal</p>
+          <strong>
+            {formatCurrency(metrics.potentialCents / 100, metrics.currency)}
+          </strong>
           <span>/ year</span>
           <small>
-            {activeSubscriptions.length} active · {formatCurrency(monthlySpend)}
-            /month
+            {metrics.activeCount} configured renewal
+            {metrics.activeCount === 1 ? "" : "s"} remaining
           </small>
         </article>
         <article className="metric-card">
           <p>Potential savings</p>
-          <strong>{formatCurrency(potentialSavings)}</strong>
+          <strong>
+            {formatCurrency(metrics.potentialCents / 100, metrics.currency)}
+          </strong>
           <span>/ year</span>
-          <small>Available in the StreamMax demo</small>
+          <small>Uncanceled configured renewal; demo amounts excluded</small>
         </article>
         <article className="metric-card">
           <div className="metric-label-row">
             <p>Verified savings</p>
-            <span className="verified-badge">FRESH-SESSION PROOF</span>
+            <span className="verified-badge">RECEIPT VERIFIED</span>
           </div>
-          <strong>{formatCurrency(verifiedSavings)}</strong>
-          <span>/ year</span>
+          {metrics.totals.length ? (
+            metrics.totals.map((total) => (
+              <div key={total.currency}>
+                <strong>
+                  {formatCurrency(total.annualCents / 100, total.currency)}
+                </strong>
+                <span> {total.currency} / year</span>
+              </div>
+            ))
+          ) : (
+            <>
+              <strong>{formatCurrency(0, metrics.currency)}</strong>
+              <span>/ year</span>
+            </>
+          )}
           <small>
-            {verifiedSavings > 0
-              ? "Independently verified"
+            {metrics.verified.length > 0
+              ? `${metrics.verified.length} verified cancellation${metrics.verified.length === 1 ? "" : "s"}. Annualized renewal avoided.`
               : "No verified cancellations yet"}
           </small>
         </article>
@@ -116,7 +137,7 @@ export default function DashboardPage() {
         <div className="section-heading">
           <div>
             <p className="eyebrow">Your subscriptions</p>
-            <h2>{activeSubscriptions.length} active subscriptions</h2>
+            <h2>Your cancellation workspace</h2>
           </div>
           <div className="section-actions">
             <form action={resetDemoAction}>
@@ -132,16 +153,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {demoState.status === "CANCELED" && verifiedSavings === 0 ? (
-          <div className="notice-banner" role="status">
-            <span aria-hidden="true">i</span>
-            <p>
-              StreamMax changed inside the demo fixture. It is not counted as
-              verified savings because no independent verification job ran.
-            </p>
-          </div>
-        ) : null}
-
         <div className="subscription-grid">
           {miro && (
             <CancellationCard
@@ -151,6 +162,13 @@ export default function DashboardPage() {
               {...miroCard}
             />
           )}
+        </div>
+        <h2>Practice with sample subscriptions</h2>
+        <p>
+          These fictional amounts are excluded from the real savings totals
+          above.
+        </p>
+        <div className="subscription-grid">
           <CancellationCard
             key={fixtureCard.requestScopeKey}
             provider="streammax"
@@ -162,16 +180,14 @@ export default function DashboardPage() {
             {...fixtureCard}
           />
           {subscriptions
-            .filter((subscription) => subscription.slug !== "streammax")
+            .filter(
+              (subscription) =>
+                !["streammax", "miro"].includes(subscription.slug),
+            )
             .map((subscription) => (
               <SubscriptionCard
                 key={subscription.id}
                 subscription={subscription}
-                receiptId={
-                  subscription.id === streamMax.id
-                    ? latestStreamMaxReceipt?.receiptId
-                    : undefined
-                }
               />
             ))}
         </div>
