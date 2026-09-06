@@ -10,6 +10,7 @@ import { screenStability } from "@/lib/desktop/screen-stability"
 import { launchDesktopBrowser } from "@/lib/desktop/browser-launch"
 import { createBillingExtractor } from "./extraction"
 import { verifyMiroDOM } from "./miro-dom-verification"
+import { connectMiroDOMNavigation } from "./miro-dom-navigation"
 import { liveEnabled, type ProductConfig } from "./config"
 import type { CancellationDriver } from "./service"
 import type { Observation, Job } from "./state"
@@ -37,6 +38,8 @@ export function desktopCancellationDriver(
     shot = 0
   let recordingVm: Desktop | undefined
   let extract: ReturnType<typeof createBillingExtractor> | undefined
+  const useDOM = config.env.CLEANBREAK_ALLOW_SCREENSHOT_MODEL_UPLOADS !== "true"
+  let dom: Awaited<ReturnType<typeof connectMiroDOMNavigation>> | undefined
   const recordingPath = `/tmp/cleanbreak-full-${id}.mp4`
   let recordingStarted = false
   const finishRecording = async (): Promise<Job["recording"]> => {
@@ -79,10 +82,16 @@ export function desktopCancellationDriver(
     }
   }
   const close = async () => {
+    const previousDOM = dom
+    dom = undefined
     const current = vm
     vm = undefined
-    // Disconnect this worker, not the user's shared Desktop/console viewer.
-    current?.close()
+    try {
+      await previousDOM?.close()
+    } finally {
+      // Disconnect this worker, not the user's shared Desktop/console viewer.
+      current?.close()
+    }
   }
   const connect = async () => {
     if (vm) return
@@ -90,6 +99,14 @@ export function desktopCancellationDriver(
     vm = await client.connect(connection.desktopId)
     await vm.connect()
     if (!(await vm.health()).ready) throw new Error("DESKTOP_NOT_READY")
+    if (useDOM)
+      dom = await connectMiroDOMNavigation(
+        vm,
+        config,
+        contextId,
+        directory,
+        sleep,
+      )
   }
   const capture = async (mode: "FINAL") => {
     if (config.env.CLEANBREAK_ALLOW_SCREENSHOT_MODEL_UPLOADS !== "true")
@@ -111,6 +128,10 @@ export function desktopCancellationDriver(
     return observation
   }
   const stable = async (o: Observation) => {
+    if (useDOM) {
+      await dom!.assertStable(o)
+      return
+    }
     if (!/^[a-z0-9-]+\.png$/.test(o.screenshot))
       throw new Error("INVALID_EVIDENCE")
     const old = readFileSync(
@@ -129,9 +150,18 @@ export function desktopCancellationDriver(
     connect,
     finishRecording,
     async navigate(progress) {
-      if (config.env.CLEANBREAK_ALLOW_SCREENSHOT_MODEL_UPLOADS !== "true")
-        throw new CancellationFailure("SCREENSHOT_UPLOADS_DISABLED")
       await connect()
+      if (useDOM) {
+        recordingVm = await client.connect(connection.desktopId)
+        await recordingVm.connect()
+        recordingStarted = true
+        await recordingVm.record.start({
+          fps: 10,
+          format: "mp4",
+          path: recordingPath,
+        })
+        return dom!.navigate(progress)
+      }
       // Start from the configured Billing page using the existing VM-only Chrome
       // profile. No viewer, credential typing, extension acceptance or reset.
       await launchDesktopBrowser(
@@ -203,6 +233,7 @@ export function desktopCancellationDriver(
     },
     async revalidate(previous) {
       await connect()
+      if (useDOM) return dom!.revalidate(previous)
       await stable(previous)
       return capture("FINAL")
     },
@@ -215,7 +246,8 @@ export function desktopCancellationDriver(
         throw new Error("STALE_COMMIT")
       await stable(observation)
       // No locator retry, no planner route, exactly one SDK mouse call.
-      await vm!.mouse.click(observation.x, observation.y)
+      if (useDOM) await dom!.click(observation)
+      else await vm!.mouse.click(observation.x, observation.y)
     },
     close,
     async verify() {

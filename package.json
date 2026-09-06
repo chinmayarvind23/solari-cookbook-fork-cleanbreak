@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "desktop:profile-migrate": "node --conditions react-server --env-file=.env --import tsx scripts/desktop-profile-migrate.ts",
+    "desktop:profile-save": "node --conditions react-server --env-file=.env --import tsx scripts/desktop-profile-save.ts",
     "desktop:verify": "node --conditions react-server --env-file=.env --import tsx scripts/desktop-verify.ts",
     "cancellation:worker": "node --conditions react-server --env-file=.env --import tsx scripts/cancellation-worker.ts",
     "test:one-click": "node --conditions react-server --import tsx scripts/one-click-smoke.ts",
@@ -44,6 +46,7 @@
     "chromium-bidi": "0.4.33",
     "next": "16.3.4",
     "openai": "^7.9.0",
+    "playwright-core": "1.63.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "0.0.1",

@@ -77,7 +77,7 @@ export async function enablePrivateChromeDOM(
   throw new Error("PRIVATE_DOM_CONNECTION_UNAVAILABLE")
 }
 
-function assertNoActiveJob(env: NodeJS.ProcessEnv) {
+export function assertNoActiveJob(env: NodeJS.ProcessEnv) {
   const path = resolve(env.CLEANBREAK_DATABASE_PATH ?? "data/cleanbreak.db")
   if (!existsSync(path)) return
   const db = new DatabaseSync(path, { readOnly: true })
@@ -147,7 +147,7 @@ export async function runDesktopVerify(args: string[], env = process.env) {
     console.log(
       JSON.stringify({
         result,
-        source: "DOM",
+        source: observed.evidenceKind,
         authenticated: observed.authenticated,
         identityMatched: observed.matched,
         identityChecks: observed.identityChecks,

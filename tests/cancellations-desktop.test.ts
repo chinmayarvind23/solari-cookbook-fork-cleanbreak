@@ -5,6 +5,7 @@ import { desktopCancellationDriver } from "@/lib/cancellations/desktop"
 import { runDesktopDryRun } from "@/lib/desktop/runtime"
 import { launchDesktopBrowser } from "@/lib/desktop/browser-launch"
 import { verifyMiroDOM } from "@/lib/cancellations/miro-dom-verification"
+import { connectMiroDOMNavigation } from "@/lib/cancellations/miro-dom-navigation"
 import type { FinalDispatchGrant } from "@/lib/cancellations/dispatch"
 import type { ProductConfig } from "@/lib/cancellations/config"
 const shared = vi.hoisted(() => ({
@@ -14,6 +15,15 @@ const shared = vi.hoisted(() => ({
 }))
 vi.mock("@/lib/desktop/browser-launch", () => ({
   launchDesktopBrowser: vi.fn(async () => {}),
+}))
+vi.mock("@/lib/cancellations/miro-dom-navigation", () => ({
+  connectMiroDOMNavigation: vi.fn(async () => ({
+    navigate: vi.fn(async () => shared.extracted),
+    close: vi.fn(async () => {}),
+    assertStable: vi.fn(async () => {}),
+    revalidate: vi.fn(async () => shared.extracted),
+    click: vi.fn(async () => {}),
+  })),
 }))
 vi.mock("@/lib/cancellations/miro-dom-verification", () => ({
   verifyMiroDOM: vi.fn(async (_vm, _config, contextId) => ({
@@ -150,7 +160,7 @@ async function setup() {
   })
 }
 describe("Desktop product adapter isolation", () => {
-  it("disabled image navigation stops before browser launch, recording or model input", async () => {
+  it("disabled image uploads select DOM navigation without an image planner or browser relaunch", async () => {
     await setup()
     const driver = desktopCancellationDriver(
       {
@@ -162,13 +172,15 @@ describe("Desktop product adapter isolation", () => {
       },
       `offline-${randomUUID()}`,
     )
-    await expect(driver.navigate(vi.fn())).rejects.toThrow(
-      "SCREENSHOT_UPLOADS_DISABLED",
-    )
+    await expect(driver.navigate(vi.fn())).resolves.toEqual(shared.extracted)
+    expect(connectMiroDOMNavigation).toHaveBeenCalledOnce()
+    expect(runDesktopDryRun).not.toHaveBeenCalled()
     expect(launchDesktopBrowser).not.toHaveBeenCalled()
     expect(shared.vm.screenshot).not.toHaveBeenCalled()
-    expect(shared.vm.record.start).not.toHaveBeenCalled()
+    expect(shared.vm.record.start).toHaveBeenCalledOnce()
     expect(shared.vm.mouse.click).not.toHaveBeenCalled()
+    await driver.finishRecording!()
+    await driver.close()
   })
   it("DOM verification failure never falls back to screenshots or actions", async () => {
     const driver = await setup()

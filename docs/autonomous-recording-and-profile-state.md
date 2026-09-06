@@ -1,5 +1,11 @@
 # Fresh starts, recording and profile state
 
+Current outcome supersedes the earlier integration limitation: one authorized
+Miro web-app run is VERIFIED with exactly one final click, no retries, a valid
+receipt and full recording. The named profile was explicitly saved from the
+authenticated Desktop context after authorized VM-local migration. See
+[current no-image flow and trust boundary](no-image-verification.md).
+
 The dashboard now reads current workflow state from the server. Browser tickets
 are scoped to the configuration, not just the provider name. Eligible failures
 before any destructive claim appear as collapsed history rather than the active
@@ -26,23 +32,26 @@ Failed runs are labeled attempt recordings, not full successful cancellations.
 - Chrome in the dedicated Desktop owns its VM-only `/tmp/cleanbreak-chrome` login.
   Normal handle cleanup does not delete it or pause/destroy the VM.
 - Solari Browser's named profile owns Playwright storage state. The installed
-  Desktop SDK has no `storageState()`/browser-profile save operation; its filesystem
-  is not a Playwright state object. Do not upload Chrome files as profile JSON.
+  Desktop SDK has no direct `storageState()`/browser-profile save operation;
+  `desktop:profile-save` uses the private standard Playwright connection to obtain
+  `storageState({ indexedDB: true })` in memory and uploads it to the exact profile.
+  Chrome files are never uploaded as profile JSON.
 - `npm run profile:login` is the existing supported local-authentication upload:
   capture IndexedDB/cookies/localStorage in memory after explicit confirmation,
   save to the exact configured named profile, never log or write state JSON.
   It does not currently import/export the Desktop's Chrome authentication.
 
-Read-only inspection in this task found the configured named profile
-at version 1 / 0 bytes, while the current Desktop had a Chrome profile and showed
-authenticated Miro Billing. Those are different stores. This patch does **not**
-claim that named-profile/VM synchronization or live cancellation is complete.
-The external-provider overwrite protections remain unchanged.
+The previously empty configured profile was explicitly refreshed to version 2 /
+14,828 bytes. Desktop auth and the named profile remain distinct stores: the helper
+performs an explicit authenticated upload, not automatic bidirectional sync.
+External-provider overwrite protections remain unchanged; failure/cleanup never
+grants persistence authority.
 
 ## Trust-boundary amendment
 
-Read surfaces remain untrusted Miro pixels, authenticated Solari infrastructure,
-OpenAI screenshot processing only with explicit authorization, and first-party SQLite state. Writes are
+Read surfaces are locally parsed Miro DOM and account-bound billing GET responses,
+authenticated Solari infrastructure, and first-party SQLite state. No model receives
+screenshots, video, OCR or private text. Local pixels guard input stability. Writes are
 limited to the configured Billing navigation, already-authorized cancellation
 flow, one scoped final attempt, and ignored private evidence/recording files.
 An injection-driven wrong click affects the dedicated subscription/account;
@@ -62,10 +71,8 @@ verification remain. No credentials are typed and no challenge is bypassed.
 | One-click hijack             | Fresh screen/target and material-terms checks; screenshot interpretation still has residual model/TOCTOU risk           |
 
 No persistent planner-memory canaries are needed because no such memory is used.
-Verdict: **research-only**, dedicated opt-in account/session. Offline tests and
-local StreamMax execution do not establish live Miro completion or a full Miro
-recording. Named-profile synchronization remains outstanding.
-
-The environment rejected a subsequent private billing screenshot upload to
-OpenAI. Further model-based live checks are paused pending explicit permission;
-the rejected operation was not rerouted through another tool or endpoint.
+Verdict: **research-only**, dedicated opt-in account/session. The completed live
+trial result is real evidence for that one flow, not general provider reliability.
+The operator's refusal of image uploads remains in force. The implementation uses
+local deterministic DOM parsing and fresh billing evidence, not an alternate route
+for sending private content to a model.

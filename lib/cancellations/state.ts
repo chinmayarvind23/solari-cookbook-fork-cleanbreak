@@ -41,7 +41,8 @@ export type Billing = {
   accessUntil: string | null
 }
 export type Observation = {
-  evidenceKind?: "DOM"
+  termsBasis?: "MIRO_FREE_TRIAL_CANCELLATION_DOCUMENTATION"
+  evidenceKind?: "DOM" | "DOM_AND_PROVIDER_BILLING"
   evidenceHash?: string
   version: 1
   observedAt: string

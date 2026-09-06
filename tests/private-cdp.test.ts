@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest"
 import { createConnection, createServer, type Socket } from "node:net"
-import { chromium, type Browser } from "patchright-core"
+import { chromium, type Browser } from "playwright-core"
+import { chromium as installedChromium } from "patchright-core"
 import type { Desktop } from "@solarisdk/desktop"
 import { privateDesktopCDP } from "@/lib/desktop/private-cdp"
 
@@ -21,7 +22,7 @@ it("carries real Playwright CDP over private SDK streams without exposing Chrome
   await new Promise<void>((done) => reserve.close(() => done()))
   browser = await chromium.launch({
     headless: true,
-    executablePath: chromium.executablePath(),
+    executablePath: installedChromium.executablePath(),
     args: [
       `--remote-debugging-port=${port}`,
       "--remote-debugging-address=127.0.0.1",

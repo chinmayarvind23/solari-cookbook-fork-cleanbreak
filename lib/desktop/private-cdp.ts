@@ -66,6 +66,25 @@ export async function privateDesktopCDP(vm: VM) {
   const token = randomBytes(32).toString("hex")
   const commands = new Set<Handle>(),
     sockets = new Set<Socket>()
+  const stopping = new Map<Handle, Promise<void>>()
+  const stop = (command: Handle) => {
+    const existing = stopping.get(command)
+    if (existing) return existing
+    const result = (async () => {
+      await command.kill(15).catch(() => {})
+      let timeout: ReturnType<typeof setTimeout> | undefined
+      await Promise.race([
+        command.wait().catch(() => {}),
+        new Promise<void>((done) => {
+          timeout = setTimeout(done, 2000)
+        }),
+      ])
+      if (timeout) clearTimeout(timeout)
+      commands.delete(command)
+    })()
+    stopping.set(command, result)
+    return result
+  }
   const server = createServer((socket) => {
     sockets.add(socket)
     socket.setTimeout(30_000, () => socket.destroy())
@@ -74,8 +93,7 @@ export async function privateDesktopCDP(vm: VM) {
     socket.once("close", () => {
       sockets.delete(socket)
       if (command) {
-        commands.delete(command)
-        void command.kill().catch(() => {})
+        void stop(command)
       }
     })
     let header = Buffer.alloc(0)
@@ -127,8 +145,7 @@ export async function privateDesktopCDP(vm: VM) {
         })
         commands.add(command)
         if (socket.destroyed) {
-          await command.kill().catch(() => {})
-          commands.delete(command)
+          await stop(command)
           return
         }
         const first = Buffer.concat([
@@ -183,9 +200,8 @@ export async function privateDesktopCDP(vm: VM) {
     headers: { Authorization: `Bearer ${token}` },
     async close() {
       for (const socket of sockets) socket.destroy()
-      await Promise.all(
-        [...commands].map((command) => command.kill().catch(() => {})),
-      )
+      await Promise.all([...commands].map(stop))
+      await Promise.all(stopping.values())
       commands.clear()
       await new Promise<void>((done) => server.close(() => done()))
     },

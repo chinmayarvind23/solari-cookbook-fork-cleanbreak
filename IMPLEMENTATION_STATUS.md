@@ -1,6 +1,17 @@
 # CleanBreak Implementation Status
 
-## Screenshot-free verification update
+## Current: verified Miro trial cancellation without image uploads
+
+- The actual web-app Cancel button authorized one scoped job. Its deterministic DOM adapter completed entry, benefits, extension-offer rejection, cancellation selection, reason continuation and neutral reason input. The existing final gate consumed one authorization and acknowledged exactly one final click. Destructive retries and unsafe actions were zero.
+- Independent fresh-tab/reload verification read matching configured-account billing GET responses and local DOM facts: cancellation scheduled, renewal OFF, no future renewal charge, access through the trial end. Job state is VERIFIED; receipt digest and the private 1,501,727-byte MP4 were checked. No additional cancellation attempt was submitted.
+- Private DOM uses standard installed `playwright-core` with `noDefaults: true`, avoiding Patchright's automatic Fetch interception of shared Chrome tabs. No screenshots, OCR, videos or private page text were sent to a model. Local pixel checks and private recording remain; final authorization/revalidation/no-retry invariants are unchanged.
+- Explicitly authorized VM-local migration copied only login/origin stores into the dedicated Chrome directory, preserving the original and prior dedicated directories in the VM. Explicit in-memory IndexedDB-capable profile save populated the configured named Solari profile (version 2, 14,828 bytes). Generic external-provider cleanup still cannot overwrite authentication.
+- This confirms one configured Miro Business Trial flow, not every Miro layout or provider. New screens, conflicting identity/terms or unknown outcomes fail closed. See `docs/no-image-verification.md` for the bounded flow, trust boundary and exact developer commands.
+- Final checks: 936 tests across 40 files passed, full typecheck, format check, production build, diff whitespace check and secret audit passed. The audit found zero configured credential values in 237 repository files and 14 generated client bundles. New local-browser regressions cover the complete reversible DOM sequence, no final dispatch in navigation, two-read provider verification, wrong-account/conflicting/login evidence, in-memory IndexedDB profile save and preserved VM-only migration.
+
+## Historical updates (superseded where noted above)
+
+### Screenshot-free verification update
 
 - Screenshot uploads default off, including the Desktop planner and billing extractor. The operator's refusal is honored without substituting OCR, video or private page text sent to a model. Image-based cancellation navigation stops before interaction unless separately enabled.
 - Production Desktop verification now uses a fresh read-only Playwright DOM tab and reload through a private authenticated SDK stream bridge. Only locally recognized billing facts and hashes are retained. No screenshot/model fallback, write dispatcher, new authorization or extra cancellation attempt is introduced.

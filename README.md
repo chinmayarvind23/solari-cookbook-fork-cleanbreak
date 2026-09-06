@@ -14,15 +14,15 @@ entire workflow without touching a real account.
 
 ## One-click product path
 
-Screenshot-model uploads are now **off by default**. The current Desktop navigation
-planner therefore cannot run without separate image-sharing opt-in; do not enable
-it for an operator who has refused screenshots. Verification no longer uses that
-planner: `npm run desktop:verify` reads locally parsed billing DOM facts through a
-private connection, with no OpenAI request or cancellation action. An authenticated,
-connectable Chrome profile is still required. The current VM was found using
-Chrome's default profile instead of CleanBreak's dedicated profile, so verification
-remains INCONCLUSIVE and the full live cancellation is not complete. See
-[screenshot-free verification and setup limitations](docs/no-image-verification.md).
+Screenshot-model uploads are **off by default**. The Miro Business Trial product
+path uses a bounded, deterministic DOM adapter through a private connection to
+the existing authenticated Desktop Chrome. It declines the extension offer,
+selects cancellation instead of downgrade, fills a fixed neutral reason, then
+hands the final control to the existing one-shot authorization gate. Local pixel
+stability checks remain; no screenshots, OCR or private page text go to a model.
+Verification uses a fresh Billing tab plus reload and matching, account-bound
+provider billing GET responses, not the cancellation dialog or a success toast.
+See [no-image operation and trust limits](docs/no-image-verification.md).
 
 The primary dashboard now creates a scoped, 15-minute one-shot authorization from
 the initial Cancel button. It navigates autonomously, revalidates material terms,
@@ -31,7 +31,11 @@ and issues a receipt only for VERIFIED. No second approval is required on this
 path; legacy Browser/StreamMax approval regressions remain in the demo lab.
 
 Start with `npm run test:one-click` for the isolated local StreamMax dashboard
-test. Real Miro execution is disabled by default and has not been live-validated.
+test. Real Miro execution remains disabled by default. One explicitly authorized
+web-app run completed the actual trial cancellation with one final click, zero
+retries, independently verified renewal off, an integrity-checked receipt and a
+private full recording. This is one observed trial flow, not general provider
+reliability or support for every Miro plan/layout.
 See [one-click operation, authorization and recovery](docs/one-click-product.md)
 for the exact explicit live flags, operator authentication, trust limits, safe
 dry-run and receipt evidence commands.
