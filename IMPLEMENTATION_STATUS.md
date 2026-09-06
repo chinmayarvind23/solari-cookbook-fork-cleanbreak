@@ -29,7 +29,7 @@ charge, with access through September 18, 2026. The configured charge was
 A receipt was persisted and its digest validated. A full 38.7-second private MP4
 was saved; a separate card-blurred sharing copy was subsequently produced.
 The public [Miro walkthrough](docs/media/miro-cancellation.mp4) now contains the
-actual recording with broader privacy redaction and focused zooms. Its 64.5-second
+full-page recording with only credit-card details blurred. Its 64.5-second
 duration is the 38.7-second original slowed to 0.6x for readability.
 Original evidence stays private. [Public outcome summary](docs/media/proof-summary.json).
 

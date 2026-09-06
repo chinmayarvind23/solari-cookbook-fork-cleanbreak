@@ -18,6 +18,6 @@
   "publicWalkthroughSeconds": 64.5,
   "playbackRate": 0.6,
   "sourceRecordingSha256": "d3aef468ebd0e738a13777338b373afb679294a4236931739e23cb33b5544e36",
-  "privacy": "Account and payment details are redacted. Original receipt and recording remain private.",
+  "privacy": "Only credit-card details are blurred. The rest of the recorded page remains visible. Original receipt and recording remain private.",
   "scope": "One completed real cancellation. Earlier failed navigation attempts are not represented as successes."
 }
