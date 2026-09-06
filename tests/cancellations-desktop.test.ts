@@ -3,12 +3,16 @@ import { randomUUID } from "node:crypto"
 import sharp from "sharp"
 import { desktopCancellationDriver } from "@/lib/cancellations/desktop"
 import { runDesktopDryRun } from "@/lib/desktop/runtime"
+import { launchDesktopBrowser } from "@/lib/desktop/browser-launch"
 import type { FinalDispatchGrant } from "@/lib/cancellations/dispatch"
 import type { ProductConfig } from "@/lib/cancellations/config"
 const shared = vi.hoisted(() => ({
   vm: undefined as any,
   image: undefined as Uint8Array | undefined,
   extracted: undefined as any,
+}))
+vi.mock("@/lib/desktop/browser-launch", () => ({
+  launchDesktopBrowser: vi.fn(async () => {}),
 }))
 vi.mock("@solarisdk/desktop", () => ({
   DesktopClient: class {
@@ -76,6 +80,11 @@ async function setup() {
     .png()
     .toBuffer()
   shared.vm = {
+    record: {
+      start: vi.fn(async () => ({})),
+      stop: vi.fn(async () => ({ path: "", sizeBytes: 0 })),
+    },
+    fs: { read: vi.fn(async () => new Uint8Array()) },
     connect: vi.fn(async () => {}),
     health: vi.fn(async () => ({ ready: true })),
     screenshot: vi.fn(async () => shared.image),
@@ -123,7 +132,9 @@ async function setup() {
   vi.stubEnv("CLEANBREAK_DRY_RUN", "false")
   vi.stubEnv("CLEANBREAK_REAL_PROVIDER_AUTHORIZED", "true")
   vi.stubEnv("CLEANBREAK_ALLOW_DESTRUCTIVE_CANCEL", "true")
-  return desktopCancellationDriver(config, `offline-${randomUUID()}`)
+  return desktopCancellationDriver(config, `offline-${randomUUID()}`, {
+    sleep: async () => {},
+  })
 }
 describe("Desktop product adapter isolation", () => {
   it.each([
@@ -168,13 +179,64 @@ describe("Desktop product adapter isolation", () => {
     await driver.navigate(vi.fn())
     expect(runDesktopDryRun).toHaveBeenCalledWith(
       expect.objectContaining({ CLEANBREAK_DRY_RUN: "true" }),
-      expect.objectContaining({ auto: true, privateWorker: true }),
+      expect.objectContaining({
+        auto: true,
+        privateWorker: true,
+        recordingManagedExternally: true,
+      }),
     )
     expect(shared.vm.mouse.click).not.toHaveBeenCalled()
     await driver.close()
     expect(shared.vm.pause).not.toHaveBeenCalled()
     expect(shared.vm.close).toHaveBeenCalled()
     expect(shared.vm.destroy).not.toHaveBeenCalled()
+    expect(launchDesktopBrowser).toHaveBeenCalledWith(
+      shared.vm,
+      config.startUrl,
+      expect.any(AbortSignal),
+      expect.objectContaining({ browser: "chrome" }),
+    )
+    expect(shared.vm.record.start).toHaveBeenCalledOnce()
+    expect(shared.vm.record.stop).not.toHaveBeenCalled()
+    await driver.finishRecording!()
+    expect(shared.vm.record.stop).toHaveBeenCalledOnce()
+  })
+  it("keeps one recorder through navigation and verification and downloads only its fixed MP4", async () => {
+    const driver = await setup()
+    await driver.navigate(vi.fn())
+    const path = shared.vm.record.start.mock.calls[0][0].path
+    const mp4 = Buffer.from([
+      0, 0, 0, 16, 102, 116, 121, 112, 105, 115, 111, 109, 0, 0, 0, 0,
+    ])
+    shared.vm.record.stop.mockResolvedValue({ path, sizeBytes: mp4.length })
+    shared.vm.fs.read.mockResolvedValue(mp4)
+    await driver.close()
+    expect(shared.vm.record.stop).not.toHaveBeenCalled()
+    vi.useFakeTimers()
+    const verifying = driver.verify()
+    await vi.runAllTimersAsync()
+    await verifying
+    expect(shared.vm.record.stop).not.toHaveBeenCalled()
+    expect(await driver.finishRecording!()).toEqual({
+      status: "AVAILABLE",
+      filename: "cancellation.mp4",
+      sizeBytes: 16,
+    })
+    expect(shared.vm.record.start).toHaveBeenCalledOnce()
+    expect(shared.vm.record.stop).toHaveBeenCalledOnce()
+    expect(shared.vm.fs.read).toHaveBeenCalledWith(path)
+    expect(await driver.finishRecording!()).toBeUndefined()
+    expect(shared.vm.record.stop).toHaveBeenCalledOnce()
+  })
+  it("never downloads a recording path returned outside the requested job", async () => {
+    const driver = await setup()
+    await driver.navigate(vi.fn())
+    shared.vm.record.stop.mockResolvedValue({
+      path: "/private/account-data",
+      sizeBytes: 16,
+    })
+    expect(await driver.finishRecording!()).toMatchObject({ status: "FAILED" })
+    expect(shared.vm.fs.read).not.toHaveBeenCalled()
   })
   it("verification reconnects, opens a configured billing window and never dispatches input", async () => {
     const driver = await setup(),

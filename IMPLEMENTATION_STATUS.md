@@ -1,5 +1,15 @@
 # CleanBreak Implementation Status
 
+## Fresh dashboard and continuous recording update
+
+- Current dashboard state is server-owned and scoped to the current configuration. Eligible unclaimed navigation failures appear as collapsed history; opening the page never starts a cancellation. A fresh explicit authorization can use a replacement VM with unchanged subscription/financial terms. Active or uncertain jobs remain locked and visible; stale configuration submissions fail before dispatch.
+- The product worker opens Billing in the existing VM-only Chrome profile without a viewer. One recording handle spans navigation, the guarded final attempt and independent verification. A bounded MP4 is available through an authenticated, non-cacheable private download route; failed runs are labeled attempt recordings. Recording failure does not change the cancellation outcome or authorize a retry.
+- Billing identity checks accept only the narrow Miro Business Trial / Business Plan trial naming equivalence and one trailing URL slash; account path, origin, currency and billing interval still match. Persisted identity diagnostics are booleans, not private extracted text.
+- Local production-browser smoke passed: exactly one authorization and final click, zero retries, independent VERIFIED result and valid receipt. The stale FAILED-job smoke also passed with a fresh card and preserved predecessor. These are StreamMax results, not live Miro proof.
+- Authentication persistence is still an outstanding integration: the current Desktop contains authenticated Chrome state while its configured Solari Browser profile was empty. The installed Desktop SDK does not expose Playwright storage state. No browser directory or challenge state was uploaded, and no profile save is falsely claimed. See `docs/autonomous-recording-and-profile-state.md`.
+- No live cancellation input was dispatched in this update. Further model-based live verification is paused because environment approval rejected sending a private billing screenshot to OpenAI; explicit permission is required before continuing that external processing.
+- Validation: 896 tests across 34 files passed, plus typecheck, format check, production build, diff whitespace checks and secret audit (zero configured credential values in 221 repository files and 14 client-bundle files). Recording-route tests enforce authentication even with live mode disabled, fixed paths, bounded valid MP4 data, no-cache headers and safe failure responses.
+
 ## Current one-click transaction audit
 
 - Primary product flow is live-capable, not the developer dry-run: initial dashboard POST persists one scoped authorization, autonomous navigation hands the final candidate to the separate revalidation/atomic-claim dispatcher, and fresh verification alone can issue a receipt. No second approval screen is used.

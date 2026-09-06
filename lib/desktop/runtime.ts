@@ -103,6 +103,7 @@ export type DesktopRun = {
   unsafeActionsExecuted: 0
 }
 type Dependencies = {
+  recordingManagedExternally: boolean
   privateWorker: boolean
   auto: boolean
   progress(message: string): void
@@ -261,10 +262,13 @@ export async function runDesktopDryRun(
     signal.throwIfAborted()
     // Manual authentication occurs before this command. No recording of login.
     phase = "RECORDING_START_FAILED"
-    recordingAttempted = true
-    const recordingPath = `/tmp/cleanbreak-${id}.mp4`
-    await vm.record.start({ fps: 10, format: "mp4", path: recordingPath })
-    run.recordingGuestPath = recordingPath
+    if (!supplied.recordingManagedExternally) {
+      recordingAttempted = true
+      const recordingPath = `/tmp/cleanbreak-${id}.mp4`
+      await vm.record.start({ fps: 10, format: "mp4", path: recordingPath })
+      run.recordingGuestPath = recordingPath
+    } else if (!supplied.privateWorker)
+      throw new Error("PRIVATE_RECORDING_OWNER_REQUIRED")
     const history: string[] = []
     let settledScreenshot: Uint8Array | undefined
     run.stopReason = "MAX_STEPS"
@@ -625,7 +629,10 @@ export async function runDesktopDryRun(
       } catch {
         run.recordingStatus = "FAILED"
       }
-    } else run.recordingStatus = "FAILED"
+    } else
+      run.recordingStatus = supplied.recordingManagedExternally
+        ? "PENDING"
+        : "FAILED"
     // This is a shared, user-managed VM. Release only our control connection;
     // pausing here would disconnect the user's Solari console viewer.
     try {

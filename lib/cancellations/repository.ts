@@ -2,7 +2,7 @@ import "server-only"
 import { randomUUID } from "node:crypto"
 import type { DatabaseSync } from "node:sqlite"
 import { getDatabase } from "@/lib/db"
-import { canStartNewAttempt, NewAttemptNotAllowed } from "./new-attempt"
+import { canStartNewAttemptForScope, NewAttemptNotAllowed } from "./new-attempt"
 import {
   edges,
   terminal,
@@ -81,17 +81,30 @@ export function cancellationRepository(
   }
   return {
     load,
+    currentForScope(scope: Scope) {
+      const locked = db
+        .prepare(
+          "SELECT id FROM one_click_jobs WHERE locked=1 AND (subscription_key=? OR resource_key=?) ORDER BY rowid DESC LIMIT 1",
+        )
+        .get(scope.subscriptionKey, scope.sessionBinding) as
+        { id: string } | undefined
+      if (locked) return { job: load(locked.id), previous: null }
+      if (scope.provider === "streammax") return { job: null, previous: null }
+      const latest = db
+        .prepare(
+          "SELECT id FROM one_click_jobs WHERE subscription_key=? ORDER BY rowid DESC LIMIT 1",
+        )
+        .get(scope.subscriptionKey) as { id: string } | undefined
+      const previous = latest ? load(latest.id) : null
+      if (previous && canStartNewAttemptForScope(previous, scope))
+        return { job: null, previous }
+      return { job: previous, previous: null }
+    },
     create(scope: Scope, requestKey: string, retryOf?: string) {
       return transaction(() => {
         if (retryOf) {
           const previous = load(retryOf)
-          if (
-            !previous ||
-            !canStartNewAttempt(previous) ||
-            (Object.keys(scope) as Array<keyof Scope>).some(
-              (key) => previous.authorization[key] !== scope[key],
-            )
-          )
+          if (!previous || !canStartNewAttemptForScope(previous, scope))
             throw new NewAttemptNotAllowed()
         }
         const existing = db

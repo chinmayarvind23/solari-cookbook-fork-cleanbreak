@@ -1,5 +1,5 @@
 import { after } from "next/server"
-import { productConfig } from "@/lib/cancellations/config"
+import { productConfig, digest } from "@/lib/cancellations/config"
 import { cancellationRepository } from "@/lib/cancellations/repository"
 import { publicJob } from "@/lib/cancellations/public"
 import { operatorAllowed, sameOriginPost } from "@/lib/cancellations/security"
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     )
   try {
     const text = await request.text()
-    if (text.length > 100) throw new Error("INVALID_REQUEST")
+    if (text.length > 256) throw new Error("INVALID_REQUEST")
     const body = JSON.parse(text)
     const key = request.headers.get("idempotency-key")
     if (
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       !/^[a-zA-Z0-9-]{16,80}$/.test(key) ||
       !body ||
       Object.keys(body).some(
-        (key) => key !== "provider" && key !== "retryOf",
+        (key) => !["provider", "retryOf", "scopeKey"].includes(key),
       ) ||
       ("retryOf" in body &&
         (typeof body.retryOf !== "string" ||
@@ -38,6 +38,11 @@ export async function POST(request: Request) {
     )
       throw new Error("INVALID_REQUEST")
     const config = productConfig(body.provider)
+    if ("scopeKey" in body && body.scopeKey !== digest(config.scope))
+      return Response.json(
+        { error: "CONFIGURATION_CHANGED" },
+        { status: 409, headers },
+      )
     const job = cancellationRepository().create(config.scope, key, body.retryOf)
     after(() => executeCancellation(job.id))
     return Response.json(publicJob(job), { status: 202, headers })

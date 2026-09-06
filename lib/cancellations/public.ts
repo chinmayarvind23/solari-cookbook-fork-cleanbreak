@@ -41,6 +41,11 @@ export function publicJob(job: Job) {
     unsafeActionsExecuted: job.unsafeActionsExecuted,
     authorizationUses: job.authorizationUses,
     canStartNewAttempt: canStartNewAttempt(job),
+    recordingStatus: job.recording?.status ?? null,
+    recordingUrl:
+      job.recording?.status === "AVAILABLE"
+        ? `/api/cancellations/${job.id}/recording`
+        : null,
     receiptUrl:
       job.state === "VERIFIED" && job.receipt
         ? `/cancellations/${job.id}/receipt`

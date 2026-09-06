@@ -7,17 +7,22 @@ import { readDesktopConnection } from "@/lib/desktop/config"
 import { runDesktopDryRun } from "@/lib/desktop/runtime"
 import { desktopEvidence } from "@/lib/desktop/evidence"
 import { screenStability } from "@/lib/desktop/screen-stability"
+import { launchDesktopBrowser } from "@/lib/desktop/browser-launch"
 import { createBillingExtractor } from "./extraction"
 import { liveEnabled, type ProductConfig } from "./config"
 import type { CancellationDriver } from "./service"
-import type { Observation } from "./state"
+import type { Observation, Job } from "./state"
 import { consumeFinalDispatch } from "./dispatch"
 import { CancellationFailure, navigationFailure } from "./failure"
 
 export function desktopCancellationDriver(
   config: ProductConfig,
   id: string,
+  options: { sleep?: (ms: number) => Promise<void> } = {},
 ): CancellationDriver {
+  const sleep =
+    options.sleep ??
+    ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)))
   const connection = readDesktopConnection(config.env)
   const client = new DesktopClient({
     apiKey: connection.apiKey,
@@ -30,6 +35,48 @@ export function desktopCancellationDriver(
   let vm: Desktop | undefined,
     contextId = randomUUID(),
     shot = 0
+  let recordingVm: Desktop | undefined
+  const recordingPath = `/tmp/cleanbreak-full-${id}.mp4`
+  let recordingStarted = false
+  const finishRecording = async (): Promise<Job["recording"]> => {
+    const recorder = recordingVm
+    recordingVm = undefined
+    if (!recorder) return undefined
+    try {
+      if (!recordingStarted)
+        return { status: "FAILED", filename: null, sizeBytes: 0 }
+      recordingStarted = false
+      const stopped = await recorder.record.stop()
+      if (
+        stopped.path !== recordingPath ||
+        stopped.sizeBytes <= 0 ||
+        stopped.sizeBytes > 128 * 1024 * 1024
+      )
+        throw new Error("INVALID_RECORDING")
+      const bytes = await recorder.fs.read(recordingPath)
+      if (
+        bytes.byteLength !== stopped.sizeBytes ||
+        Buffer.from(bytes.subarray(4, 8)).toString("ascii") !== "ftyp"
+      )
+        throw new Error("INVALID_RECORDING")
+      writeFileSync(resolve(directory, "cancellation.mp4"), bytes, {
+        mode: 0o600,
+      })
+      return {
+        status: "AVAILABLE",
+        filename: "cancellation.mp4",
+        sizeBytes: bytes.byteLength,
+      }
+    } catch {
+      return { status: "FAILED", filename: null, sizeBytes: 0 }
+    } finally {
+      try {
+        recorder.close()
+      } catch {
+        /* Local handle only. */
+      }
+    }
+  }
   const close = async () => {
     const current = vm
     vm = undefined
@@ -76,7 +123,25 @@ export function desktopCancellationDriver(
         throw new Error("LIVE_CANCELLATION_DISABLED")
     },
     connect,
+    finishRecording,
     async navigate(progress) {
+      await connect()
+      // Start from the configured Billing page using the existing VM-only Chrome
+      // profile. No viewer, credential typing, extension acceptance or reset.
+      await launchDesktopBrowser(
+        vm!,
+        config.startUrl,
+        AbortSignal.timeout(15_000),
+        { browser: "chrome", wait: sleep },
+      )
+      recordingVm = await client.connect(connection.desktopId)
+      await recordingVm.connect()
+      recordingStarted = true
+      await recordingVm.record.start({
+        fps: 10,
+        format: "mp4",
+        path: recordingPath,
+      })
       // Dry-run navigation owns its own control handle, never a destructive one.
       await close()
       const evidence = desktopEvidence(id, resolve(directory, "navigation"))
@@ -85,6 +150,7 @@ export function desktopCancellationDriver(
         {
           auto: true,
           privateWorker: true,
+          recordingManagedExternally: true,
           id,
           evidence: {
             ...evidence,

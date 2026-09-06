@@ -1,5 +1,7 @@
 // Fixed client-facing copy only. Never show raw server/SDK errors.
 export function cancellationStartError(status: number, code?: string): string {
+  if (code === "CONFIGURATION_CHANGED")
+    return "The configured session or subscription changed. Refresh to review the current configuration before authorizing. No cancellation was started."
   if (code === "NEW_ATTEMPT_NOT_ALLOWED")
     return "A new attempt is not allowed for this job or the configuration has changed. No new cancellation was started. Review the existing job; do not clear its history to retry."
   if (status === 401 || code === "OPERATOR_AUTH_REQUIRED")

@@ -58,6 +58,18 @@ const png = await sharp({
 describe("Miro extraction contract", () => {
   it.each([
     ["happy path", {}, true],
+    [
+      "visible Miro Business Plan trial label",
+      { planName: "Business Plan trial" },
+      true,
+    ],
+    ["trailing billing slash", { pageUrl: `${config.startUrl}/` }, true],
+    [
+      "paid Business plan is not the trial",
+      { planName: "Business Plan" },
+      false,
+    ],
+    ["missing currency is not assumed from config", { currency: null }, false],
     ["another plan", { planName: "Other" }, false],
     [
       "another account",

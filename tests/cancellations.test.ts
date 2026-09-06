@@ -124,6 +124,47 @@ function setup() {
   }
 }
 describe("durable one-click authorization", () => {
+  it("recording cleanup failure is terminal metadata, not a repeated cancellation", async () => {
+    const h = setup()
+    const finishRecording = vi.fn(async () => {
+      throw new Error("private-sdk-error")
+    })
+    Object.assign(h.driver, { finishRecording })
+    const result = await h.run()
+    expect(result).toMatchObject({
+      state: "VERIFIED",
+      recording: { status: "FAILED", filename: null, sizeBytes: 0 },
+      destructiveClicksExecuted: 1,
+      automaticDestructiveRetries: 0,
+    })
+    expect(JSON.stringify(result)).not.toContain("private-sdk-error")
+    await h.run()
+    expect(finishRecording).toHaveBeenCalledOnce()
+    expect(h.driver.clickFinal).toHaveBeenCalledOnce()
+    expect(h.driver.close).toHaveBeenCalled()
+  })
+  it("finalizes one recording after independent verification without adding another click", async () => {
+    const h = setup()
+    const finishRecording = vi.fn(async () => {
+      expect(h.repo.load(h.job.id)?.state).toBe("VERIFIED")
+      expect(h.driver.verify).toHaveBeenCalledOnce()
+      return {
+        status: "AVAILABLE" as const,
+        filename: "cancellation.mp4" as const,
+        sizeBytes: 16,
+      }
+    })
+    Object.assign(h.driver, { finishRecording })
+    const result = await h.run()
+    expect(result).toMatchObject({
+      state: "VERIFIED",
+      destructiveClicksExecuted: 1,
+      automaticDestructiveRetries: 0,
+      recording: { status: "AVAILABLE", filename: "cancellation.mp4" },
+    })
+    expect(finishRecording).toHaveBeenCalledOnce()
+    expect(h.driver.clickFinal).toHaveBeenCalledOnce()
+  })
   it.each([
     ["DESKTOP_NAVIGATION_TOKEN_BUDGET", "planner token limit"],
     ["DESKTOP_NAVIGATION_NO_PROGRESS", "no visible progress"],

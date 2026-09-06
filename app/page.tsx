@@ -5,6 +5,7 @@ import { Brand } from "@/components/brand"
 import { SubscriptionCard } from "@/components/subscription-card"
 import { CancellationCard } from "@/components/cancellation-card"
 import { miroProductSummary } from "@/lib/cancellations/config"
+import { cancellationCardState } from "@/lib/cancellations/card-state"
 import { getDemoState, listSubscriptions } from "@/lib/db"
 import { createAgentRepository } from "@/lib/agent/repository"
 import { createReceiptRepository } from "@/lib/receipts/repository"
@@ -18,6 +19,8 @@ export const dynamic = "force-dynamic"
 
 export default function DashboardPage() {
   const miro = miroProductSummary()
+  const miroCard = miro?.enabled ? cancellationCardState("miro") : undefined
+  const fixtureCard = cancellationCardState("streammax")
   const subscriptions = listSubscriptions()
   const demoState = getDemoState()
   const activeSubscriptions = subscriptions.filter(
@@ -140,14 +143,23 @@ export default function DashboardPage() {
         ) : null}
 
         <div className="subscription-grid">
-          {miro && <CancellationCard provider="miro" {...miro} />}
+          {miro && (
+            <CancellationCard
+              key={miroCard?.requestScopeKey ?? "disabled-miro"}
+              provider="miro"
+              {...miro}
+              {...miroCard}
+            />
+          )}
           <CancellationCard
+            key={fixtureCard.requestScopeKey}
             provider="streammax"
             planName="Premium"
             amountCents={2999}
             currency="USD"
             interval="MONTHLY"
             enabled
+            {...fixtureCard}
           />
           {subscriptions
             .filter((subscription) => subscription.slug !== "streammax")

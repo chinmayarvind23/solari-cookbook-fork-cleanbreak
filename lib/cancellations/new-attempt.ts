@@ -1,4 +1,4 @@
-import type { Job } from "./state"
+import type { Job, Scope } from "./state"
 
 // Explicit new authorization, never recovery/retry of a possibly sent action.
 const eligibleReasons = new Set([
@@ -25,4 +25,16 @@ export class NewAttemptNotAllowed extends Error {
   constructor() {
     super("NEW_ATTEMPT_NOT_ALLOWED")
   }
+}
+
+// Only a fresh authorization can bind a replacement Desktop. All subscription
+// and financial terms must still match; the predecessor remains immutable.
+export function canStartNewAttemptForScope(job: Job, scope: Scope): boolean {
+  return (
+    canStartNewAttempt(job) &&
+    (Object.keys(scope) as Array<keyof Scope>).every(
+      (key) =>
+        key === "sessionBinding" || job.authorization[key] === scope[key],
+    )
+  )
 }

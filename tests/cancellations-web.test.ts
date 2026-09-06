@@ -117,6 +117,106 @@ describe("one-click server routes", () => {
       db.prepare("SELECT count(*) n FROM one_click_authorizations").get()?.n,
     ).toBe(2)
   })
+  it("a replacement Desktop gets a fresh card and new authorization while preserving history", async () => {
+    const previous = await failedJob()
+    const {
+      id: _id,
+      intent: _intent,
+      authorizedAt: _at,
+      expiresAt: _expiry,
+      maxDestructiveActions: _max,
+      ...priorScope
+    } = previous.authorization
+    const scope = {
+      ...priorScope,
+      provider: "miro" as const,
+      sessionBinding: "replacement-desktop",
+    }
+    // Seed a Miro predecessor using repository semantics, never the provider.
+    const repo = shared.repository!,
+      old = repo.create(
+        { ...scope, sessionBinding: "old-desktop" },
+        "miro-old-request-key",
+      )
+    repo.acquire(old.id, "owner")
+    const failed = repo.save(
+      {
+        ...old,
+        state: "FAILED",
+        authorizationStatus: "EXPIRED",
+        reason: "FINAL_BOUNDARY_NOT_ESTABLISHED",
+      },
+      "owner",
+    )
+    repo.unlockUnclaimed(failed)
+    repo.release(old.id, "owner")
+    const current = repo.currentForScope(scope)
+    expect(current.job).toBeNull()
+    expect(current.previous?.id).toBe(failed.id)
+    const next = repo.create(scope, "miro-new-request-key", failed.id)
+    expect(next.authorization.sessionBinding).toBe("replacement-desktop")
+    expect(next.authorization.id).not.toBe(failed.authorization.id)
+    expect(repo.load(failed.id)).toEqual(failed)
+    expect(repo.currentForScope(scope).job?.id).toBe(next.id)
+  })
+  it("a changed VM cannot hide an active or possibly dispatched job", async () => {
+    const job = await (await POST(request())).json()
+    const previous = shared.repository!.load(job.id)!
+    const newScope = {
+      ...previous.authorization,
+      sessionBinding: "replacement-desktop",
+    }
+    expect(shared.repository!.currentForScope(newScope).job?.id).toBe(
+      previous.id,
+    )
+    expect(() =>
+      shared.repository!.create(
+        newScope,
+        "fresh-request-key-5678",
+        previous.id,
+      ),
+    ).toThrow("NEW_ATTEMPT_NOT_ALLOWED")
+  })
+  it("rejects an authorization from a stale configuration before scheduling work", async () => {
+    const req = request()
+    const response = await POST(
+      new Request(req.url, {
+        method: "POST",
+        headers: req.headers,
+        body: JSON.stringify({
+          provider: "streammax",
+          scopeKey: "old-configuration",
+        }),
+      }),
+    )
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({ error: "CONFIGURATION_CHANGED" })
+    expect(shared.scheduled).toHaveLength(0)
+  })
+  it("fresh-card rendering shows Cancel, with failure only in preserved history", async () => {
+    const previous = await failedJob()
+    const markup = renderToStaticMarkup(
+      createElement(CancellationCard, {
+        provider: "miro",
+        planName: "Business Trial",
+        amountCents: 24000,
+        currency: "USD",
+        interval: "YEARLY",
+        enabled: true,
+        initialJob: null,
+        previousAttempt: await (
+          await GET(new Request("http://localhost:3000"), {
+            params: Promise.resolve({ id: previous.id }),
+          })
+        ).json(),
+        requestScopeKey: "current-configuration",
+      }),
+    )
+    expect(markup).toContain("Cancel subscription</button>")
+    expect(markup).not.toContain("<strong>FAILED</strong>")
+    expect(markup).toContain("Previous attempt")
+    expect(shared.scheduled).toHaveLength(0)
+  })
   it.each([
     { authorizationUses: 1 },
     { destructiveClicksAttempted: 1 },

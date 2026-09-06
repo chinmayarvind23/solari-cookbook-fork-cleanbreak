@@ -10,6 +10,9 @@ export function CancellationCard({
   currency,
   interval,
   enabled,
+  initialJob = null,
+  previousAttempt = null,
+  requestScopeKey,
 }: {
   provider: Provider
   planName: string
@@ -17,12 +20,15 @@ export function CancellationCard({
   currency: string
   interval: string
   enabled: boolean
+  initialJob?: PublicCancellation | null
+  previousAttempt?: PublicCancellation | null
+  requestScopeKey?: string
 }) {
-  const [job, setJob] = useState<PublicCancellation | null>(null)
+  const [job, setJob] = useState<PublicCancellation | null>(initialJob)
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("")
   const sending = useRef(false)
-  const storageKey = `cleanbreak-cancellation-${provider}`
+  const storageKey = `cleanbreak-cancellation-${provider}${requestScopeKey ? `-${requestScopeKey}` : ""}`
   useEffect(() => {
     if (busy) return
     let canceled = false,
@@ -32,15 +38,19 @@ export function CancellationCard({
         const ticket = JSON.parse(
           localStorage.getItem(storageKey) || "null",
         ) as { id?: string } | null
-        if (!ticket?.id) return
-        const response = await fetch(`/api/cancellations/${ticket.id}`, {
+        // Server state is authoritative for scoped cards. Old browser tickets
+        // remain recoverable but cannot restore a retired VM's failed card.
+        const id = requestScopeKey ? (job?.id ?? initialJob?.id) : ticket?.id
+        if (!id || id === previousAttempt?.id) return
+        const response = await fetch(`/api/cancellations/${id}`, {
           cache: "no-store",
         })
         if (!response.ok) throw new Error()
         const value = (await response.json()) as PublicCancellation
         if (canceled) return
         setJob(value)
-        if (!terminal(value.state)) timer = setTimeout(poll, 1500)
+        if (!terminal(value.state) || value.recordingStatus === "RECORDING")
+          timer = setTimeout(poll, 1500)
       } catch {
         if (!canceled) {
           setError(
@@ -55,10 +65,24 @@ export function CancellationCard({
       canceled = true
       clearTimeout(timer)
     }
-  }, [storageKey, busy])
+  }, [
+    storageKey,
+    busy,
+    job?.id,
+    initialJob?.id,
+    previousAttempt?.id,
+    requestScopeKey,
+  ])
   async function cancel(retryOf?: string) {
     if (sending.current || !enabled) return
-    if (retryOf && (job?.id !== retryOf || !job.canStartNewAttempt)) return
+    if (
+      retryOf &&
+      !(
+        (job?.id === retryOf && job.canStartNewAttempt) ||
+        previousAttempt?.id === retryOf
+      )
+    )
+      return
     sending.current = true
     setBusy(true)
     setError("")
@@ -81,7 +105,11 @@ export function CancellationCard({
         method: "POST",
         signal: AbortSignal.timeout(15_000),
         headers: { "Content-Type": "application/json", "Idempotency-Key": key },
-        body: JSON.stringify({ provider, ...(retryOf ? { retryOf } : {}) }),
+        body: JSON.stringify({
+          provider,
+          ...(retryOf ? { retryOf } : {}),
+          ...(requestScopeKey ? { scopeKey: requestScopeKey } : {}),
+        }),
       })
       if (!response.ok) {
         const body = (await response.json().catch(() => null)) as {
@@ -107,7 +135,7 @@ export function CancellationCard({
       <div className="cancellation-content">
         <p className="eyebrow">
           {provider === "miro"
-            ? "Configured dedicated Desktop"
+            ? "Recorded autonomous cancellation"
             : "Local one-click test — no external account"}
         </p>
         <h3>{provider === "miro" ? "Miro" : "StreamMax"}</h3>
@@ -141,9 +169,9 @@ export function CancellationCard({
             {job.canStartNewAttempt && enabled && (
               <>
                 <p>
-                  No destructive click was attempted. Return the Solari browser
-                  to Billing before starting again. This button authorizes a new
-                  one-shot attempt; it does not resume the failed job.
+                  No destructive click was attempted. CleanBreak opens Billing
+                  automatically. This button authorizes a new one-shot attempt;
+                  it does not resume the failed job.
                 </p>
                 <button
                   className="primary-button"
@@ -160,13 +188,29 @@ export function CancellationCard({
                 View receipt
               </a>
             )}
+            {job.recordingUrl && (
+              <a className="secondary-button" href={job.recordingUrl}>
+                {job.state === "VERIFIED"
+                  ? "Download full recording"
+                  : "Download attempt recording"}
+              </a>
+            )}
+            {terminal(job.state) && job.recordingStatus === "RECORDING" && (
+              <p>Saving the recording...</p>
+            )}
+            {job.recordingStatus === "FAILED" && (
+              <p>
+                The recording could not be saved. This does not authorize
+                another cancellation attempt.
+              </p>
+            )}
           </div>
         ) : (
           <button
             className="primary-button"
             type="button"
             disabled={!enabled || busy}
-            onClick={() => cancel()}
+            onClick={() => cancel(previousAttempt?.id)}
           >
             {!enabled
               ? "Live setup required"
@@ -174,6 +218,18 @@ export function CancellationCard({
                 ? "Authorizing..."
                 : "Cancel subscription"}
           </button>
+        )}
+        {!job && previousAttempt && (
+          <details>
+            <summary>
+              Previous attempt — no cancellation click was attempted
+            </summary>
+            <p>
+              {previousAttempt.reason}. Its history is preserved. Clicking
+              Cancel subscription creates a fresh authorization for the current
+              session.
+            </p>
+          </details>
         )}
         {!enabled && (
           <p>

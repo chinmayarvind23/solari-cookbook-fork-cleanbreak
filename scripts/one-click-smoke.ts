@@ -127,9 +127,8 @@ try {
   )
   await card
     .getByRole("button", {
-      name: previousJob
-        ? "Start a new cancellation attempt"
-        : "Cancel subscription",
+      // Safe terminal failures remain history; a fresh page is ready to start.
+      name: "Cancel subscription",
       exact: true,
     })
     .click()

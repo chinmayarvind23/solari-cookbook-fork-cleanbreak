@@ -32,6 +32,7 @@ export interface CancellationDriver {
   revalidate(previous: Observation): Promise<Observation>
   clickFinal(observation: Observation, grant: FinalDispatchGrant): Promise<void>
   close(): Promise<void>
+  finishRecording?(): Promise<Job["recording"]>
   verify(): Promise<{
     observation: Observation | null
     contextId: string
@@ -76,7 +77,12 @@ export async function runCancellation(
     if (job.state === "AUTHORIZED") {
       if (Date.parse(job.authorization.expiresAt) <= now())
         throw new Error("AUTHORIZATION_EXPIRED")
-      update("CONNECTING")
+      update(
+        "CONNECTING",
+        driver.finishRecording
+          ? { recording: { status: "RECORDING", filename: null, sizeBytes: 0 } }
+          : {},
+      )
       await driver.connect()
       update("NAVIGATING")
       const boundary = await driver.navigate((stage, navigation) => {
@@ -210,6 +216,30 @@ export async function runCancellation(
     }
   } finally {
     clearInterval(heartbeat)
+    if (driver.finishRecording) {
+      try {
+        const recording =
+          (await driver.finishRecording()) ??
+          (repository.load(id)?.recording?.status === "RECORDING"
+            ? { status: "FAILED" as const, filename: null, sizeBytes: 0 }
+            : undefined)
+        if (recording) {
+          job = repository.load(id)!
+          update(job.state, { recording })
+        }
+      } catch {
+        // A failed recorder must not leave the UI polling forever. This changes
+        // only recording metadata, never the outcome or destructive authority.
+        try {
+          job = repository.load(id)!
+          update(job.state, {
+            recording: { status: "FAILED", filename: null, sizeBytes: 0 },
+          })
+        } catch {
+          /* A lost lease cannot be bypassed to update recording metadata. */
+        }
+      }
+    }
     await driver.close().catch(() => undefined)
     repository.release(id, owner)
     repository.unlockUnclaimed(repository.load(id)!)

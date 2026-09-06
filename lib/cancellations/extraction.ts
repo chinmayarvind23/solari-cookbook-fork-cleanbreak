@@ -66,6 +66,44 @@ export const billingExtractionSchema = z
       .strict(),
   })
   .strict()
+export function billingIdentityChecks(
+  raw: z.infer<typeof billingExtractionSchema>,
+  config: ProductConfig,
+) {
+  let page = false
+  try {
+    const actual = new URL(raw.pageUrl ?? ""),
+      expected = new URL(config.startUrl)
+    page =
+      actual.origin === expected.origin &&
+      !actual.username &&
+      !actual.password &&
+      !actual.search &&
+      !actual.hash &&
+      actual.pathname.replace(/\/$/, "") ===
+        expected.pathname.replace(/\/$/, "")
+  } catch {
+    /* Missing or truncated addresses never match. */
+  }
+  const plan = (name: string | null) => {
+    const value = name?.trim().replace(/\s+/g, " ").toLowerCase()
+    // The observed Miro UI spells the configured Business Trial as Business
+    // Plan trial. This alias never removes "trial" or substitutes a paid plan.
+    return config.scope.provider === "miro" &&
+      /^business(?: plan)? trial$/.test(value ?? "")
+      ? "miro-business-trial"
+      : value
+  }
+  return {
+    provider: raw.provider === config.scope.provider,
+    page,
+    plan:
+      raw.planName !== null &&
+      plan(raw.planName) === plan(config.scope.planName),
+    currency: raw.currency === config.scope.currency,
+    interval: raw.interval === config.scope.interval,
+  }
+}
 export function createBillingExtractor(
   config: ProductConfig,
   client?: ResponsesClientLike,
@@ -132,18 +170,15 @@ For VERIFY, read actual billing status, not toast/dialog text; no planner/commit
         const raw = billingExtractionSchema.parse(response.output_parsed)
         if (raw.outcome === "REFUSAL" || raw.refusalCategory !== "NONE")
           throw new Error("EXTRACTION_REFUSED")
-        const matched =
-          raw.provider === config.scope.provider &&
-          raw.pageUrl === config.startUrl &&
-          raw.planName === config.scope.planName &&
-          raw.currency === config.scope.currency &&
-          raw.interval === config.scope.interval
+        const identityChecks = billingIdentityChecks(raw, config)
+        const matched = Object.values(identityChecks).every(Boolean)
         return {
           version: 1,
           observedAt,
           contextId,
           scope: config.scope,
           matched,
+          identityChecks,
           authenticated: raw.authenticated,
           confidence: raw.confidence,
           surface: raw.surface,

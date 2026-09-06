@@ -46,6 +46,13 @@ export type Observation = {
   contextId: string
   scope: Scope
   matched: boolean
+  identityChecks?: {
+    provider: boolean
+    page: boolean
+    plan: boolean
+    currency: boolean
+    interval: boolean
+  }
   authenticated: boolean
   confidence: number
   surface: "BILLING_PAGE" | "FINAL_CANCELLATION" | "UNKNOWN"
@@ -81,6 +88,11 @@ export type Verification = {
   at: string
 }
 export type Job = {
+  recording?: {
+    status: "RECORDING" | "AVAILABLE" | "FAILED"
+    filename: "cancellation.mp4" | null
+    sizeBytes: number
+  }
   id: string
   authorization: Authorization
   authorizationStatus: "ARMED" | "CONSUMED" | "EXPIRED"
