@@ -1,16 +1,23 @@
-# Persistent profiles (TypeScript)
+# Browser profiles — TypeScript
 
-Log in once, reuse the session forever. A profile stores cookies + localStorage server-side; attach it with `profileId` and the browser starts already logged in.
+Creates or reuses the `cookbook-demo` profile, opens example.com, increments a
+localStorage visit counter and explicitly uploads the context's storage state.
+The browser and Solari client are closed in `finally`.
 
-Run it twice — the visit counter survives because the profile is saved between runs. Attaching a profile does not auto-save it; you must call `profiles.save()`.
+This demonstrates persistence, not login or permanent authentication. It saves
+on every run and does not include CleanBreak's external-profile overwrite guards.
+Do not point it at a valuable authenticated profile. For real provider login,
+use the root [authentication helpers](../../docs/authentication.md).
 
 ## Run
+
+From the repository root:
 
 ```bash
 cd examples/browser-profiles-ts
 npm install
-export SOLARI_API_KEY=slr_live_...   # https://console.getsolari.com
 npm start
 ```
 
-Source: [`index.ts`](index.ts)
+Set `SOLARI_API_KEY` in the environment first; these examples do not automatically
+load the root `.env`. See the [example setup and safety notes](../README.md).

@@ -1,16 +1,21 @@
-# Code interpreter (Python)
+# Sandbox code interpreter — Python
 
-A stateful Python kernel inside a sandbox: variables and imports persist between `run_code` calls, like a notebook. This is the shape of an LLM agent's execution loop.
+Creates a base sandbox and evaluates Python cells in a shared kernel, including
+a circle-area calculation. It prints returned result items and kills the sandbox
+in `finally`. The kernel is temporary; it is not durable application storage.
 
-Output arrives as a list of result items (`stdout`/`stderr`/`result`), not a single `.stdout` string.
+Use only the sample's public inputs. Interpreter output is printed directly, so
+do not include credentials or private data in cells.
 
 ## Run
 
+From the repository root:
+
 ```bash
 cd examples/sandbox-code-interpreter-py
-pip install -r requirements.txt
-export SOLARI_API_KEY=slr_live_...   # https://console.getsolari.com
+python -m pip install -r requirements.txt
 python main.py
 ```
 
-Source: [`main.py`](main.py)
+Set `SOLARI_API_KEY` in the environment first; these examples do not automatically
+load the root `.env`. See the [example setup and safety notes](../README.md).

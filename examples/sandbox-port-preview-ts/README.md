@@ -1,14 +1,22 @@
-# Port preview (TypeScript)
+# Sandbox port preview — TypeScript
 
-Serve something from inside the sandbox on a public URL. Starts an HTTP server in the VM, gets a `*.preview.getsolari.com` URL, then fetches it from the open internet to prove it is reachable.
+Creates a base sandbox, writes sample HTML, starts a Python HTTP server on port
+3000 and fetches its public preview URL. It prints the URL/content and kills the
+sandbox in `finally`.
+
+The preview exposes the sample service outside your machine. Never serve secrets,
+private files or an authenticated CleanBreak operator app through this example.
+The URL stops being useful when the sandbox is destroyed.
 
 ## Run
+
+From the repository root:
 
 ```bash
 cd examples/sandbox-port-preview-ts
 npm install
-export SOLARI_API_KEY=slr_live_...   # https://console.getsolari.com
 npm start
 ```
 
-Source: [`index.ts`](index.ts)
+Set `SOLARI_API_KEY` in the environment first; these examples do not automatically
+load the root `.env`. See the [example setup and safety notes](../README.md).

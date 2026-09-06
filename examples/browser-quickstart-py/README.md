@@ -1,14 +1,18 @@
-# Browser quickstart (Python)
+# Browser quickstart — Python
 
-Launch a cloud browser, open a page, read the title, close. The smallest complete Solari program.
+Launches a cloud Browser session, opens example.com and reads its title and
+heading. The browser is closed in `finally`. This sample does not authenticate
+an account or save a profile.
 
 ## Run
 
+From the repository root:
+
 ```bash
 cd examples/browser-quickstart-py
-pip install -r requirements.txt
-export SOLARI_API_KEY=slr_live_...   # https://console.getsolari.com
+python -m pip install -r requirements.txt
 python main.py
 ```
 
-Source: [`main.py`](main.py)
+Set `SOLARI_API_KEY` in the environment first; these examples do not automatically
+load the root `.env`. See the [example setup and safety notes](../README.md).

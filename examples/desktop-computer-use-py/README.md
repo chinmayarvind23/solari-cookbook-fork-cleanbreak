@@ -1,16 +1,25 @@
-# Desktop computer-use (Python)
+# Desktop computer use — Python
 
-Screenshot, click, and type on a real Linux GUI — the loop a computer-use agent runs, with the 'decide' step hardcoded. `streamUrl` can be embedded in any VNC viewer to watch it live.
+Creates a standalone demo Desktop, opens Mousepad, clicks a fixed position, types
+a greeting and saves `screenshot.png`. Its source uses the `default` template;
+this is not the root application's `office`-template Chrome setup.
 
-If `create` hangs or returns a capacity error, the desktop pool has no warm hosts; sandboxes and browsers are unaffected.
+**This sample destroys its newly created Desktop in cleanup.** Never adapt it to
+an existing authenticated CleanBreak VM without changing that lifecycle. It also
+prints a stream URL: treat the terminal output and screenshot as private.
+
+For a persistent CleanBreak Desktop, use the root
+[Desktop guide](../../docs/desktop-validation.md) instead.
 
 ## Run
 
+From the repository root:
+
 ```bash
 cd examples/desktop-computer-use-py
-pip install -r requirements.txt
-export SOLARI_API_KEY=slr_live_...   # https://console.getsolari.com
+python -m pip install -r requirements.txt
 python main.py
 ```
 
-Source: [`main.py`](main.py)
+Set `SOLARI_API_KEY` in the environment first; these examples do not automatically
+load the root `.env`. See the [example setup and safety notes](../README.md).

@@ -1,16 +1,20 @@
-# Sandbox quickstart (TypeScript)
+# Sandbox quickstart — TypeScript
 
-Run untrusted code in a fresh microVM: execute a command, write a file, read it back.
+Creates a base sandbox, runs a Python calculation, writes/reads a temporary text
+file and lists files. It kills the sandbox in `finally`; files are not durable.
 
-Commands are not shell-interpreted — argv goes in `args`. For pipes or redirection run a shell explicitly: `run("sh", { args: ["-c", "..."] })`.
+Commands and arguments are separate API inputs. Shell syntax requires an explicit
+shell invocation, as shown in the source; do not interpolate untrusted input.
 
 ## Run
+
+From the repository root:
 
 ```bash
 cd examples/sandbox-quickstart-ts
 npm install
-export SOLARI_API_KEY=slr_live_...   # https://console.getsolari.com
 npm start
 ```
 
-Source: [`index.ts`](index.ts)
+Set `SOLARI_API_KEY` in the environment first; these examples do not automatically
+load the root `.env`. See the [example setup and safety notes](../README.md).

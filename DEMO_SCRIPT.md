@@ -1,61 +1,46 @@
-# CleanBreak 75-second demo script
+# CleanBreak demo
 
-Record at 1440p or 1080p with the browser at 100% zoom. Preload the StreamMax
-dark-pattern scenario and the latest completed receipt. Keep `.env`, provider account
-details, replay tokens, and all developer tooling out of frame.
+Use a local StreamMax test or the already completed Miro recording. Do not cancel
+another real subscription just to record a presentation.
 
-## 0–8 seconds — problem and promise
+## Prepare
 
-**Show:** CleanBreak dashboard, then the active StreamMax subscription.
+- For the repeatable local demo, install dependencies and Chromium, then run
+  `npm run test:one-click`. It produces isolated fixture evidence and a receipt;
+  it does not use a real account.
+- For the real Miro example, open the existing VERIFIED job using
+  `npm run dev:live`, or use its saved recording and receipt.
+- Use the **card-blurred copy** when presenting the existing recording. Also review
+  names, email, company/account identifiers, URLs and notifications before sharing;
+  card blurring alone is not complete privacy review.
+- Do not show `.env`, terminal secrets, session capabilities, raw auth state or
+  unreviewed screenshots. Keep the original recording/receipt unchanged.
 
-**Say:** “Subscription cancellation is a high-stakes browser task: retention traps
-are annoying, and a false success can cost real money. CleanBreak separates agentic
-navigation from authorization and proof.”
+## 60–90 second walkthrough
 
-## 8–30 seconds — autonomous dark-pattern navigation
+| Segment       | Show                                                    | Explain                                                                        |
+| ------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Problem       | Subscription card and renewal terms                     | Cancellation is useful only if future renewal actually stops                   |
+| Authorization | One-click authorization copy                            | One scoped attempt, no second approval, no uncertain-click retry               |
+| Navigation    | Existing redacted Miro recording or local fixture flow  | The workflow rejects retention alternatives and reaches the real final control |
+| Execution     | Recorded final action and job counters                  | One final click; navigation itself does not own destructive authority          |
+| Proof         | VERIFIED result, after-billing facts and receipt digest | Fresh independent billing checks—not the click or video—establish success      |
 
-**Show:** Open the demo lab, confirm “Dark pattern” is loaded, and run the autonomous
-navigation. Follow the timeline as it continues, selects a reason, rejects both the
-pause offer and discount, and reaches `AWAITING_APPROVAL`.
+For the completed Miro run, the accurate outcome is: one Business Trial
+cancellation, renewal off, access through September 18, 2026, and a verified
+$240 yearly renewal avoided. Do not present it as a refund, a customer pilot or a
+general provider success rate.
 
-**Say:** “A typed OpenAI planner proposes one observation-scoped action at a time.
-Deterministic policy blocks unsafe targets and lets it reject two retention offers.
-The agent reaches the final control—but it cannot click it.”
+## Evidence to retain
 
-## 30–47 seconds — approval and dry-run safety boundary
+- Original recording, safe sharing copy and any redaction metadata.
+- Receipt JSON and a separately retained digest.
+- Job identifier and verification result for later lookup.
 
-**Show:** The final-action evidence, cancellation fee, access date, approval
-fingerprint, “DRY RUN — no final click” status, and “Test approval — no cancellation”
-button. Click the test button and show that state remains `AWAITING_APPROVAL`, with
-zero approvals granted and zero destructive clicks.
+The web app's recording download serves the **original**, not an automatically
+redacted copy. Use the separately prepared file for sharing.
 
-**Say:** “The server fingerprints the exact action and terms. This demo is in
-server-enforced dry-run mode, so even a valid approval submission cannot launch a
-commit session or cancel anything.”
-
-## 47–63 seconds — verification and receipt proof
-
-**Show:** Switch to the previously completed StreamMax live fixture run. Highlight
-one approved destructive click, zero automatic retries, distinct execution and
-verification session IDs, `VERIFIED`, then open the receipt and its SHA-256 digest.
-
-**Say:** “In an explicitly authorized live flow, CleanBreak allows at most one final
-click. It still does not claim success. A fresh read-only Solari session checks the
-authoritative account state, and only verified evidence can produce a tamper-evident
-receipt.”
-
-## 63–75 seconds — measurable close
-
-**Show:** `artifacts/benchmark-results.json` or the README measured-results table.
-Frame the 100/100 pass rate and zero hard-safety counters.
-
-**Say:** “The adversarial suite runs 100 executions across 20 scenarios: 100 percent
-pass rate, zero false verified, zero unsafe actions, and zero automatic destructive
-retries. CleanBreak turns browser automation into a bounded, auditable workflow.”
-
-## Recording fallback
-
-If a live Solari run is slow, use the already persisted timeline, screenshots,
-session metadata, verification result, and receipt. Do not edit out an error and do
-not describe the fictional StreamMax run as external-provider validation. If the
-external-provider dry run has not been completed, say so plainly.
+If a run failed, show the failure honestly. A dry-run ending at
+`AWAITING_APPROVAL` is navigation evidence, not a completed cancellation.
+A StreamMax result is fixture evidence, not Miro evidence. Benchmark figures are
+offline safety checks, not customer savings or provider latency.

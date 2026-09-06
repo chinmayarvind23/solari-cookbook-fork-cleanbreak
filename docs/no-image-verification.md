@@ -1,127 +1,111 @@
-# No-image Miro cancellation and verification
+# Miro DOM navigation and independent verification
 
-The operator prohibited sending screenshots and explicitly authorized completion
-of the configured Miro cancellation. No screenshots, video, OCR, full page text,
-cookies, storage state or credentials are sent to a model. Images remain local
-only for the existing pixel stability guard and private operator recording.
-Verification never takes a screenshot and never uses the recording as proof.
+The default Miro product path uses the existing Solari Desktop Chrome through
+standard Playwright CDP. It makes no model calls. Screenshots, video, OCR and
+private page text are not uploaded to a model; local pixels still guard input.
 
-## Observed outcome
+This adapter supports the observed **Miro Business Trial** flow, not arbitrary
+plans or a universal cancellation interface. One real web-app run completed and
+was independently verified; see [evidence and limits](../IMPLEMENTATION_STATUS.md).
 
-One real web-app Cancel button request completed the configured Business Trial
-flow: one authorization use, exactly one acknowledged final click, zero retries
-and zero unsafe actions. A fresh Billing tab and reload independently observed
-matching provider non-renewal state. The persisted job is VERIFIED, with an
-integrity-checked receipt and a valid private full-flow MP4. The configured named
-Solari profile was separately populated through an explicit authenticated refresh.
-This establishes one observed trial flow, not every Miro plan or layout.
+## Scope and readiness
 
-## Trust boundary
+The configured provider must be Miro at its exact HTTPS Billing account path.
+One trailing slash may differ; credentials, queries, fragments, other accounts
+and unknown surfaces cannot establish identity. Recognized Billing structure,
+trial/plan, currency, interval, amount and access date must match trusted scope
+and the account's billing response. Login fields, ambiguity or unsafe terms stop.
 
-| Surface                                      | Authority and defense                                                                                                         |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Local configuration and SQLite authorization | Trusted scope; page content cannot change provider/account, price, interval, access policy or one-click limit                 |
-| Solari Desktop infrastructure                | Authenticated SDK transport; guest debugging must bind to loopback only                                                       |
-| Miro Billing DOM                             | Untrusted content; exact configured account path, recognized structure, target hit test, local hash and pixel guard           |
-| Naturally loaded billing GET response        | Exact HTTPS origin/account receiver path, GET/200/JSON, bounded body and schema projection; no API write/request is generated |
-| VM-local auth migration                      | Explicit operator opt-in; original and prior dedicated directories preserved, only selected login stores copied inside the VM |
-| Named Solari profile upload                  | Explicit separate command; exact profile name and two positive auth checks, IndexedDB-capable state in memory only            |
-| Local artifacts                              | Private ignored paths; screenshots and recording are never model inputs or public assets                                      |
+Preparation and failure handling are documented in [operation](one-click-product.md).
+The current shared configuration validator still requires `OPENAI_API_KEY`;
+that does not cause a model request in this path.
 
-The initial web-app authorization covers reversible navigation, offer rejection,
-a fixed neutral reason and one final cancellation attempt. It does not cover
-retention acceptance, downgrade, extension, new charges, payment changes, account
-deletion, arbitrary credential entry or challenge bypass. Failed/uncertain jobs
-cannot obtain new destructive authority from cleanup or verification.
+## Ordered cancellation flow
 
-| Attack                       | Defense                                                                                                                                                                                                      |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Visible-text injection       | Static local extraction and ordered recognized controls; unknown surfaces fail closed, no model executes page instructions                                                                                   |
-| URL query/fragment injection | Billing page requires exact configured HTTPS origin/path without credentials/query/fragment. The observed billing GET may have a query, but it is never logged, followed or used to broaden the account path |
-| Memory binding               | No planner instruction memory; durable history records completed stages, never instructions or authority to retry                                                                                            |
-| CSRF-shaped actions          | Operator/same-origin gates, immutable scope, resource lock and atomic one-use final claim                                                                                                                    |
-| One-click hijack             | Fresh local DOM/material-term hash, coordinate hit test and 0.5% pixel stability with padded target protection; unknown final outcomes never retry                                                           |
+| Stage         | Recognized action                                                      |
+| ------------- | ---------------------------------------------------------------------- |
+| ENTRY         | Standalone Billing “Cancel trial”                                      |
+| BENEFITS      | Continue after the observed Business Trial benefits/expiry dialog      |
+| DECLINE_OFFER | Continue to cancel instead of accepting extra trial days               |
+| CANCEL_CHOICE | Select cancellation, explicitly not the default downgrade              |
+| REASON_NEXT   | Continue to the separate reason form, despite a reused cancel label    |
+| REASON_INPUT  | Fill the fixed neutral sentence: “I no longer need this subscription.” |
+| FINAL         | Return the unique reason-submit candidate to the separate commit gate  |
 
-Residual risks include provider UI/API changes, malicious same-origin content,
-the shared authenticated browser context and the unavoidable interval between
-revalidation and input. This remains a dedicated opt-in, research-only integration;
-neither offline benchmarks nor this single live result establish general reliability.
-No persistent planner-memory canaries apply because no such memory is used.
+These are fixed local structures/test IDs, labels, roles and ordered history—not
+label-only permission. A completed stage is never automatically repeated.
+The navigator does not dispatch FINAL; the existing scoped one-use gate owns it.
 
-## Bounded deterministic flow
+At most eight loop turns are allowed, with bounded read-only settling polls.
+Each input stage occurs at most once. Duplicate/hidden/disabled targets, hit-test
+failure, changed scope/terms, unknown dialogs or stage order stop the job.
+The DOM adapter does not reconstruct missing navigation history after a crash.
 
-The product path defaults to this DOM adapter when
-`CLEANBREAK_ALLOW_SCREENSHOT_MODEL_UPLOADS` is not explicitly `true`. The legacy
-image planner is not a fallback. No model calls or planner token budget are used.
+The term basis is the documented free-plan Business Trial cancellation with no
+trial charge and access through trial expiry:
+[Miro Business Plan 14-day trial](https://help.miro.com/hc/en-us/articles/15392587152786-Business-plan-14-day-free-trial).
+The live layout reused “Cancel subscription” before a distinct reason-submit
+control. The paid Starter/legacy downgrade route is outside this adapter.
 
-1. Authenticate and match the configured Miro Business Trial, amount, currency,
-   interval and term against recognized Billing DOM plus its account response.
-2. Traverse the observed entry, benefits, extension decline, cancellation radio
-   (not the default downgrade), reason continuation and neutral reason input.
-3. Stop the navigation loop at the final reason-submit control. Only the existing
-   separate final dispatcher may consume the scoped one-use authorization.
-4. Revalidate the final target and unchanged material terms, atomically claim the
-   attempt and send one click. An unknown result is never replayed.
-5. Independently verify using a new read-only page and a reload; only VERIFIED
-   creates a receipt. Recording success is not billing success.
+## Pre-dispatch evidence
 
-The loop has at most eight turns with bounded read-only settling polls. Each
-input stage occurs at most once; polling does not retry clicks. Unexpected stage
-order, labels, fees, immediate access loss, duplicate targets or instability stop
-the job. Crash recovery does not reconstruct/replay unproven DOM navigation.
-The free-trial terms basis is specifically Miro's documented no-charge cancellation
-with access through the trial end, not a generic inference that cancellation is free.
+Local readers return only recognized facts, booleans, enums, coordinates and
+hashes. Selected text is hashed inside Chrome; raw private text is not persisted.
+A fresh DOM/terms hash and target hit test must agree immediately before input.
+Local decoded-pixel comparison retains the 0.5% threshold, RGB difference 16 and
+32-pixel padded target protection. Decode/dimension/target changes fail closed.
 
-Primary flow reference: [Miro Business Plan 14-day trial documentation](https://help.miro.com/hc/en-us/articles/15392587152786-Business-plan-14-day-free-trial).
-The actual observed trial has a reused “Cancel subscription” continuation before
-the distinct reason-submit control; ordered history and exact structure distinguish
-them. Other paid-plan/downgrade flows are outside this adapter's scope.
+Final screenshots remain private audit evidence with their SHA-256 hashes.
+No offer-animation exception or model fallback weakens the DOM final check.
+The receipt retains before/after evidence; an unknown dispatch never retries.
 
-## Private connection and verification
+## Independent billing verification
 
-Installed standard `playwright-core` connects with `noDefaults: true` through a
-loopback, random-credential-protected bridge over Solari's authenticated command
-stdin/stdout stream. A fixed Python standard-library relay keeps protocol bytes
-in memory. No guest packages, public preview URLs or auth files are exported.
-Browser-originated/unauthenticated bridge connections are rejected; relay cleanup
-waits for owned command termination before closing the local Desktop handle.
-Patchright remains available for existing local fixtures/helpers, but is not used
-for shared Desktop CDP: its Fetch interception stalled freshly opened Miro tabs.
+After execution control closes, the verifier uses a new control observation and
+fresh page in the same authenticated Chrome profile, then reloads Billing.
+It does not create a new authenticated browser process or reuse the dialog's
+claimed outcome.
 
-Verification reads the provider's naturally loaded, exact-account Billing GET
-response twice. Only known trial/status/currency/interval/date/renewal fields survive
-schema projection. `cancelAtPeriodEnd` plus trial status establishes scheduled
-non-renewal, with `periodEnd` preserving access. A missing amount or success toast
-is insufficient. Both server projections and configured-account UI identity must
-agree. Login, dialog, unsupported, missing or conflicting evidence is inconclusive.
-The verifier opens a fresh page/control observation in the **same authenticated
-Chrome profile**, not a newly authenticated browser process.
+The page's naturally loaded billing GET response is accepted only for its exact
+configured account receiver path, HTTPS Miro origin, GET/200/JSON and bounded body.
+The observer generates no API request or mutation. Query data is transport-only:
+never logged, retained as authority or used to broaden the account scope.
 
-## Developer commands
+A strict projection keeps only known trial, status, renewal, currency, interval
+and date fields; unrelated account/payment fields are discarded. Two readings
+must agree and match authenticated Billing UI identity.
 
-- `npm run desktop:verify`: read-only verification, safe facts only, no click,
-  authorization, screenshot, receipt issuance or profile save.
-- `npm run desktop:verify -- --enable-dom`: explicit setup only for a positively
-  identified dedicated Chrome root. Gracefully restarts it with loopback debugging;
-  no force kill, profile deletion, VM pause or destruction.
-- `npm run desktop:profile-migrate -- --copy-default-auth`: explicitly authorized
-  one-time migration for an already-authenticated **default** Chrome profile.
-  Copies only selected cookie/origin stores and bootstrap metadata inside the same
-  VM, preserves original/prior dedicated directories and restarts dedicated Chrome.
-  No password vault, history, payment database, downloads or browser directory
-  export. Do not rerun once migration succeeded.
-- `npm run desktop:profile-save`: explicitly upload the authenticated Desktop
-  context's `storageState({ indexedDB: true })` directly to the exact existing
-  `SOLARI_PROFILE_NAME`. Keep one recognized authenticated configured Billing tab
-  open; multiple matches fail closed. No storage-state JSON on disk or in logs.
-- `npm run profile:list`: safe profile name/id/version/size confirmation.
+- Trialing plus `cancelAtPeriodEnd=true` establishes scheduled non-renewal.
+- `periodEnd` provides the remaining access date.
+- Active renewal with a definite upcoming charge is NOT_VERIFIED.
+- Login, missing, conflicting or mismatched evidence is INCONCLUSIVE.
 
-Migration/setup/save reject active cancellation jobs. Named profile refresh is
-never generic browser cleanup and must not overwrite a good profile after a
-login/challenge failure. Local control cleanup never pauses/destroys the VM;
-pause it manually in Solari when finished to stop compute billing.
+A missing amount or success toast is insufficient. Safe semantic DOM-field
+reading remains a supported fallback for recognized fields; it still requires
+fresh agreeing identity/billing evidence and rejects login surfaces. The verified
+live run used `DOM_AND_PROVIDER_BILLING`, not that fallback.
 
-After successful cancellation, do **not** create another attempt. Start the local
-app with `npm run dev:live`, open its exact printed origin and read the existing
-VERIFIED card, receipt and private recording. Opening the dashboard is not a
-cancellation authorization.
+The service independently computes the verdict and requires one acknowledged
+final execution before creating a product receipt. `desktop:verify` only reads
+billing; it cannot authorize cancellation or issue that receipt.
+
+## Private transport and cleanup
+
+The installed `playwright-core` connects with `noDefaults: true`, preserving the
+shared Chrome settings. Patchright is not used here because its automatic Fetch
+interception stalled new tabs in this VM; it remains available for existing local
+helpers/fixtures.
+
+A fixed Python standard-library relay carries CDP bytes in memory over Solari's
+authenticated command stream. The guest debugger must bind to loopback. The local
+bridge uses a random credential and refuses browser-originated/unauthenticated
+connections. No public preview port, guest package install or Chrome-directory
+export is used. Cleanup terminates owned relays and closes local handles—not
+shared Chrome or the VM.
+
+Code: [flow](../lib/cancellations/miro-dom-flow.ts),
+[navigation](../lib/cancellations/miro-dom-navigation.ts),
+[billing observer](../lib/cancellations/miro-billing-response.ts),
+[verification](../lib/cancellations/miro-dom-verification.ts),
+[transport](../lib/desktop/private-cdp.ts).
+Cross-cutting defenses and residual risks: [security](security.md).

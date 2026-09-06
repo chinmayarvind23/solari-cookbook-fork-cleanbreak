@@ -1,87 +1,75 @@
-# CleanBreak Implementation Status
+# Implementation status
 
-## Current: verified Miro trial cancellation without image uploads
+Last reviewed: September 6, 2026. This is the current snapshot, not a milestone
+changelog. Implementation history is available in Git.
 
-- The actual web-app Cancel button authorized one scoped job. Its deterministic DOM adapter completed entry, benefits, extension-offer rejection, cancellation selection, reason continuation and neutral reason input. The existing final gate consumed one authorization and acknowledged exactly one final click. Destructive retries and unsafe actions were zero.
-- Independent fresh-tab/reload verification read matching configured-account billing GET responses and local DOM facts: cancellation scheduled, renewal OFF, no future renewal charge, access through the trial end. Job state is VERIFIED; receipt digest and the private 1,501,727-byte MP4 were checked. No additional cancellation attempt was submitted.
-- Private DOM uses standard installed `playwright-core` with `noDefaults: true`, avoiding Patchright's automatic Fetch interception of shared Chrome tabs. No screenshots, OCR, videos or private page text were sent to a model. Local pixel checks and private recording remain; final authorization/revalidation/no-retry invariants are unchanged.
-- Explicitly authorized VM-local migration copied only login/origin stores into the dedicated Chrome directory, preserving the original and prior dedicated directories in the VM. Explicit in-memory IndexedDB-capable profile save populated the configured named Solari profile (version 2, 14,828 bytes). Generic external-provider cleanup still cannot overwrite authentication.
-- This confirms one configured Miro Business Trial flow, not every Miro layout or provider. New screens, conflicting identity/terms or unknown outcomes fail closed. See `docs/no-image-verification.md` for the bounded flow, trust boundary and exact developer commands.
-- Final checks: 936 tests across 40 files passed, full typecheck, format check, production build, diff whitespace check and secret audit passed. The audit found zero configured credential values in 237 repository files and 14 generated client bundles. New local-browser regressions cover the complete reversible DOM sequence, no final dispatch in navigation, two-read provider verification, wrong-account/conflicting/login evidence, in-memory IndexedDB profile save and preserved VM-only migration.
+## Supported paths
 
-## Historical updates (superseded where noted above)
+| Path                                        | Current status                                                              |
+| ------------------------------------------- | --------------------------------------------------------------------------- |
+| Miro Business Trial, one-click product      | One actual web-app cancellation completed and independently verified        |
+| Local StreamMax one-click test              | Repeatable dashboard-to-receipt test without external provider calls        |
+| Legacy Browser agent/benchmark              | Typed model/planning and two-stage approval regression path                 |
+| Legacy Desktop visual dry-run               | Reversible navigation only; final action intercepted; image opt-in required |
+| Arbitrary real providers/Miro plan variants | Not established by the current adapter                                      |
+| Public multi-tenant deployment              | Not implemented or validated                                                |
 
-### Screenshot-free verification update
+## Verified live outcome
 
-- Screenshot uploads default off, including the Desktop planner and billing extractor. The operator's refusal is honored without substituting OCR, video or private page text sent to a model. Image-based cancellation navigation stops before interaction unless separately enabled.
-- Production Desktop verification now uses a fresh read-only Playwright DOM tab and reload through a private authenticated SDK stream bridge. Only locally recognized billing facts and hashes are retained. No screenshot/model fallback, write dispatcher, new authorization or extra cancellation attempt is introduced.
-- Added `desktop:verify`, with explicit `--enable-dom` setup for an already identified dedicated Chrome profile. The real current VM refused setup safely: its running Chrome uses the default profile, not CleanBreak's `/tmp/cleanbreak-chrome`. No process was stopped or restarted, and no billing control was clicked. Current live verification is INCONCLUSIVE; full cancellation and named-profile synchronization are still not complete.
-- Trust-boundary review and exact limits: `docs/no-image-verification.md`. The private connection was exercised with a real local Chromium; live DOM layout compatibility remains unverified and is not established by local fixtures.
-- Checks: 917 tests across 36 files, typecheck, format check, production build and secret audit passed. Audit found zero configured credential values in 227 repository files and 14 client-bundle files. Tests include image-upload rejection before API calls, real local Chromium over the authenticated private bridge, no-close/shared-browser cleanup, semantic DOM field parsing, missing/conflicting evidence and no screenshot fallback.
+The authorized Miro trial run completed entry, benefits, extension rejection,
+cancellation selection, reason continuation and neutral reason input. The separate
+commit gate acknowledged **one final click**, with **one authorization use**,
+**zero destructive retries** and **zero unsafe actions**.
 
-## Fresh dashboard and continuous recording update
+Fresh Billing-page/reload observations and matching account-bound provider
+responses established cancellation scheduled, renewal OFF and no future renewal
+charge, with access through September 18, 2026. The configured charge was
+**$240 yearly**: $240 in annualized avoided renewal charges, not a refund.
 
-- Current dashboard state is server-owned and scoped to the current configuration. Eligible unclaimed navigation failures appear as collapsed history; opening the page never starts a cancellation. A fresh explicit authorization can use a replacement VM with unchanged subscription/financial terms. Active or uncertain jobs remain locked and visible; stale configuration submissions fail before dispatch.
-- The product worker opens Billing in the existing VM-only Chrome profile without a viewer. One recording handle spans navigation, the guarded final attempt and independent verification. A bounded MP4 is available through an authenticated, non-cacheable private download route; failed runs are labeled attempt recordings. Recording failure does not change the cancellation outcome or authorize a retry.
-- Billing identity checks accept only the narrow Miro Business Trial / Business Plan trial naming equivalence and one trailing URL slash; account path, origin, currency and billing interval still match. Persisted identity diagnostics are booleans, not private extracted text.
-- Local production-browser smoke passed: exactly one authorization and final click, zero retries, independent VERIFIED result and valid receipt. The stale FAILED-job smoke also passed with a fresh card and preserved predecessor. These are StreamMax results, not live Miro proof.
-- Authentication persistence is still an outstanding integration: the current Desktop contains authenticated Chrome state while its configured Solari Browser profile was empty. The installed Desktop SDK does not expose Playwright storage state. No browser directory or challenge state was uploaded, and no profile save is falsely claimed. See `docs/autonomous-recording-and-profile-state.md`.
-- No live cancellation input was dispatched in this update. Further model-based live verification is paused because environment approval rejected sending a private billing screenshot to OpenAI; explicit permission is required before continuing that external processing.
-- Validation: 896 tests across 34 files passed, plus typecheck, format check, production build, diff whitespace checks and secret audit (zero configured credential values in 221 repository files and 14 client-bundle files). Recording-route tests enforce authentication even with live mode disabled, fixed paths, bounded valid MP4 data, no-cache headers and safe failure responses.
+A receipt was persisted and its digest validated. A full 38.7-second private MP4
+was saved; a separate card-blurred sharing copy was subsequently produced. Video
+duration is not an end-to-end performance benchmark. These artifacts remain local,
+not committed to Git.
 
-## Current one-click transaction audit
+Explicit VM-local authentication migration preserved the original Chrome
+directory. A separate in-memory profile refresh populated the configured Solari
+profile at version 2 / 14,828 bytes. That records one successful save, not automatic
+bidirectional synchronization or a guarantee against future login expiry.
 
-- Primary product flow is live-capable, not the developer dry-run: initial dashboard POST persists one scoped authorization, autonomous navigation hands the final candidate to the separate revalidation/atomic-claim dispatcher, and fresh verification alone can issue a receipt. No second approval screen is used.
-- The dashboard now explicitly labels enabled Miro cancellation as one irreversible attempt with no second approval/no uncertain-click retry. Disabled mode explains that `--auto` dry-run never submits cancellation. The operator guide distinguishes the three test/live entry points.
-- Revalidated the actual local StreamMax dashboard flow with Chromium: authorization=1, final clicks=1, retries=0, verification=VERIFIED, valid receipt digest. Private receipt JSON/PNG: `.cleanbreak/one-click-smoke-13fd25ca-ea20-421f-a55b-ea74c16e7f5e/`.
-- Current checks: 670 tests across 24 files; benchmark 100/100, false VERIFIED=0, unsafe actions=0, destructive retries=0; typecheck, format, build and secret audit passed. These are local/fixture results, not a claim of real Miro cancellation.
-- Desktop lifecycle correction supersedes older pause notes below: creation, developer helpers, navigation and cancellation-worker cleanup close local handles without automatically pausing the shared VM. Server-side idle policy remains; manually pause in Solari to stop compute billing.
-- No real Miro cancellation or live-mode command was executed during this audit. Exact explicit real-cancellation setup and receipt instructions remain in `docs/one-click-product.md`.
+## Engineering validation
 
-- Current milestone: Final hardening and submission preparation.
-- Desktop validation milestone: a developer-only Desktop executor reconnects an existing manually authenticated VM, runs a bounded strict screenshot planner with deterministic policy, intercepts final cancellation controls, records private evidence, and pauses/closes without destroying the VM. Human START/NAVIGATE review remains the default; explicit `--auto` invocation opts into policy-approved reversible navigation only. Browser/StreamMax and external-profile overwrite protections remain unchanged. No live Miro run was executed during this implementation.
-- Desktop session setup: developer-only `desktop:create` explicitly selects the `office` full-GUI template, prints `Desktop template: office`, and verifies the exact returned session ID before saving its ignored local reference. `desktop:check`, manual open/typing, and validation share `SOLARI_DESKTOP_SESSION_ID` or that file, never a substituted console slot. Creation pauses rather than destroys; secret typing protections remain unchanged. No live session was created or tested during implementation.
-- Desktop browser success requires a surviving browser process and a decoded non-blank screenshot within bounded polling, not just a positive PID/healthy VM. Detected Google Chrome uses fixed `--no-sandbox --disable-dev-shm-usage --user-data-dir=/tmp/cleanbreak-chrome --new-window` flags without retries; its profile stays inside the VM. Any surviving Chrome process qualifies even when its launcher PID exits. Diagnostics save only `.cleanbreak/browser-render-test.png`; manual-auth checks remain in memory. A process and non-blank pixels are not semantic proof of a Chrome window: inspect the artifact. Session creation/persistence, secret typing, Miro logic, and validation architecture are unchanged. No live Desktop was created or launched during implementation.
-- Desktop pre-dispatch stability: original screenshot SHA-256 evidence remains intact. After human confirmation, decoded RGBA comparison allows at most 0.5% changed pixels (RGB channel difference greater than 16), with a 32-pixel padded click-target guard. Dimension/decode failures and material or target-local drift fail closed; only safe aggregate diagnostics are added to evidence. Final-action interception and no-retry behavior are unchanged. No live Miro run was executed during this patch.
-- Desktop cancellation-flow navigation: an explicit `cancel_flow_navigation` type permits only narrowly allowlisted labels with positive visible next-step context, authenticated same-origin UI, valid coordinates, configured confidence, fresh human confirmation, and target-protected visual stability. Final/destructive cues and ambiguity intercept; final candidates have no dispatcher. Safe enum flow stages are recorded without free-form screen text. Successful validation additionally requires a preceding returned cancellation-flow navigation step and zero unsafe/destructive actions. No unverified Miro-specific label was added, and no live Miro run was performed.
-- Desktop autonomous mode: no START/NAVIGATE/recording-review prompts; one-use immutable policy-ALLOW dispatch grants; exact safe keys including Tab/Shift+Tab/arrows; no Enter/Space or unapproved shortcuts; narrow neutral reason choices and reversible next-step context. Final candidates and BLOCK/INTERCEPT have no dispatch grant. Read-only planning retries at most twice with aggregate reported-token accounting; actions never retry. Each successful action has bounded 750ms-to-5s page settling plus independent pre-dispatch visual stability. Auto validation requires prior cancellation-flow navigation and an established FINAL_CONFIRMATION boundary, zero destructive/unsafe actions/retries, pause and closed control. Skills-informed trust-boundary memo classifies auto as research-only, not proven Miro reliability; OpenAI Docs review informed explicit SDK retry/logging configuration.
-- Desktop offline validation: 555 tests across 19 files pass, including 333 Desktop/session/typing/browser-launch/render/stability/reliability tests. Full typecheck, format check, production build, and secret audit pass. Screenshots and model-reported context are not independent proof of live-site semantics. Unsupported or uncertain screens still stop safely rather than fabricating a successful one-shot validation.
-- Benchmark boundary: `npm run benchmark` runs 20 named scenarios five times each through isolated in-memory databases and deterministic planner/browser adapters. No OpenAI or Solari API call is required for the 100-run core benchmark.
-- Production coverage: the harness invokes the real agent loop, deterministic action policy, SQLite repositories and state transitions, approval fingerprinting, commit arming/recovery, fresh-session verification policy/runtime, receipt builder, canonical hashing, and receipt persistence.
-- Scenario coverage: happy path, dark patterns, cancellation fee, ambiguous confirmation, already canceled, retention and discount traps, account deletion, external navigation, final-action misclassification, low confidence, invalid and stale targets, loop detection, crashes after arming and dispatch, changed terms, a post-approval fee, active negative verification, and conflicting verification evidence.
-- Reproducibility: benchmark version `1` uses seed `20260902`, deterministic scenario order, five substantive executions per scenario, deterministic run IDs, and stable alphabetic scenario aggregate keys. Wall-clock timing is explicitly labeled local/synthetic rather than production latency.
-- Measured deterministic results: 100/100 runs across 20 scenarios passed; 20 jobs were VERIFIED, 15 were NOT_VERIFIED, and 5 were INCONCLUSIVE. Mean/median/p95 agent steps were 2.9/4/4, the dark-pattern path required 8 steps per run, and mean/median/p95 local duration was 4.774/2.912/11.23 ms.
-- Hard safety gates: false VERIFIED = 0, unsafe actions executed = 0, automatic destructive retries = 0, final actions without approval = 0, retention offers accepted = 0, account deletions executed = 0, external navigations executed = 0, duplicate destructive clicks = 0, and fresh-session violations = 0.
-- Challenge metrics: benchmark pass rate = 100%; successful normal cancellation requires exactly 1 human approval; retention resistance = 20/20; verification coverage = 100%; VERIFIED receipt coverage = 100%.
-- Receipt metrics: all 20 VERIFIED benchmark jobs created receipts; generation failures = 0 and integrity failures = 0. Non-VERIFIED and INCONCLUSIVE runs created no success receipt. Aggregate fixture savings remain benchmark data, not a claim of real user savings.
-- Artifact: `artifacts/benchmark-results.json` is generated from actual executions, contains all 100 per-run records plus scenario and aggregate metrics, and is the source of truth for the generated README measured-results section.
-- Live validation remains separate: the persisted real StreamMax `dark-pattern` run used `gpt-5.6`, navigated 8 model-planned steps, rejected 2 retention offers, dispatched exactly 1 approved destructive click, made 0 automatic destructive retries, verified from a distinct fresh session, produced a receipt, and recorded false VERIFIED = 0. It is metadata only and is not counted among deterministic benchmark runs.
-- Final hardening: server-enforced `CLEANBREAK_DRY_RUN` defaults on and prevents approval persistence, Solari commit launch, and final clicks while preserving `AWAITING_APPROVAL`. A deliberately configured external provider can use the same runtime through `npm run real-provider:dry-run`; the command requires ownership/control attestation and writes a sanitized artifact only after an actual approval-boundary result.
-- Documentation and delivery: the final README now includes architecture, measured evidence, setup, honest limitations, and a persistence-safe single-instance deployment design. `DEMO_SCRIPT.md` contains the 75-second recording sequence. Docker, a health endpoint, and a Render Blueprint persist both SQLite and evidence under `/app/artifacts`.
-- Automated checks: `npm test` passes 10 files and 157 tests. `npm run benchmark` passes 100/100 runs with zero invariant failures. Typecheck, format check, production build, secret audit, benchmark-artifact PII/payment-pattern inspection, README link check, stale brand/work-marker scan, and `git diff --check` pass. Secret audit found 0 configured credential values in 131 repository files and 13 generated client-bundle files. The production Docker image builds and returns 200 for `/`, `/demo`, and `/api/health` with SQLite and evidence on a writable persistent volume.
-- External-provider incident: the first Canva dry run stopped at a Cloudflare interstitial on observation 1 with no destructive clicks or unsafe actions. It did not establish authentication. The old persistence path nevertheless replaced the authenticated profile state with interstitial state.
-- Profile protection: external dry runs now attach without write authority. Persistence requires an explicitly enabled trusted refresh flow, positive authenticated-page verification, exact origin/page checks, successful run, fresh save confirmation, and revalidation. The CLI enables no refresh flow; failed/unverified state cannot replace credentials. Safe skip reasons are stored on jobs. Fixture persistence is preserved. No Canva retry or profile recovery is performed by this change.
-- Profile-protection validation: all 206 tests across 12 files pass, including blocked-page/cleanup regressions, explicitly confirmed refresh, unchanged fixture behavior, external commit write isolation, and migration of historical v4 jobs. Typecheck, format check, production build, secret audit (137 repository files and 13 client-bundle files; zero configured credential matches), and diff whitespace checks pass. All provider/browser tests use offline doubles.
-- Real blockers: Canva remains blocked before authenticated provider UI; optional real cancellation was not explicitly authorized; public deployment still requires a persistence-capable hosting account/token or connection.
-- Next exact task: after offline verification of profile protection, manually restore the dedicated Canva profile through `profile:login`. Any external-provider retry requires separate authorization; retain dry-run mode and disable automatic profile persistence.
+Last full code validation: **936 tests across 40 files passed**, plus typecheck,
+format check, production build and secret audit. The deterministic Browser
+benchmark records **100/100 runs across 20 scenarios**, with zero false VERIFIED,
+unsafe actions or automatic destructive retries.
 
-# Miro Desktop adapter update
+Coverage includes one-shot claims, concurrent requests, uncertain delivery,
+recovery, changed terms/targets, profile protection, private CDP cleanup, Miro DOM
+navigation and two-read billing verification. These are bounded test results, not
+a production reliability percentage or evidence of a user pilot.
 
-- Narrow documented Billing cancellation entry adapter; generic policy unchanged.
-- Completed navigation history distinguishes reused labels; consequences and ambiguity stop, including in auto mode.
-- Miro validation requires prior adapter navigation and a positively established later final boundary with zero destructive/unsafe actions or retries.
-- Safe adapter/stage metadata only; existing screenshot evidence, stability checks, one-use grants and human review defaults retained.
-- Offline verification only. No live Desktop/Miro run, authentication, or cancellation performed for this change.
+## Known limits
 
-# One-click product path
+- The current adapter recognizes the observed Miro Business Trial layout; changed
+  copy, structures, plans or terms may stop it safely.
+- Provider login/MFA is manual. Browser storage-state transfer does not guarantee
+  remote authentication, and Desktop/named profiles remain separate stores.
+- Miro verification is a fresh page/control observation within the same Chrome
+  profile, not a separately authenticated browser process.
+- The Miro DOM path makes no model requests, but the shared Desktop configuration
+  validator still requires a server-side `OPENAI_API_KEY`.
+- The local StreamMax dashboard/summary data is fictional. Live receipts are the
+  authority for real billing outcomes, not aggregate demo totals.
+- A prior Canva Browser dry-run stopped at an anti-bot challenge. It did not prove
+  Canva compatibility; failed external runs now cannot overwrite authentication.
+- SQLite and local private files require persistent storage and one application
+  instance. The included deployment scaffold is not a validated public live service.
+- No measured pilot-user count, manual-follow-up reduction, operating-cost reduction
+  or average live cancellation latency has been established.
 
-- Miro extension-offer animation fix: a narrowly scoped illustration exclusion now permits policy-approved offer scrollbar navigation and explicit No thanks / Not now rejection. Two fresh observations preserve the surrounding page, full scrollbar track and padded target; global/final 0.5% checks and one-shot commit safeguards are unchanged. Original screenshot hashes and safe aggregate diagnostics remain. A current-run offer-scroll marker handles clipped headings without replaying private screen text. See `docs/miro-offer-animation.md` for the trust-boundary review and limits.
-- Offline validation of this fix: 875 tests across 33 files passed, including real local Chromium animated-offer scrolling/rejection and mocked Miro navigation to a positively established final boundary. Typecheck, format check, production build and secret audit passed. This does not establish live Miro cancellation; no live provider input was executed during implementation.
+## Maintenance
 
-- Dashboard Cancel is now the sole authorization for the new product path. A durable, immutable, 15-minute provider/subscription/session-scoped authorization precedes interaction; legacy demo approval/Browser benchmarks remain intact.
-- SQLite v6 adds resource/idempotency locks, atomic one-shot claims, leases and full versioned checkpoints. COMMIT_ARMED revalidates on recovery; COMMITTING cannot re-dispatch. Unknown click outcomes consume authority and cannot issue a success receipt.
-- Same Miro Desktop navigation adapter runs without terminal/viewer. A separate commit gate checks freshly extracted scope/material terms, visual target stability and a canonical fingerprint. Live mode requires all three explicit flags plus operator authentication.
-- Read-only Miro verification uses a separate control handle/new window, two agreeing billing observations and fresh evidence; no claim of separate browser-process identity. Receipt is created only after acknowledged single dispatch and independent VERIFIED result.
-- Local StreamMax one-click smoke uses the actual dashboard/API, existing Browser loop/policy, a real local Chromium, isolated SQLite and a separate verification browser. It passed: one authorization, one final click, zero retries, VERIFIED, valid receipt digest. No real Miro action performed.
-- Operator setup, recovery, privacy limitations and exact commands: `docs/one-click-product.md`. Miro remains offline-tested/research-only; screenshot interpretation is not independent origin/account attestation.
-- Validation: 661 tests across 24 files, existing benchmark 100/100 with zero unsafe actions/false VERIFIED/retries, real local StreamMax one-click smoke, typecheck, formatting, production build and secret audit passed. Private development state/artifacts are excluded from Docker context and sanitized standalone output/tracing.
+Start with [README](README.md). Use [operation](docs/one-click-product.md) for
+existing jobs, [authentication](docs/authentication.md) for intentional state
+refresh and [development](docs/development.md) for checks. Do not rerun a real
+cancellation merely to reproduce the demo or refresh documentation.

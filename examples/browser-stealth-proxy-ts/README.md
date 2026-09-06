@@ -1,16 +1,22 @@
-# Stealth + managed proxy (TypeScript)
+# Browser launch options and proxy — TypeScript
 
-Reach a site that blocks datacenter traffic: `stealth: true` for the fingerprint patches, `proxy: "us"` for residential egress. Prints the IP the target actually sees.
+Launches a Browser with stealth enabled and a US proxy request, then visits an
+egress-IP endpoint. It prints the observed egress IP and resolved proxy metadata
+and closes the browser/client in `finally`.
 
-`proxy` and `captcha` both require `stealth: true`.
+These options do not guarantee access to protected sites. Do not use this sample
+to bypass a challenge or provider access restriction. Keep proxy/session output
+private. Feature availability depends on the SDK and account configuration.
 
 ## Run
+
+From the repository root:
 
 ```bash
 cd examples/browser-stealth-proxy-ts
 npm install
-export SOLARI_API_KEY=slr_live_...   # https://console.getsolari.com
 npm start
 ```
 
-Source: [`index.ts`](index.ts)
+Set `SOLARI_API_KEY` in the environment first; these examples do not automatically
+load the root `.env`. See the [example setup and safety notes](../README.md).
