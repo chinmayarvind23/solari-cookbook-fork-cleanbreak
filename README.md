@@ -14,6 +14,16 @@ entire workflow without touching a real account.
 
 ## One-click product path
 
+Screenshot-model uploads are now **off by default**. The current Desktop navigation
+planner therefore cannot run without separate image-sharing opt-in; do not enable
+it for an operator who has refused screenshots. Verification no longer uses that
+planner: `npm run desktop:verify` reads locally parsed billing DOM facts through a
+private connection, with no OpenAI request or cancellation action. An authenticated,
+connectable Chrome profile is still required. The current VM was found using
+Chrome's default profile instead of CleanBreak's dedicated profile, so verification
+remains INCONCLUSIVE and the full live cancellation is not complete. See
+[screenshot-free verification and setup limitations](docs/no-image-verification.md).
+
 The primary dashboard now creates a scoped, 15-minute one-shot authorization from
 the initial Cancel button. It navigates autonomously, revalidates material terms,
 atomically claims at most one final click, independently verifies future billing,

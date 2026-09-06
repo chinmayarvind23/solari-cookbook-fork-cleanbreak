@@ -48,6 +48,7 @@ const env: NodeJS.ProcessEnv = {
   NODE_ENV: "test",
   SOLARI_API_KEY: "private-api-sentinel",
   OPENAI_API_KEY: "private-openai-sentinel",
+  CLEANBREAK_ALLOW_SCREENSHOT_MODEL_UPLOADS: "true",
   SOLARI_DESKTOP_SESSION_ID: "pool:vm:org.private-session-sentinel",
   CLEANBREAK_REAL_PROVIDER_EXECUTOR: "desktop",
   CLEANBREAK_DRY_RUN: "true",

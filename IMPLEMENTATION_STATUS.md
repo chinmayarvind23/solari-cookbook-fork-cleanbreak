@@ -1,5 +1,13 @@
 # CleanBreak Implementation Status
 
+## Screenshot-free verification update
+
+- Screenshot uploads default off, including the Desktop planner and billing extractor. The operator's refusal is honored without substituting OCR, video or private page text sent to a model. Image-based cancellation navigation stops before interaction unless separately enabled.
+- Production Desktop verification now uses a fresh read-only Playwright DOM tab and reload through a private authenticated SDK stream bridge. Only locally recognized billing facts and hashes are retained. No screenshot/model fallback, write dispatcher, new authorization or extra cancellation attempt is introduced.
+- Added `desktop:verify`, with explicit `--enable-dom` setup for an already identified dedicated Chrome profile. The real current VM refused setup safely: its running Chrome uses the default profile, not CleanBreak's `/tmp/cleanbreak-chrome`. No process was stopped or restarted, and no billing control was clicked. Current live verification is INCONCLUSIVE; full cancellation and named-profile synchronization are still not complete.
+- Trust-boundary review and exact limits: `docs/no-image-verification.md`. The private connection was exercised with a real local Chromium; live DOM layout compatibility remains unverified and is not established by local fixtures.
+- Checks: 917 tests across 36 files, typecheck, format check, production build and secret audit passed. Audit found zero configured credential values in 227 repository files and 14 client-bundle files. Tests include image-upload rejection before API calls, real local Chromium over the authenticated private bridge, no-close/shared-browser cleanup, semantic DOM field parsing, missing/conflicting evidence and no screenshot fallback.
+
 ## Fresh dashboard and continuous recording update
 
 - Current dashboard state is server-owned and scoped to the current configuration. Eligible unclaimed navigation failures appear as collapsed history; opening the page never starts a cancellation. A fresh explicit authorization can use a replacement VM with unchanged subscription/financial terms. Active or uncertain jobs remain locked and visible; stale configuration submissions fail before dispatch.

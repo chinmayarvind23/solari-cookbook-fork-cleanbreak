@@ -9,6 +9,7 @@ import { desktopEvidence } from "@/lib/desktop/evidence"
 import { screenStability } from "@/lib/desktop/screen-stability"
 import { launchDesktopBrowser } from "@/lib/desktop/browser-launch"
 import { createBillingExtractor } from "./extraction"
+import { verifyMiroDOM } from "./miro-dom-verification"
 import { liveEnabled, type ProductConfig } from "./config"
 import type { CancellationDriver } from "./service"
 import type { Observation, Job } from "./state"
@@ -31,11 +32,11 @@ export function desktopCancellationDriver(
   })
   const directory = resolve(process.cwd(), "artifacts", "cancellations", id)
   mkdirSync(directory, { recursive: true, mode: 0o700 })
-  const extract = createBillingExtractor(config)
   let vm: Desktop | undefined,
     contextId = randomUUID(),
     shot = 0
   let recordingVm: Desktop | undefined
+  let extract: ReturnType<typeof createBillingExtractor> | undefined
   const recordingPath = `/tmp/cleanbreak-full-${id}.mp4`
   let recordingStarted = false
   const finishRecording = async (): Promise<Job["recording"]> => {
@@ -90,7 +91,10 @@ export function desktopCancellationDriver(
     await vm.connect()
     if (!(await vm.health()).ready) throw new Error("DESKTOP_NOT_READY")
   }
-  const capture = async (mode: "FINAL" | "VERIFY") => {
+  const capture = async (mode: "FINAL") => {
+    if (config.env.CLEANBREAK_ALLOW_SCREENSHOT_MODEL_UPLOADS !== "true")
+      throw new CancellationFailure("SCREENSHOT_UPLOADS_DISABLED")
+    extract ??= createBillingExtractor(config)
     if (!vm) throw new Error("DESKTOP_NOT_READY")
     const image = await vm.screenshot({ format: "png" })
     const name = `${mode.toLowerCase()}-${++shot}-${randomUUID()}.png`
@@ -125,6 +129,8 @@ export function desktopCancellationDriver(
     connect,
     finishRecording,
     async navigate(progress) {
+      if (config.env.CLEANBREAK_ALLOW_SCREENSHOT_MODEL_UPLOADS !== "true")
+        throw new CancellationFailure("SCREENSHOT_UPLOADS_DISABLED")
       await connect()
       // Start from the configured Billing page using the existing VM-only Chrome
       // profile. No viewer, credential typing, extension acceptance or reset.
@@ -217,28 +223,10 @@ export function desktopCancellationDriver(
       await connect() // New SDK handle and independent extractor input.
       const verificationContext = contextId
       try {
-        // Separate new window in the authenticated VM browser profile. Not an
-        // isolated browser process: Chrome may reuse it. Provenance says so.
-        const detected = await vm!.exec("test", {
-          args: ["-x", "/usr/bin/google-chrome"],
-          timeoutMs: 5000,
+        // Independent read-only DOM page + reload. No screenshot/model fallback.
+        const second = await verifyMiroDOM(vm!, config, verificationContext, {
+          sleep,
         })
-        if (detected.exitCode !== 0)
-          throw new Error("VERIFICATION_BROWSER_UNAVAILABLE")
-        await vm!.open("/usr/bin/google-chrome", [
-          "--no-sandbox",
-          "--disable-dev-shm-usage",
-          "--user-data-dir=/tmp/cleanbreak-chrome",
-          "--new-window",
-          config.startUrl,
-        ])
-        await new Promise((done) => setTimeout(done, 1500))
-        // Only screenshots/health thereafter. No click, keyboard or planner.
-        const first = await capture("VERIFY")
-        await new Promise((done) => setTimeout(done, 1000))
-        const second = await capture("VERIFY")
-        if (JSON.stringify(first.billing) !== JSON.stringify(second.billing))
-          second.ambiguous = true
         return {
           observation: second,
           contextId: verificationContext,

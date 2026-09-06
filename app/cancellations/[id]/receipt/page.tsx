@@ -50,8 +50,9 @@ export default async function ReceiptPage({
           </p>
           <p>
             Execution and verification used distinct control contexts. Desktop
-            verification uses a new browser window within the same authenticated
-            VM profile, not a new identity.
+            verification uses a new browser page within the same authenticated
+            VM profile, not a new identity. DOM verification reloads the billing
+            page and compares structured facts without sending screenshots.
           </p>
           <p>SHA-256 digest</p>
           <code style={{ overflowWrap: "anywhere" }}>{job.receipt.digest}</code>

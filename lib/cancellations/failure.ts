@@ -9,7 +9,8 @@ export class CancellationFailure extends Error {
       | "PROVIDER_LOADING_TIMEOUT"
       | "FINAL_BOUNDARY_NOT_ESTABLISHED"
       | "FINAL_TARGET_CHANGED"
-      | "BILLING_OBSERVATION_UNAVAILABLE",
+      | "BILLING_OBSERVATION_UNAVAILABLE"
+      | "SCREENSHOT_UPLOADS_DISABLED",
   ) {
     super(code)
   }

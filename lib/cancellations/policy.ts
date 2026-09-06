@@ -115,7 +115,7 @@ export function billingVerdict(b: Billing): Verification["result"] {
   return stopped ? "VERIFIED" : active ? "NOT_VERIFIED" : "INCONCLUSIVE"
 }
 export function verificationVerdict(
-  a: Authorization,
+  a: Scope,
   observation: Observation | null,
   fresh: boolean,
 ): Verification["result"] {

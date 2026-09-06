@@ -44,6 +44,7 @@ function planning() {
   const planner = createDesktopPlanner(
     {
       apiKey: "offline",
+      allowScreenshotUploads: true,
       model: "offline",
       maxSteps: 20,
       minConfidence: 0.9,

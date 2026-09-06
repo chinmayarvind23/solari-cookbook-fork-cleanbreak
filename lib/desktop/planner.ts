@@ -37,7 +37,11 @@ export class DesktopPlanningFailure extends Error {
   readonly usage: DesktopTokenUsage
 
   constructor(
-    readonly code: "PLANNER_FAILED" | "PLANNER_REFUSED" | "TOKEN_BUDGET",
+    readonly code:
+      | "PLANNER_FAILED"
+      | "PLANNER_REFUSED"
+      | "TOKEN_BUDGET"
+      | "SCREENSHOT_UPLOADS_DISABLED",
     usage: DesktopTokenUsage = {
       inputTokens: 0,
       outputTokens: 0,
@@ -86,6 +90,8 @@ export function createDesktopPlanner(
   options: { sleep?: (ms: number) => Promise<void> } = {},
 ) {
   return async (observation: VisualObservation): Promise<DesktopPlanResult> => {
+    if (config.allowScreenshotUploads !== true)
+      throw new DesktopPlanningFailure("SCREENSHOT_UPLOADS_DISABLED")
     const request = () =>
       client.responses.parse({
         model: config.model,

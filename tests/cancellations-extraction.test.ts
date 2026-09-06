@@ -6,7 +6,11 @@ import {
 } from "@/lib/cancellations/extraction"
 import type { ProductConfig } from "@/lib/cancellations/config"
 const config: ProductConfig = {
-  env: { NODE_ENV: "test", OPENAI_API_KEY: "offline-api-sentinel" },
+  env: {
+    NODE_ENV: "test",
+    OPENAI_API_KEY: "offline-api-sentinel",
+    CLEANBREAK_ALLOW_SCREENSHOT_MODEL_UPLOADS: "true",
+  },
   startUrl: "https://miro.com/app/settings/company/test-only/billing",
   scope: {
     provider: "miro",

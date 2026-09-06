@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "desktop:verify": "node --conditions react-server --env-file=.env --import tsx scripts/desktop-verify.ts",
     "cancellation:worker": "node --conditions react-server --env-file=.env --import tsx scripts/cancellation-worker.ts",
     "test:one-click": "node --conditions react-server --import tsx scripts/one-click-smoke.ts",
     "real-provider:desktop-live": "node --conditions react-server --env-file=.env --import tsx scripts/real-provider-desktop-live.ts",

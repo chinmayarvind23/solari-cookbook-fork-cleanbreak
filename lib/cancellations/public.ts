@@ -18,6 +18,8 @@ export const progressText: Record<State, string> = {
 }
 export function publicJob(job: Job) {
   const navigationMessages: Record<string, string> = {
+    SCREENSHOT_UPLOADS_DISABLED:
+      "Screenshot uploads are disabled. Image-based navigation was not started; no screenshot was sent. Read-only DOM verification is separate from cancellation.",
     DESKTOP_NAVIGATION_NO_PROGRESS:
       "Desktop navigation stopped because page scrolling made no visible progress. The cancellation was not completed.",
     DESKTOP_NAVIGATION_TOKEN_BUDGET:

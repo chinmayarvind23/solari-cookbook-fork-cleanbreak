@@ -41,6 +41,8 @@ export type Billing = {
   accessUntil: string | null
 }
 export type Observation = {
+  evidenceKind?: "DOM"
+  evidenceHash?: string
   version: 1
   observedAt: string
   contextId: string

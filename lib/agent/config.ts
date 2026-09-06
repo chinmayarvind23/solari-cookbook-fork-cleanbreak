@@ -1,4 +1,5 @@
 export type AgentConfig = {
+  allowScreenshotUploads?: boolean
   apiKey: string
   model: string
   maxSteps: number
@@ -62,6 +63,8 @@ export function readAgentConfig(
   }
 
   return {
+    allowScreenshotUploads:
+      environment.CLEANBREAK_ALLOW_SCREENSHOT_MODEL_UPLOADS === "true",
     apiKey,
     model: environment.OPENAI_MODEL?.trim() || "gpt-5.6",
     maxSteps: boundedInteger(environment.CLEANBREAK_AGENT_MAX_STEPS, 20, 1, 30),

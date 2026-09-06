@@ -109,7 +109,7 @@ export function createBillingExtractor(
   client?: ResponsesClientLike,
 ) {
   const agent = readAgentConfig(config.env)
-  const api =
+  const getApi = () =>
     client ??
     (new OpenAI({
       apiKey: agent.apiKey,
@@ -124,6 +124,9 @@ export function createBillingExtractor(
     screenshot: string,
     mode: "FINAL" | "VERIFY",
   ): Promise<Observation> => {
+    if (agent.allowScreenshotUploads !== true)
+      throw new Error("SCREENSHOT_UPLOADS_DISABLED")
+    const api = getApi()
     const dimensions = screenshotDimensions(image)
     const observedAt = new Date().toISOString()
     for (let attempt = 0; attempt < 3; attempt++) {

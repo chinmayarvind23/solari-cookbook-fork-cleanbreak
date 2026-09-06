@@ -136,7 +136,13 @@ export async function runCancellation(
         observed.fresh &&
         observed.contextId !== job.boundary?.contextId &&
         observed.observation?.contextId === observed.contextId &&
-        observed.observation?.screenshotHash !== job.boundary?.screenshotHash &&
+        Boolean(
+          observed.observation?.evidenceHash ??
+          observed.observation?.screenshotHash,
+        ) &&
+        (observed.observation?.evidenceHash ??
+          observed.observation?.screenshotHash) !==
+          (job.boundary?.evidenceHash ?? job.boundary?.screenshotHash) &&
         (!observed.observation ||
           Date.parse(observed.observation.observedAt) >=
             Date.parse(job.updatedAt))

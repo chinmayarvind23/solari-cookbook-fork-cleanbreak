@@ -4,6 +4,7 @@ import sharp from "sharp"
 import { desktopCancellationDriver } from "@/lib/cancellations/desktop"
 import { runDesktopDryRun } from "@/lib/desktop/runtime"
 import { launchDesktopBrowser } from "@/lib/desktop/browser-launch"
+import { verifyMiroDOM } from "@/lib/cancellations/miro-dom-verification"
 import type { FinalDispatchGrant } from "@/lib/cancellations/dispatch"
 import type { ProductConfig } from "@/lib/cancellations/config"
 const shared = vi.hoisted(() => ({
@@ -13,6 +14,17 @@ const shared = vi.hoisted(() => ({
 }))
 vi.mock("@/lib/desktop/browser-launch", () => ({
   launchDesktopBrowser: vi.fn(async () => {}),
+}))
+vi.mock("@/lib/cancellations/miro-dom-verification", () => ({
+  verifyMiroDOM: vi.fn(async (_vm, _config, contextId) => ({
+    ...shared.extracted,
+    contextId,
+    surface: "BILLING_PAGE",
+    evidenceKind: "DOM",
+    evidenceHash: "dom-test-digest",
+    screenshot: "",
+    screenshotHash: "",
+  })),
 }))
 vi.mock("@solarisdk/desktop", () => ({
   DesktopClient: class {
@@ -54,6 +66,7 @@ const config: ProductConfig = {
     CLEANBREAK_DRY_RUN: "false",
     CLEANBREAK_REAL_PROVIDER_AUTHORIZED: "true",
     CLEANBREAK_ALLOW_DESTRUCTIVE_CANCEL: "true",
+    CLEANBREAK_ALLOW_SCREENSHOT_MODEL_UPLOADS: "true",
   },
   startUrl: "https://miro.com/app/settings/company/synthetic/billing",
   scope: {
@@ -137,6 +150,39 @@ async function setup() {
   })
 }
 describe("Desktop product adapter isolation", () => {
+  it("disabled image navigation stops before browser launch, recording or model input", async () => {
+    await setup()
+    const driver = desktopCancellationDriver(
+      {
+        ...config,
+        env: {
+          ...config.env,
+          CLEANBREAK_ALLOW_SCREENSHOT_MODEL_UPLOADS: "false",
+        },
+      },
+      `offline-${randomUUID()}`,
+    )
+    await expect(driver.navigate(vi.fn())).rejects.toThrow(
+      "SCREENSHOT_UPLOADS_DISABLED",
+    )
+    expect(launchDesktopBrowser).not.toHaveBeenCalled()
+    expect(shared.vm.screenshot).not.toHaveBeenCalled()
+    expect(shared.vm.record.start).not.toHaveBeenCalled()
+    expect(shared.vm.mouse.click).not.toHaveBeenCalled()
+  })
+  it("DOM verification failure never falls back to screenshots or actions", async () => {
+    const driver = await setup()
+    vi.mocked(verifyMiroDOM).mockRejectedValueOnce(
+      new Error("DOM_VERIFICATION_UNAVAILABLE"),
+    )
+    await expect(driver.verify()).rejects.toThrow(
+      "DOM_VERIFICATION_UNAVAILABLE",
+    )
+    expect(shared.vm.screenshot).not.toHaveBeenCalled()
+    expect(shared.vm.open).not.toHaveBeenCalled()
+    expect(shared.vm.mouse.click).not.toHaveBeenCalled()
+    expect(shared.vm.close).toHaveBeenCalled()
+  })
   it.each([
     ["TOKEN_BUDGET", "DESKTOP_NAVIGATION_TOKEN_BUDGET"],
     ["NAVIGATION_NO_PROGRESS", "DESKTOP_NAVIGATION_NO_PROGRESS"],
@@ -247,12 +293,15 @@ describe("Desktop product adapter isolation", () => {
     await vi.runAllTimersAsync()
     const result = await verification
     expect(result.fresh).toBe(true)
-    expect(shared.vm.open).toHaveBeenCalledWith(
-      "/usr/bin/google-chrome",
-      expect.arrayContaining(["--new-window", config.startUrl]),
+    expect(verifyMiroDOM).toHaveBeenCalledWith(
+      shared.vm,
+      config,
+      result.contextId,
+      expect.any(Object),
     )
+    expect(shared.vm.open).not.toHaveBeenCalled()
     expect(shared.vm.connect).toHaveBeenCalledTimes(2)
-    expect(shared.vm.screenshot).toHaveBeenCalledTimes(2)
+    expect(shared.vm.screenshot).not.toHaveBeenCalled()
     expect(shared.vm.mouse.click).not.toHaveBeenCalled()
     expect(shared.vm.keyboard.type).not.toHaveBeenCalled()
     expect(shared.vm.keyboard.press).not.toHaveBeenCalled()
