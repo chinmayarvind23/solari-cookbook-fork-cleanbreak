@@ -4,8 +4,19 @@ CleanBreak cancels a subscription and independently checks that future renewal
 stopped. One user authorization covers the cancellation attempt; only verified
 billing evidence produces a receipt.
 
-The application lives at the repository root. The original Solari SDK examples
-remain separate in [examples/](examples/README.md).
+**One authorization. One final attempt. Independent proof.**
+
+[![CleanBreak demo: focused excerpts of the real Miro cancellation and its verified outcome](docs/media/cleanbreak-demo.gif)](docs/media/cleanbreak-demo.mp4)
+
+[Watch the MP4](docs/media/cleanbreak-demo.mp4) ·
+[Run locally](#run-locally-no-provider-keys) ·
+[Use your Solari Desktop](#run-with-your-solari-desktop) ·
+[How it works](#how-it-works)
+
+The demo is an edited, zoomed highlight of the completed real Miro run, with
+privacy-masked dialog excerpts and an editorial outcome summary. It is not the
+unaltered proof recording. Account/payment details and the original evidence
+remain private. [Demo details](docs/media/README.md).
 
 ## What works
 
@@ -21,33 +32,54 @@ This is a single-operator research project, not a general cancellation service.
 One successful trial does not establish support for all Miro plans or providers.
 See [current evidence and limits](IMPLEMENTATION_STATUS.md).
 
-## Try it locally
+## Run locally (no provider keys)
 
-Requires Node.js 22.18+ and npm. No provider keys are needed for the isolated test:
+Install **Node.js 22.18+** and Git. Run these commands in a terminal:
 
 ```bash
+git clone https://github.com/chinmayarvind23/solari-cookbook-fork-cleanbreak.git
+cd solari-cookbook-fork-cleanbreak
 npm install
 npm run profile:install
-npm run test:one-click
-```
-
-The test starts an isolated local app/database, exercises the actual StreamMax
-dashboard button, verifies the result and checks the receipt digest.
-Expected output: `STREAMMAX_ONE_CLICK_OK`.
-
-To explore the dashboard and demo lab:
-
-```bash
 npm run dev
 ```
 
-Starting the app does not authorize a real cancellation. Remote Browser/model
-runs require separate server configuration; see [development](docs/development.md).
+Already cloned? Start in the folder containing `package.json`; skip the first
+two commands. The application is at the repo root, not inside `examples/`.
 
-## Real Miro operation
+1. Open the local address printed by Next.js (usually `http://localhost:3000`).
+2. Find **Local one-click test — no external account → StreamMax**.
+3. Click **Cancel subscription** and wait for **VERIFIED**, then open the receipt.
 
-Prepare a dedicated, manually authenticated Chrome Desktop using the
-[operator guide](docs/one-click-product.md), then run:
+This path uses local Chromium and a fictional subscription. It does not need
+`.env`, Solari credits or a real provider login. Do not choose the live Miro card
+if you only want the local demo.
+
+For an automated dashboard-to-receipt check, stop the dev server with Ctrl+C:
+
+```bash
+npm run test:one-click
+```
+
+Expected: `STREAMMAX_ONE_CLICK_OK`. This command starts/stops its own local app,
+uses an isolated database, verifies the cancellation independently and checks the
+receipt digest. It does not change a real account.
+
+## Run with your Solari Desktop
+
+This is **real cancellation**, not the local demo. You need Solari credentials,
+a dedicated Desktop and an account you are authorized to cancel.
+
+1. Create a private root `.env` using the exact configuration in the
+   [operator guide](docs/one-click-product.md#1-configure-the-server).
+   Check the account, plan and renewal terms; do not copy example prices blindly.
+2. If you have no saved Desktop, run `npm run desktop:create` **once**.
+   Reuse an existing session instead of creating another.
+3. Run `npm run desktop:check`, then `npm run desktop:open`. Chrome opens
+   inside Solari. Log in/MFA manually and leave the correct Billing page open.
+4. Run `npm run desktop:verify -- --enable-dom` once to prepare private DOM access.
+   Resolve any INCONCLUSIVE result before authorizing work.
+5. Stop any old dev server, then start the live web app:
 
 ```bash
 npm run dev:live
@@ -60,6 +92,15 @@ demo. There is no second approval. Do not submit again after an uncertain result
 
 If the subscription is already verified canceled, use its existing receipt and
 recording instead of creating another attempt.
+
+The CleanBreak UI runs locally; the cancellation browser runs in **Solari**.
+Watch it through the Solari website viewer if desired. Do not run the separate
+`real-provider:desktop-dry-run -- --auto` to test completion: it deliberately
+stops before final cancellation.
+
+When finished, pause the VM in Solari to stop compute billing.
+See the [operator troubleshooting guide](docs/one-click-product.md#troubleshooting)
+for authentication, origin and existing-job issues.
 
 ## How it works
 

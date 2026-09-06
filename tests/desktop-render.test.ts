@@ -8,12 +8,12 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   launchDesktopBrowser,
   reportBrowserLaunchFailure,
-} from "@/scripts/desktop-browser"
+} from "@/lib/desktop/browser-launch"
 import {
   validBrowserScreenshot,
   writeBrowserRenderArtifact,
   RENDER_ARTIFACT,
-} from "@/scripts/desktop-render"
+} from "@/lib/desktop/browser-render"
 import { renderImage } from "./helpers/render-image"
 
 vi.mock("node:fs", async (original) => ({

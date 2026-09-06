@@ -6,7 +6,7 @@ import {
   runDesktopBrowserDiagnose,
   runDesktopBrowserTest,
 } from "@/scripts/desktop-browser-test"
-import { BROWSER_RENDER_WAIT_MS } from "@/scripts/desktop-browser"
+import { BROWSER_RENDER_WAIT_MS } from "@/lib/desktop/browser-launch"
 import { renderImage } from "./helpers/render-image"
 
 function harness() {

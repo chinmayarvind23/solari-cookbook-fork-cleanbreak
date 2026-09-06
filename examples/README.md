@@ -16,7 +16,8 @@ command history. In PowerShell:
 $env:SOLARI_API_KEY = [Net.NetworkCredential]::new("", (Read-Host "Solari API key" -AsSecureString)).Password
 ```
 
-The samples do not automatically read the root `.env`. Do not commit credentials
+The samples read the environment directly; no per-example `.env` template is
+needed. They do not automatically read the root `.env`. Do not commit credentials
 or paste raw SDK output into issues. Dependencies are independent of the root SDK
 versions; review the source and installed API before adapting a sample.
 

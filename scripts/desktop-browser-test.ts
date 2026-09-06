@@ -7,9 +7,12 @@ import {
   diagnoseDesktopBrowsers,
   launchDesktopBrowser,
   reportBrowserLaunchFailure,
-} from "./desktop-browser"
+} from "@/lib/desktop/browser-launch"
 import { terminalSignals } from "./desktop-terminal"
-import { RENDER_ARTIFACT, writeBrowserRenderArtifact } from "./desktop-render"
+import {
+  RENDER_ARTIFACT,
+  writeBrowserRenderArtifact,
+} from "@/lib/desktop/browser-render"
 
 type Handle = Pick<
   Desktop,

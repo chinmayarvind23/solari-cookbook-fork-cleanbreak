@@ -6,7 +6,7 @@ import { readDesktopConnection } from "@/lib/desktop/config"
 import { readRealProviderUrl } from "@/lib/real-provider/config"
 import { startDesktopViewer } from "@/lib/desktop/viewer"
 import { confirmTerminal, terminalSignals } from "./desktop-terminal"
-import { launchDesktopBrowser } from "./desktop-browser"
+import { launchDesktopBrowser } from "@/lib/desktop/browser-launch"
 
 type Dependencies = {
   createClient(
